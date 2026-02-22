@@ -432,6 +432,74 @@
     .footer-col a:hover { color: var(--offwhite); }
     .footer-bottom { margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(200,162,106,.12); font-size: 12px; color: rgba(247,245,242,.3); display: flex; justify-content: space-between; align-items: center; }
 
+    /* ═══ MOTION SYSTEM ═══ */
+    #scroll-progress {
+      position: fixed; top: 0; left: 0; z-index: 1001;
+      height: 2px; width: 0%;
+      background: linear-gradient(to right, var(--wine), var(--gold), var(--wine));
+      transition: width 0.1s linear;
+      box-shadow: 0 0 8px rgba(200,162,106,0.5);
+    }
+    #cursor-follower {
+      position: fixed; pointer-events: none; z-index: 9999;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(200,162,106,0.9) 0%, rgba(200,162,106,0) 70%);
+      transform: translate(-50%, -50%);
+      transition: transform 0.08s ease;
+      mix-blend-mode: screen;
+    }
+    #cursor-ring {
+      position: fixed; pointer-events: none; z-index: 9998;
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1px solid rgba(200,162,106,0.4);
+      transform: translate(-50%, -50%);
+      transition: transform 0.18s ease, width 0.3s ease, height 0.3s ease;
+    }
+    .fade-in {
+      opacity: 0; transform: translateY(32px);
+      transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1), transform 0.75s cubic-bezier(0.22,1,0.36,1);
+    }
+    .fade-in.visible { opacity: 1; transform: none; }
+    .slide-in-left {
+      opacity: 0; transform: translateX(-40px);
+      transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1);
+    }
+    .slide-in-left.visible { opacity: 1; transform: none; }
+    .slide-in-right {
+      opacity: 0; transform: translateX(40px);
+      transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1);
+    }
+    .slide-in-right.visible { opacity: 1; transform: none; }
+    .blur-in {
+      opacity: 0; filter: blur(12px); transform: scale(0.97);
+      transition: opacity 0.9s ease, filter 0.9s ease, transform 0.9s ease;
+    }
+    .blur-in.visible { opacity: 1; filter: blur(0); transform: scale(1); }
+    .scale-up {
+      opacity: 0; transform: scale(0.92);
+      transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1);
+    }
+    .scale-up.visible { opacity: 1; transform: scale(1); }
+    .gold-line, .gold-line-left {
+      width: 0;
+      transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s;
+    }
+    .gold-line.visible, .gold-line-left.visible { width: 48px; }
+    .feature-card {
+      opacity: 0; transform: translateY(20px);
+      transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1);
+    }
+    .feature-card.visible { opacity: 1; transform: none; }
+    .use-step {
+      opacity: 0; transform: translateY(20px);
+      transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1);
+    }
+    .use-step.visible { opacity: 1; transform: none; }
+    @keyframes floatPulse {
+      0%, 100% { box-shadow: 0 8px 32px rgba(107,15,26,.45); }
+      50% { box-shadow: 0 8px 48px rgba(107,15,26,.7), 0 0 0 8px rgba(107,15,26,.1); }
+    }
+
     /* ─── RESPONSIVE ─── */
     @media (max-width: 900px) {
       nav, .header-cta { display: none; }
@@ -455,6 +523,10 @@
   </style>
 </head>
 <body>
+
+<div id="scroll-progress"></div>
+<div id="cursor-follower"></div>
+<div id="cursor-ring"></div>
 
 <!-- ─── HEADER ─── -->
 <header id="header">
@@ -904,11 +976,65 @@
 </footer>
 
 <script>
-  /* 스크롤 페이드인 */
-  const observer = new IntersectionObserver((entries) => {
+  /* 커서 팔로워 */
+  const follower = document.getElementById('cursor-follower');
+  const ring = document.getElementById('cursor-ring');
+  let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX; mouseY = e.clientY;
+    follower.style.left = mouseX + 'px'; follower.style.top = mouseY + 'px';
+  });
+  function animateRing() {
+    ringX += (mouseX - ringX) * 0.12; ringY += (mouseY - ringY) * 0.12;
+    ring.style.left = ringX + 'px'; ring.style.top = ringY + 'px';
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
+  if ('ontouchstart' in window) { follower.style.display='none'; ring.style.display='none'; }
+
+  /* 스크롤 프로그레스 */
+  const progressBar = document.getElementById('scroll-progress');
+  function updateProgress() {
+    const p = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+    progressBar.style.width = p + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+
+  /* 스크롤트리거 옵저버 */
+  const motionSelector = '.fade-in, .slide-in-left, .slide-in-right, .blur-in, .scale-up';
+  const scrollObserver = new IntersectionObserver((entries) => {
     entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-  }, { threshold: 0.12 });
-  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll(motionSelector).forEach(el => scrollObserver.observe(el));
+
+  /* 피캘 카드 스태거 */
+  const featureObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.feature-card').forEach((card, i) => {
+          setTimeout(() => card.classList.add('visible'), i * 100);
+        });
+        featureObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  const featuresEl = document.querySelector('.features-grid');
+  if (featuresEl) featureObserver.observe(featuresEl);
+
+  /* 사용 단계 스태거 */
+  const stepObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.use-step').forEach((step, i) => {
+          setTimeout(() => step.classList.add('visible'), i * 120);
+        });
+        stepObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  const stepsEl = document.querySelector('.steps-grid');
+  if (stepsEl) stepObserver.observe(stepsEl);
 
   /* FAQ 토글 */
   function toggleFaq(btn) {

@@ -782,6 +782,272 @@
     .stat-unit { font-size: 16px; }
     .stat-label { font-size: 12.5px; color: rgba(247,245,242,.65); margin-top: 4px; }
 
+    /* ═══════════════════════════════════════════
+       ADVANCED MOTION SYSTEM — REAGE Brand
+       선별 기준: 고급·절제·깊이감 / 과도한 효과 배제
+    ═══════════════════════════════════════════ */
+
+    /* ─── 1. 커서 팔로워 (골드 미세전류 파티클) ─── */
+    #cursor-follower {
+      position: fixed; pointer-events: none; z-index: 9999;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(200,162,106,0.9) 0%, rgba(200,162,106,0) 70%);
+      transform: translate(-50%, -50%);
+      transition: transform 0.08s ease, opacity 0.3s ease;
+      mix-blend-mode: screen;
+    }
+    #cursor-ring {
+      position: fixed; pointer-events: none; z-index: 9998;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      border: 1px solid rgba(200,162,106,0.4);
+      transform: translate(-50%, -50%);
+      transition: transform 0.18s ease, width 0.3s ease, height 0.3s ease, border-color 0.3s ease;
+    }
+    body:has(a:hover) #cursor-ring,
+    body:has(button:hover) #cursor-ring {
+      width: 52px; height: 52px;
+      border-color: rgba(200,162,106,0.8);
+    }
+
+    /* ─── 2. 스크롤 프로그레스 바 ─── */
+    #scroll-progress {
+      position: fixed; top: 0; left: 0; z-index: 1001;
+      height: 2px; width: 0%;
+      background: linear-gradient(to right, var(--wine), var(--gold), var(--wine));
+      transition: width 0.1s linear;
+      box-shadow: 0 0 8px rgba(200,162,106,0.5);
+    }
+
+    /* ─── 3. 스태거 등장 애니메이션 ─── */
+    /* 기본 fade-in 강화 */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1),
+                  transform 0.75s cubic-bezier(0.22,1,0.36,1);
+    }
+    .fade-in.visible { opacity: 1; transform: none; }
+
+    /* 슬라이드 인 — 왼쪽에서 */
+    .slide-in-left {
+      opacity: 0; transform: translateX(-40px);
+      transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1),
+                  transform 0.8s cubic-bezier(0.22,1,0.36,1);
+    }
+    .slide-in-left.visible { opacity: 1; transform: none; }
+
+    /* 슬라이드 인 — 오른쪽에서 */
+    .slide-in-right {
+      opacity: 0; transform: translateX(40px);
+      transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1),
+                  transform 0.8s cubic-bezier(0.22,1,0.36,1);
+    }
+    .slide-in-right.visible { opacity: 1; transform: none; }
+
+    /* 블러 인 */
+    .blur-in {
+      opacity: 0; filter: blur(12px); transform: scale(0.97);
+      transition: opacity 0.9s ease, filter 0.9s ease, transform 0.9s ease;
+    }
+    .blur-in.visible { opacity: 1; filter: blur(0); transform: scale(1); }
+
+    /* 스케일 업 */
+    .scale-up {
+      opacity: 0; transform: scale(0.92);
+      transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1),
+                  transform 0.7s cubic-bezier(0.22,1,0.36,1);
+    }
+    .scale-up.visible { opacity: 1; transform: scale(1); }
+
+    /* 스태거 자식 요소 딜레이 */
+    .stagger > *:nth-child(1) { transition-delay: 0s; }
+    .stagger > *:nth-child(2) { transition-delay: 0.1s; }
+    .stagger > *:nth-child(3) { transition-delay: 0.2s; }
+    .stagger > *:nth-child(4) { transition-delay: 0.3s; }
+    .stagger > *:nth-child(5) { transition-delay: 0.4s; }
+    .stagger > *:nth-child(6) { transition-delay: 0.5s; }
+
+    /* ─── 4. 마스크 리빌 — 골드 라인 드로잉 ─── */
+    .gold-line, .gold-line-left {
+      width: 0;
+      transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s;
+    }
+    .gold-line.visible, .gold-line-left.visible {
+      width: 48px;
+    }
+
+    /* ─── 5. 패럴랙스 래퍼 ─── */
+    .parallax-wrap { overflow: hidden; }
+    .parallax-img {
+      transform: translateY(0);
+      transition: transform 0s linear;
+      will-change: transform;
+    }
+
+    /* ─── 6. 3D 틸트 카드 ─── */
+    .tilt-card {
+      transform-style: preserve-3d;
+      transition: transform 0.15s ease, box-shadow 0.3s ease;
+      will-change: transform;
+    }
+    .tilt-card:hover {
+      box-shadow: 0 20px 60px rgba(26,20,18,0.25);
+    }
+    .tilt-card .tilt-inner {
+      transform: translateZ(8px);
+    }
+
+    /* ─── 7. 그라데이션 애니메이션 — Final CTA ─── */
+    @keyframes gradientShift {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    #final-cta {
+      background: linear-gradient(135deg,
+        var(--wine-dark) 0%,
+        var(--wine) 30%,
+        #8B1525 60%,
+        var(--wine-dark) 100%
+      );
+      background-size: 300% 300%;
+      animation: gradientShift 8s ease infinite;
+    }
+
+    /* ─── 8. 스크롤스파이 — 네비 활성화 ─── */
+    .nav-item > a.active {
+      color: var(--wine);
+      font-weight: 600;
+    }
+    .nav-item > a.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 16px; right: 16px;
+      height: 2px;
+      background: var(--wine);
+      border-radius: 1px;
+    }
+    .nav-item > a { position: relative; }
+
+    /* ─── 9. 리뷰 카드 호버 — 마이크로 인터랙션 ─── */
+    .review-card {
+      transition: transform 0.3s cubic-bezier(0.22,1,0.36,1),
+                  box-shadow 0.3s ease;
+    }
+    .review-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 16px 48px rgba(26,20,18,0.15);
+    }
+
+    /* ─── 10. 히어로 이미지 패럴랙스 오버레이 ─── */
+    .hero-image-wrap {
+      overflow: hidden;
+    }
+    .hero-image-wrap img {
+      transition: transform 0.6s ease;
+      transform: scale(1.05);
+    }
+    .hero-image-wrap:hover img {
+      transform: scale(1.0);
+    }
+
+    /* ─── 11. 비디오 섹션 패럴랙스 ─── */
+    .video-bg-image {
+      will-change: transform;
+      transform: scale(1.1) translateY(0);
+    }
+
+    /* ─── 12. 섹션 진입 시 골드 라인 애니메이션 ─── */
+    @keyframes goldLineDraw {
+      from { width: 0; }
+      to { width: 48px; }
+    }
+
+    /* ─── 13. 플로팅 CTA 펄스 ─── */
+    @keyframes floatPulse {
+      0%, 100% { box-shadow: 0 8px 32px rgba(107,15,26,.45); }
+      50% { box-shadow: 0 8px 48px rgba(107,15,26,.7), 0 0 0 8px rgba(107,15,26,.1); }
+    }
+    #floating-cta a {
+      animation: floatPulse 3s ease-in-out infinite;
+    }
+
+    /* ─── 14. 스텝 카드 순차 등장 ─── */
+    .step-card {
+      opacity: 0;
+      transform: translateY(24px) scale(0.96);
+      transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1),
+                  transform 0.6s cubic-bezier(0.22,1,0.36,1),
+                  box-shadow 0.25s ease;
+    }
+    .step-card.visible {
+      opacity: 1;
+      transform: none;
+    }
+    .step-card:nth-child(1) { transition-delay: 0s; }
+    .step-card:nth-child(2) { transition-delay: 0.12s; }
+    .step-card:nth-child(3) { transition-delay: 0.24s; }
+    .step-card:nth-child(4) { transition-delay: 0.36s; }
+
+    /* ─── 15. 시스템 카드 순차 등장 ─── */
+    .system-card {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1),
+                  transform 0.6s cubic-bezier(0.22,1,0.36,1),
+                  background 0.25s, transform 0.25s;
+    }
+    .system-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .system-card:hover {
+      background: rgba(247,245,242,.1) !important;
+      transform: translateY(-4px) !important;
+    }
+    .system-card:nth-child(1) { transition-delay: 0s; }
+    .system-card:nth-child(2) { transition-delay: 0.1s; }
+    .system-card:nth-child(3) { transition-delay: 0.2s; }
+    .system-card:nth-child(4) { transition-delay: 0.3s; }
+    .system-card:nth-child(5) { transition-delay: 0.4s; }
+    .system-card:nth-child(6) { transition-delay: 0.5s; }
+
+    /* ─── 16. 트러스트 배지 순차 등장 ─── */
+    .trust-item {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .trust-item.visible {
+      opacity: 1;
+      transform: none;
+    }
+    .trust-item:nth-child(1) { transition-delay: 0s; }
+    .trust-item:nth-child(2) { transition-delay: 0.08s; }
+    .trust-item:nth-child(3) { transition-delay: 0.16s; }
+    .trust-item:nth-child(4) { transition-delay: 0.24s; }
+    .trust-item:nth-child(5) { transition-delay: 0.32s; }
+
+    /* ─── 17. 비디오 플레이 버튼 펄스 ─── */
+    @keyframes playPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(200,162,106,0.4); }
+      50% { box-shadow: 0 0 0 16px rgba(200,162,106,0); }
+    }
+    .video-play-btn {
+      animation: playPulse 2.5s ease-in-out infinite;
+    }
+
+    /* ─── 18. 체감 타임라인 바 애니메이션 ─── */
+    .feeling-item .bar {
+      width: 0 !important;
+      transition: width 1.2s cubic-bezier(0.22,1,0.36,1) 0.4s;
+    }
+    .feeling-item.bar-animate .bar {
+      width: var(--bar-width, 60%) !important;
+    }
+
     /* ─── RESPONSIVE ─── */
     @media (max-width: 900px) {
       nav, .header-cta { display: none; }
@@ -820,6 +1086,11 @@
   </style>
 </head>
 <body>
+
+<!-- ─── MOTION UI ELEMENTS ─── -->
+<div id="scroll-progress"></div>
+<div id="cursor-follower"></div>
+<div id="cursor-ring"></div>
 
 <!-- ─── HEADER ─── -->
 <header id="header">
@@ -918,7 +1189,7 @@
 <section id="hero">
   <div class="container">
     <div class="hero-inner">
-      <div class="hero-content fade-in">
+      <div class="hero-content slide-in-left">
         <div class="hero-eyebrow">Japan Origin · 20 Years · Asia Total Distributor</div>
         <h1 class="hero-title">
           기계가 닿을 수 없는 깊이.<br/>
@@ -950,7 +1221,7 @@
           </div>
         </div>
       </div>
-      <div class="hero-image-wrap fade-in" style="transition-delay:.2s">
+      <div class="hero-image-wrap blur-in" style="transition-delay:.25s">
         <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/pStiZivjBHAkKTEt.jpg" alt="레아쥬 올핸드 미세전류 테라피 — 테라피스트의 손이 고객 등에 닿는 장면" />
         <div class="hero-image-badge">
           <div class="num" data-count="400">0</div>
@@ -960,7 +1231,7 @@
     </div>
 
     <!-- 통계 카운터 -->
-    <div class="stats-row fade-in" style="transition-delay:.4s">
+    <div class="stats-row scale-up" style="transition-delay:.4s">
       <div class="stat-item">
         <div class="stat-num"><span data-count="20">0</span><span class="stat-unit">년+</span></div>
         <div class="stat-label">일본 연구·개발 축적</div>
@@ -1013,7 +1284,7 @@
 <section id="empathy" class="section section-light">
   <div class="container">
     <div class="empathy-grid">
-      <div class="fade-in">
+      <div class="slide-in-left">
         <div class="eyebrow">Market Insight</div>
         <div class="gold-line-left"></div>
         <h2 class="section-title">미세전류 시장은 커졌습니다.<br/>하지만 '본질'은 얼마나<br/>지켜지고 있을까요?</h2>
@@ -1043,7 +1314,7 @@
         </div>
         <p class="disclaimer">본 페이지는 의료행위·치료 목적이 아닌 테라피·관리 정보입니다.</p>
       </div>
-      <div class="empathy-visual fade-in" style="transition-delay:.2s">
+      <div class="empathy-visual blur-in" style="transition-delay:.2s">
         <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/pStiZivjBHAkKTEt.jpg" alt="고급 스파 테라피 환경" />
         <div class="empathy-visual-overlay"></div>
         <div class="empathy-visual-text">
@@ -1064,7 +1335,7 @@
       <h2 class="section-title">금속 도자는 누릅니다.<br/>손은 읽고, 느끼고, 반응합니다.</h2>
       <p class="section-sub" style="margin:0 auto;">큰 근육과 작은 근육, 뭉친 곳과 이완된 곳 — 같은 강도로 접근할 수 없습니다. 테라피스트의 손은 그 차이를 실시간으로 읽고, 미세전류의 깊이와 퍼짐을 체형에 맞게 조절합니다.</p>
     </div>
-    <div class="compare-table-wrap fade-in" style="transition-delay:.2s">
+    <div class="compare-table-wrap scale-up" style="transition-delay:.2s">
       <table>
         <thead>
           <tr>
@@ -1102,7 +1373,7 @@
         </tbody>
       </table>
     </div>
-    <div class="why-points fade-in" style="transition-delay:.3s">
+    <div class="why-points stagger" style="transition-delay:.3s">
       <div class="why-point-card">
         <div class="icon">🎯</div>
         <h4>촉진(觸診)</h4>
@@ -1126,7 +1397,7 @@
 <section id="protect-hands" class="section section-wine">
   <div class="container">
     <div class="protect-grid">
-      <div class="fade-in">
+      <div class="slide-in-left">
         <div class="eyebrow" style="color:rgba(200,162,106,.9)">For Therapists</div>
         <div class="gold-line-left"></div>
         <h2 class="section-title">힘을 주지 않아도,<br/>손 안의 에너지가 일합니다.</h2>
@@ -1155,7 +1426,7 @@
           </div>
         </div>
       </div>
-      <div class="protect-visual fade-in" style="transition-delay:.2s">
+      <div class="protect-visual blur-in" style="transition-delay:.2s">
         <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/TeFTnNIKYgJuSUPE.jpg" alt="미세전류 에너지 전달 시각화" />
       </div>
     </div>
@@ -1171,7 +1442,7 @@
       <h2 class="section-title" style="color:var(--offwhite)">기기를 넘어, 살롱의 운영까지 설계합니다.</h2>
       <p class="section-sub section-sub-light" style="margin:0 auto;">레아쥬의 원천사는 일본 전국 400개 이상의 살롱을 운영 지원하며, '단순 교육이 아닌 살롱의 미래를 함께 만드는 서비스'를 20년간 고도화해 왔습니다.</p>
     </div>
-    <div class="system-grid fade-in" style="transition-delay:.2s">
+    <div class="system-grid" style="transition-delay:.2s">
       <div class="system-card">
         <div class="icon">🎓</div>
         <h4>전문 교육 · 정기 리마인드</h4>
@@ -1215,7 +1486,7 @@
       <h2 class="section-title">20년간 수천 명이 검증한 커리큘럼.<br/>배우면 누구나 전문가 수준을 구현합니다.</h2>
       <p class="section-sub" style="margin:0 auto;">경혈과 인체 구조를 반영한 정밀한 테크닉. 짧은 교육 기간 안에 체계적으로 익혀, 현장에서 바로 프리미엄 메뉴로 운영할 수 있도록 설계되어 있습니다.</p>
     </div>
-    <div class="steps fade-in" style="transition-delay:.2s">
+    <div class="steps" style="transition-delay:.2s">
       <div class="step-card">
         <div class="step-num">1</div>
         <div class="step-label">Step 1 · Basic</div>
@@ -1257,27 +1528,27 @@
       <h2 class="section-title">받는 즉시 편안하고, 다음날 더 가볍고,<br/>그 다음날까지 이어집니다.</h2>
       <p class="section-sub" style="margin:0 auto;">기존 강한 압의 관리는 당일 통증이 동반되기도 합니다. 레아쥬는 다릅니다. 받는 순간부터 깊은 편안함이 시작되고, 하루가 지날수록 몸이 더 가볍고 정돈되는 경험. <small style="color:var(--gray)">(개인차 있음)</small></p>
     </div>
-    <div class="feeling-timeline fade-in" style="transition-delay:.2s">
-      <div class="feeling-item">
+    <div class="feeling-timeline scale-up" style="transition-delay:.2s">
+      <div class="feeling-item" style="--bar-width:60%">
         <div class="day">시술 당일</div>
         <div class="state">깊은 편안함</div>
         <div class="desc">소프트 터치로 시작되는 즉각적인 이완. 통증 없이 깊은 케어.</div>
-        <div class="bar" style="width:60%"></div>
+        <div class="bar"></div>
       </div>
-      <div class="feeling-item">
+      <div class="feeling-item" style="--bar-width:80%">
         <div class="day">다음날</div>
         <div class="state">더 가벼운 몸</div>
-        <div class="desc">하루가 지나며 몸이 더 가볍고 정돈되는 경험. 컨디션 상승.</div>
-        <div class="bar" style="width:80%"></div>
+        <div class="desc">하루가 지나며 몸이 더 가벼운 정돈되는 경험. 콘디션 상승.</div>
+        <div class="bar"></div>
       </div>
-      <div class="feeling-item">
+      <div class="feeling-item" style="--bar-width:100%">
         <div class="day">2~3일 후</div>
         <div class="state">누적 효과 지속</div>
         <div class="desc">미세전류의 누적형 효과가 지속됩니다. 고객이 스스로 다음 예약을 잡는 이유.</div>
-        <div class="bar" style="width:100%"></div>
+        <div class="bar"></div>
       </div>
     </div>
-    <div class="reviews-grid fade-in" style="transition-delay:.3s">
+    <div class="reviews-grid stagger" style="transition-delay:.3s">
       <div class="review-card">
         <div class="quote-icon">"</div>
         <p>경락을 오래 받아왔는데, 처음으로 아프지 않으면서도 확실한 변화를 느꼈어요.</p>
@@ -1316,7 +1587,7 @@
 <section id="device" class="section section-alt">
   <div class="container">
     <div class="device-grid">
-      <div class="fade-in">
+      <div class="slide-in-left">
         <div class="eyebrow" style="color:rgba(200,162,106,.9)">Device Reliability</div>
         <div class="gold-line-left"></div>
         <h2 class="section-title" style="color:var(--offwhite)">원장님이 은퇴하실 때까지,<br/>같은 출력, 같은 신뢰.</h2>
@@ -1349,7 +1620,7 @@
           <a href="#final-cta" class="btn-outline-light">유지관리 안내 받기</a>
         </div>
       </div>
-      <div class="device-visual fade-in" style="transition-delay:.2s">
+      <div class="device-visual blur-in" style="transition-delay:.2s">
         <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/pStiZivjBHAkKTEt.jpg" alt="레아쥬 기기 및 테라피 장면" />
       </div>
     </div>
@@ -1360,7 +1631,7 @@
 <section id="revenue" class="section section-light">
   <div class="container">
     <div class="revenue-grid">
-      <div class="fade-in">
+      <div class="slide-in-left">
         <div class="eyebrow">Revenue Structure</div>
         <div class="gold-line-left"></div>
         <h2 class="section-title">편안한 관리가 만드는 선순환.<br/>재방문 → 패키지 → 객단가 상승.</h2>
@@ -1393,7 +1664,7 @@
           <a href="#final-cta" class="btn-outline">도입 살롱 사례 보기</a>
         </div>
       </div>
-      <div class="fade-in" style="transition-delay:.2s">
+      <div class="slide-in-right" style="transition-delay:.2s">
         <div class="simulator">
           <h3>월 추가 매출 시뮬레이터</h3>
           <div class="sim-row">
@@ -1486,16 +1757,125 @@
 </div>
 
 <script>
-  /* ─── 스크롤 페이드인 ─── */
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) { e.target.classList.add('visible'); }
-    });
-  }, { threshold: 0.12 });
-  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+  /* ═══════════════════════════════════════════
+     REAGE 고급 모션 시스템
+  ═══════════════════════════════════════════ */
 
-  /* ─── 숫자 카운트업 ─── */
-  function countUp(el, target, duration = 1600) {
+  /* 1. 커서 팔로워 */
+  const follower = document.getElementById('cursor-follower');
+  const ring = document.getElementById('cursor-ring');
+  let mouseX = 0, mouseY = 0;
+  let followerX = 0, followerY = 0;
+  let ringX = 0, ringY = 0;
+
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX; mouseY = e.clientY;
+    follower.style.left = mouseX + 'px';
+    follower.style.top = mouseY + 'px';
+  });
+
+  function animateRing() {
+    ringX += (mouseX - ringX) * 0.12;
+    ringY += (mouseY - ringY) * 0.12;
+    ring.style.left = ringX + 'px';
+    ring.style.top = ringY + 'px';
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
+
+  // 모바일에서 커서 숨김
+  if ('ontouchstart' in window) {
+    follower.style.display = 'none';
+    ring.style.display = 'none';
+  }
+
+  /* 2. 스크롤 프로그레스 바 */
+  const progressBar = document.getElementById('scroll-progress');
+  function updateProgress() {
+    const scrollTop = window.scrollY;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = (scrollTop / docHeight) * 100;
+    progressBar.style.width = progress + '%';
+  }
+
+  /* 3. 스크롤트리거 인터섹션 옵저버 */
+  const motionClasses = ['fade-in', 'slide-in-left', 'slide-in-right', 'blur-in', 'scale-up'];
+  const motionSelector = motionClasses.map(c => '.' + c).join(', ');
+
+  const scrollObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        // 스태거 자식 요소도 visible 추가
+        if (e.target.classList.contains('stagger')) {
+          e.target.querySelectorAll(':scope > *').forEach((child, i) => {
+            setTimeout(() => child.classList.add('visible'), i * 100);
+          });
+        }
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll(motionSelector).forEach(el => scrollObserver.observe(el));
+
+  /* 4. 스텍 카드 스태거 */
+  const stepObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.step-card').forEach((card, i) => {
+          setTimeout(() => card.classList.add('visible'), i * 120);
+        });
+        stepObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  const stepsEl = document.querySelector('.steps');
+  if (stepsEl) stepObserver.observe(stepsEl);
+
+  /* 5. 시스템 카드 스태거 */
+  const systemObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.system-card').forEach((card, i) => {
+          setTimeout(() => card.classList.add('visible'), i * 100);
+        });
+        systemObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  const systemGrid = document.querySelector('.system-grid');
+  if (systemGrid) systemObserver.observe(systemGrid);
+
+  /* 6. 트러스트 배지 스태거 */
+  const trustObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.trust-item').forEach((item, i) => {
+          setTimeout(() => item.classList.add('visible'), i * 80);
+        });
+        trustObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.2 });
+  const trustEl = document.querySelector('.trust-inner');
+  if (trustEl) trustObserver.observe(trustEl);
+
+  /* 7. 체감 타임라인 바 애니메이션 */
+  const barObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.feeling-item').forEach((item, i) => {
+          setTimeout(() => item.classList.add('bar-animate'), i * 200 + 400);
+        });
+        barObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  const feelingEl = document.querySelector('.feeling-timeline');
+  if (feelingEl) barObserver.observe(feelingEl);
+
+  /* 8. 숫자 카운트업 */
+  function countUp(el, target, duration = 1800) {
     let start = 0;
     const step = target / (duration / 16);
     const timer = setInterval(() => {
@@ -1515,14 +1895,75 @@
   }, { threshold: 0.5 });
   document.querySelectorAll('[data-count]').forEach(el => countObserver.observe(el));
 
-  /* ─── 플로팅 CTA 표시 ─── */
-  window.addEventListener('scroll', () => {
+  /* 9. 패럴랙스 스크롤 */
+  const videoBg = document.querySelector('.video-bg-image');
+  function updateParallax() {
+    const scrollY = window.scrollY;
+    // 비디오 섹션 패럴랙스
+    if (videoBg) {
+      const offset = scrollY * 0.25;
+      videoBg.style.transform = `scale(1.1) translateY(${offset}px)`;
+    }
+  }
+
+  /* 10. 스크롤스파이 — 네비게이션 활성화 */
+  const sections = document.querySelectorAll('section[id], div[id]');
+  const navLinks = document.querySelectorAll('nav .nav-item > a[href^="#"]');
+
+  function updateScrollspy() {
+    const scrollY = window.scrollY + 100;
+    let current = '';
+    sections.forEach(section => {
+      const top = section.offsetTop;
+      const height = section.offsetHeight;
+      if (scrollY >= top && scrollY < top + height) {
+        current = section.id;
+      }
+    });
+    navLinks.forEach(link => {
+      link.classList.remove('active');
+      const href = link.getAttribute('href');
+      if (href === '#' + current) link.classList.add('active');
+    });
+  }
+
+  /* 11. 플로팅 CTA 표시 */
+  function updateFloatingCta() {
     const floatBtn = document.getElementById('floating-cta');
     if (window.scrollY > 400) floatBtn.classList.add('visible');
     else floatBtn.classList.remove('visible');
-  });
+  }
 
-  /* ─── 매출 시뮬레이터 ─── */
+  /* 12. 3D 틸트 카드 */
+  function initTiltCards() {
+    document.querySelectorAll('.why-point-card, .hero-card, .protect-card').forEach(card => {
+      card.classList.add('tilt-card');
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const rotateX = ((y - centerY) / centerY) * -6;
+        const rotateY = ((x - centerX) / centerX) * 6;
+        card.style.transform = `perspective(600px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(4px)`;
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'perspective(600px) rotateX(0) rotateY(0) translateZ(0)';
+      });
+    });
+  }
+  initTiltCards();
+
+  /* 13. 스크롤 이벤트 통합 */
+  window.addEventListener('scroll', () => {
+    updateProgress();
+    updateParallax();
+    updateScrollspy();
+    updateFloatingCta();
+  }, { passive: true });
+
+  /* 14. 매울 시뮬레이터 */
   function calcRevenue() {
     const clients = parseFloat(document.getElementById('sim-clients').value) || 0;
     const price   = parseFloat(document.getElementById('sim-price').value) || 0;
@@ -1533,8 +1974,7 @@
   }
   calcRevenue();
 
-  /* ─── 모바일 메뉴 토글 ─── */
-  /* ─── 모바일 메뉴 토글 ─── */
+  /* 15. 모바일 메뉴 토글 */
   let mobileMenuOpen = false;
   function toggleMenu() {
     mobileMenuOpen = !mobileMenuOpen;
@@ -1552,12 +1992,10 @@
       nav.style.gap = '0';
       nav.style.borderBottom = '1px solid rgba(200,162,106,.2)';
       nav.style.zIndex = '999';
-      // 모바일에서 nav-item > a 높이 조정
       nav.querySelectorAll('.nav-item > a').forEach(a => {
         a.style.height = 'auto';
         a.style.padding = '13px 28px';
       });
-      // 드롭다운 모바일 처리
       nav.querySelectorAll('.nav-dropdown').forEach(d => {
         d.style.position = 'static';
         d.style.transform = 'none';
@@ -1577,6 +2015,41 @@
       nav.style.display = 'none';
     }
   }
+
+  /* 16. 리뷰 카드 리플 효과 */
+  document.querySelectorAll('.review-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      const ripple = document.createElement('div');
+      const rect = card.getBoundingClientRect();
+      ripple.style.cssText = `
+        position:absolute; border-radius:50%;
+        width:0; height:0;
+        background:rgba(107,15,26,0.12);
+        transform:translate(-50%,-50%);
+        animation:rippleAnim 0.6s ease-out forwards;
+        left:${e.clientX - rect.left}px;
+        top:${e.clientY - rect.top}px;
+        pointer-events:none;
+      `;
+      card.style.position = 'relative';
+      card.style.overflow = 'hidden';
+      card.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 600);
+    });
+  });
+
+  /* 17. 리플 키프레임 */
+  const rippleStyle = document.createElement('style');
+  rippleStyle.textContent = `
+    @keyframes rippleAnim {
+      to { width: 200px; height: 200px; opacity: 0; }
+    }
+  `;
+  document.head.appendChild(rippleStyle);
+
+  /* 시작시 실행 */
+  updateProgress();
+  updateScrollspy();
 </script>
 </body>
 </html>
