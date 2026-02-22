@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>매거진 — REAGE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --wine: #6B0F1A; --wine-light: #8B1525;
+      --offwhite: #F7F5F2; --charcoal: #1A1412; --gold: #C8A26A;
+      --gold-light: #D4B07A; --gray: #6B6B6B; --light-gray: #E8E6E3;
+      --radius: 14px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--offwhite); color: var(--charcoal); font-size: 16px; line-height: 1.7; overflow-x: hidden; }
+    a { text-decoration: none; color: inherit; }
+    .container { max-width: 1160px; margin: 0 auto; padding: 0 32px; }
+
+    #scroll-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--wine), var(--gold)); z-index: 9999; }
+    #cursor-follower { position: fixed; pointer-events: none; z-index: 9998; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); transform: translate(-50%, -50%); }
+    #cursor-ring { position: fixed; pointer-events: none; z-index: 9998; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(200,162,106,0.4); transform: translate(-50%, -50%); }
+
+    .fade-in { opacity: 0; transform: translateY(28px); transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1), transform 0.75s cubic-bezier(0.22,1,0.36,1); }
+    .fade-in.visible { opacity: 1; transform: none; }
+    .stagger-card { opacity: 0; transform: translateY(24px); transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1); }
+    .stagger-card.visible { opacity: 1; transform: none; }
+    .gold-line { width: 0; height: 2px; background: var(--gold); margin: 0 auto 20px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s; }
+    .gold-line.visible { width: 48px; }
+
+    /* HEADER */
+    #header { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: rgba(247,245,242,.96); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(200,162,106,.2); }
+    #header .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 72px; }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: .18em; color: var(--wine); }
+    .logo span { color: var(--gold); }
+    nav { display: flex; align-items: stretch; }
+    .nav-item { position: relative; display: flex; align-items: center; }
+    .nav-item > a { display: flex; align-items: center; gap: 4px; padding: 0 16px; font-size: 13.5px; font-weight: 500; color: var(--charcoal); height: 72px; letter-spacing: .04em; transition: color .2s; }
+    .nav-item > a:hover, .nav-item > a.active { color: var(--wine); }
+    .arrow { display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid currentColor; margin-top: 2px; }
+    .nav-dropdown { display: none; position: absolute; top: 100%; left: 0; min-width: 160px; background: #fff; border-top: 2px solid var(--wine); border-radius: 0 0 10px 10px; box-shadow: 0 8px 32px rgba(26,20,18,.12); padding: 8px 0; z-index: 100; }
+    .nav-item:hover .nav-dropdown { display: block; }
+    .nav-dropdown a { display: block; padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--charcoal); border-bottom: 1px solid rgba(200,162,106,.12); transition: background .15s, color .15s; }
+    .nav-dropdown a:last-child { border-bottom: none; }
+    .nav-dropdown a:hover { background: var(--offwhite); color: var(--wine); }
+    .header-cta { display: flex; gap: 10px; }
+    .btn-primary { display: inline-flex; align-items: center; background: var(--wine); color: #fff; padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-primary:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .btn-outline { display: inline-flex; align-items: center; background: transparent; color: var(--wine); padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--wine); cursor: pointer; transition: background .25s, color .25s, transform .2s; }
+    .btn-outline:hover { background: var(--wine); color: #fff; transform: translateY(-2px); }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 8px; }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--charcoal); border-radius: 2px; }
+    .mobile-menu { display: none; position: fixed; top: 72px; left: 0; right: 0; background: #fff; border-top: 1px solid var(--light-gray); padding: 20px 32px; z-index: 999; }
+    .mobile-menu.open { display: block; }
+    .mobile-menu a { display: block; padding: 12px 0; font-size: 15px; font-weight: 500; border-bottom: 1px solid var(--light-gray); }
+
+    /* BREADCRUMB */
+    .breadcrumb { background: var(--charcoal); padding: 12px 0; margin-top: 72px; }
+    .breadcrumb .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(247,245,242,.5); }
+    .breadcrumb a { color: rgba(247,245,242,.5); transition: color .2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb .sep { color: rgba(247,245,242,.3); }
+    .breadcrumb .current { color: var(--gold); }
+
+    /* HERO */
+    #mag-hero { background: var(--charcoal); padding: 80px 0 60px; text-align: center; position: relative; overflow: hidden; }
+    #mag-hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(107,15,26,.4) 0%, transparent 70%); }
+    .hero-inner { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; }
+    .eyebrow { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 12px; }
+    .hero-title { font-family: 'Noto Serif KR', serif; font-size: clamp(28px, 4vw, 48px); font-weight: 700; line-height: 1.25; color: var(--offwhite); margin-bottom: 20px; }
+    .hero-title em { color: var(--gold); font-style: normal; }
+    .hero-sub { font-size: 16px; color: rgba(247,245,242,.75); line-height: 1.85; }
+
+    /* CATEGORY TABS */
+    .mag-tabs { background: #fff; border-bottom: 1px solid var(--light-gray); position: sticky; top: 72px; z-index: 100; }
+    .mag-tabs-inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; gap: 0; overflow-x: auto; }
+    .mag-tab { padding: 18px 24px; font-size: 14px; font-weight: 600; color: var(--gray); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: color .2s, border-color .2s; }
+    .mag-tab:hover { color: var(--charcoal); }
+    .mag-tab.active { color: var(--wine); border-bottom-color: var(--wine); }
+
+    /* FEATURED ARTICLE */
+    #featured { padding: 80px 0 60px; background: var(--offwhite); }
+    .featured-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+    .featured-img { border-radius: 20px; overflow: hidden; aspect-ratio: 4/3; background: var(--light-gray); display: flex; align-items: center; justify-content: center; font-size: 80px; border: 1px solid var(--light-gray); }
+    .featured-tag { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--wine); font-weight: 700; margin-bottom: 12px; }
+    .featured-title { font-family: 'Noto Serif KR', serif; font-size: clamp(22px, 3vw, 32px); font-weight: 700; line-height: 1.4; margin-bottom: 16px; }
+    .featured-desc { font-size: 15px; color: var(--gray); line-height: 1.85; margin-bottom: 28px; }
+    .featured-meta { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--gray); margin-bottom: 28px; }
+    .featured-meta .date { color: var(--gold); font-weight: 600; }
+    .btn-read { display: inline-flex; align-items: center; gap: 8px; background: var(--wine); color: #fff; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-read:hover { background: var(--wine-light); transform: translateY(-2px); }
+
+    /* ARTICLE GRID */
+    #articles { padding: 80px 0; background: #fff; }
+    .section-header { text-align: center; margin-bottom: 56px; }
+    .section-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(24px, 3.5vw, 36px); font-weight: 700; color: var(--charcoal); margin-bottom: 12px; }
+    .section-header p { font-size: 15px; color: var(--gray); }
+    .articles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+    .article-card { background: var(--offwhite); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--light-gray); transition: box-shadow .3s, transform .3s; cursor: pointer; }
+    .article-card:hover { box-shadow: 0 12px 40px rgba(26,20,18,.1); transform: translateY(-4px); }
+    .article-img { aspect-ratio: 16/9; background: var(--light-gray); display: flex; align-items: center; justify-content: center; font-size: 48px; }
+    .article-body { padding: 24px; }
+    .article-category { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .1em; padding: 3px 10px; border-radius: 20px; margin-bottom: 12px; }
+    .cat-japan { background: rgba(107,15,26,.08); color: var(--wine); }
+    .cat-korea { background: rgba(200,162,106,.12); color: #8B6B2A; }
+    .cat-ai { background: rgba(26,20,18,.06); color: var(--charcoal); }
+    .cat-news { background: rgba(107,15,26,.08); color: var(--wine); }
+    .article-title { font-size: 16px; font-weight: 700; line-height: 1.45; margin-bottom: 10px; color: var(--charcoal); }
+    .article-excerpt { font-size: 13.5px; color: var(--gray); line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 16px; }
+    .article-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--gray); }
+    .article-date { color: var(--gold); font-weight: 600; }
+    .article-read { color: var(--wine); font-weight: 600; }
+
+    /* NEWSLETTER */
+    #newsletter { background: var(--wine); padding: 80px 0; text-align: center; }
+    .newsletter-inner { max-width: 560px; margin: 0 auto; }
+    .newsletter-title { font-family: 'Noto Serif KR', serif; font-size: clamp(24px, 3.5vw, 36px); font-weight: 700; color: var(--offwhite); margin-bottom: 16px; }
+    .newsletter-sub { font-size: 15px; color: rgba(247,245,242,.8); margin-bottom: 32px; line-height: 1.7; }
+    .newsletter-form { display: flex; gap: 12px; max-width: 480px; margin: 0 auto; }
+    .newsletter-input { flex: 1; padding: 14px 20px; border-radius: 8px; border: 1.5px solid rgba(247,245,242,.3); background: rgba(247,245,242,.08); color: var(--offwhite); font-size: 14px; outline: none; transition: border-color .2s; }
+    .newsletter-input::placeholder { color: rgba(247,245,242,.4); }
+    .newsletter-input:focus { border-color: var(--gold); }
+    .newsletter-btn { background: var(--gold); color: var(--charcoal); padding: 14px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; border: none; cursor: pointer; transition: background .2s; white-space: nowrap; }
+    .newsletter-btn:hover { background: var(--gold-light); }
+    .newsletter-note { font-size: 12px; color: rgba(247,245,242,.5); margin-top: 16px; }
+
+    /* FOOTER */
+    #footer { background: #0F0C0B; color: rgba(247,245,242,.6); padding: 60px 0 32px; }
+    .footer-inner { display: grid; grid-template-columns: 1fr auto; gap: 60px; margin-bottom: 40px; }
+    .footer-brand p { font-size: 13px; line-height: 1.8; }
+    .footer-links { display: flex; gap: 60px; }
+    .footer-col h5 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .footer-col a { display: block; font-size: 13px; margin-bottom: 10px; color: rgba(247,245,242,.55); transition: color .2s; }
+    .footer-col a:hover { color: var(--gold); }
+    .footer-bottom { border-top: 1px solid rgba(247,245,242,.08); padding-top: 24px; display: flex; justify-content: space-between; font-size: 12px; flex-wrap: wrap; gap: 8px; }
+
+    @media (max-width: 900px) {
+      nav, .header-cta { display: none; }
+      .hamburger { display: flex; }
+      .featured-grid { grid-template-columns: 1fr; }
+      .articles-grid { grid-template-columns: 1fr 1fr; }
+      .footer-inner { grid-template-columns: 1fr; gap: 40px; }
+      .footer-links { flex-wrap: wrap; gap: 32px; }
+    }
+    @media (max-width: 600px) {
+      .container { padding: 0 20px; }
+      .articles-grid { grid-template-columns: 1fr; }
+      .newsletter-form { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+<div id="cursor-follower"></div>
+<div id="cursor-ring"></div>
+
+<!-- HEADER -->
+<header id="header">
+  <div class="inner">
+    <a href="index.html" class="logo">RE<span>A</span>GE</a>
+    <nav>
+      <div class="nav-item">
+        <a href="brand-intro.html">브랜드 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="therapy.html">레아쥬테라피</a></div>
+      <div class="nav-item">
+        <a href="reage-device.html">제품소개 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="product-s1.html">S1크림</a>
+          <a href="product-m2.html">M2크림</a>
+          <a href="product-f3.html">F3크림</a>
+          <a href="product-new1.html">신제품1</a>
+          <a href="product-new2.html">신제품2</a>
+          <a href="product-new3.html">신제품3</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="academy.html">아카데미</a></div>
+      <div class="nav-item"><a href="review.html">후기</a></div>
+      <div class="nav-item">
+        <a href="gallery.html">갤러리 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="gallery.html">갤러리</a>
+          <a href="magazine.html" class="active">매거진</a>
+        </div>
+      </div>
+    </nav>
+    <div class="header-cta">
+      <a href="contact.html" class="btn-primary">체험 예약</a>
+      <a href="contact.html" class="btn-outline">도입 상담</a>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  </div>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="brand-intro.html">브랜드소개</a>
+  <a href="brand-story.html">브랜드스토리</a>
+  <a href="therapy.html">레아쥬테라피</a>
+  <a href="reage-device.html">레아쥬기기</a>
+  <a href="academy.html">아카데미</a>
+  <a href="review.html">후기</a>
+  <a href="gallery.html">갤러리</a>
+  <a href="magazine.html">매거진</a>
+  <a href="contact.html">체험 예약</a>
+</div>
+
+<div class="breadcrumb">
+  <div class="inner">
+    <a href="index.html">홈</a>
+    <span class="sep">›</span>
+    <a href="gallery.html">갤러리</a>
+    <span class="sep">›</span>
+    <span class="current">매거진</span>
+  </div>
+</div>
+
+<!-- HERO -->
+<section id="mag-hero">
+  <div class="container">
+    <div class="hero-inner fade-in">
+      <div class="eyebrow">REAGE MAGAZINE · 레아쥬 매거진</div>
+      <div class="gold-line"></div>
+      <h1 class="hero-title">원장님과 고객을 위한<br/><em>레아쥬 소식</em></h1>
+      <p class="hero-sub">일본 최신 소식, 한국 뷰티 트렌드, AI 기술 정보 — 레아쥬 커뮤니티를 위한 큐레이션 매거진입니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- CATEGORY TABS -->
+<div class="mag-tabs">
+  <div class="mag-tabs-inner">
+    <div class="mag-tab active" onclick="filterArticles('all', this)">전체</div>
+    <div class="mag-tab" onclick="filterArticles('japan', this)">🇯🇵 일본 소식</div>
+    <div class="mag-tab" onclick="filterArticles('korea', this)">🇰🇷 한국 소식</div>
+    <div class="mag-tab" onclick="filterArticles('ai', this)">🤖 AI·기술</div>
+    <div class="mag-tab" onclick="filterArticles('news', this)">📰 레아쥬 뉴스</div>
+  </div>
+</div>
+
+<!-- FEATURED -->
+<section id="featured">
+  <div class="container">
+    <div class="featured-grid">
+      <div class="featured-img fade-in">🇯🇵</div>
+      <div class="fade-in" style="transition-delay:.15s">
+        <div class="featured-tag">🇯🇵 JAPAN SPECIAL</div>
+        <h2 class="featured-title">일본 미용 시장 2024 트렌드 리포트 — 미세전류 테라피의 부상</h2>
+        <div class="featured-meta">
+          <span class="date">2024.12</span>
+          <span>레아쥬 편집팀</span>
+          <span>읽는 시간 5분</span>
+        </div>
+        <p class="featured-desc">일본 미용 시장에서 미세전류 테라피가 주목받고 있습니다. 2024년 일본 에스테틱 업계 조사에 따르면, 올핸드 미세전류 테라피 수요가 전년 대비 32% 증가했습니다. 레아쥬 원천 기술이 탄생한 일본에서의 최신 동향을 전합니다.</p>
+        <a href="#" class="btn-read">자세히 읽기 →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARTICLES -->
+<section id="articles">
+  <div class="container">
+    <div class="section-header fade-in">
+      <div class="eyebrow" style="color:var(--wine)">LATEST ARTICLES</div>
+      <div class="gold-line"></div>
+      <h2>최신 아티클</h2>
+      <p>레아쥬 매거진 편집팀이 엄선한 최신 정보를 전달합니다.</p>
+    </div>
+    <div class="articles-grid" id="articlesGrid">
+
+      <!-- 일본 소식 -->
+      <div class="article-card stagger-card" data-category="japan">
+        <div class="article-img">🗾</div>
+        <div class="article-body">
+          <span class="article-category cat-japan">🇯🇵 일본 소식</span>
+          <h3 class="article-title">일본 레아쥬테라피 교육 현장 — 2024 연수 보고</h3>
+          <p class="article-excerpt">2024년 일본 현지 연수에서 확인한 최신 테크닉과 프로토콜 업데이트. 일본 본사와의 기술 협력 현황을 공유합니다.</p>
+          <div class="article-meta"><span class="article-date">2024.11.15</span><span class="article-read">읽기 →</span></div>
+        </div>
+      </div>
+
+      <div class="article-card stagger-card" data-category="japan" style="transition-delay:.1s">
+        <div class="article-img">🏯</div>
+        <div class="article-body">
+          <span class="article-category cat-japan">🇯🇵 일본 소식</span>
+          <h3 class="article-title">일본 에스테틱 업계의 올핸드 테라피 확산 현황</h3>
+          <p class="article-excerpt">도쿄·오사카 중심으로 올핸드 미세전류 테라피가 급속도로 확산되고 있습니다. 현지 살롱 원장들의 생생한 인터뷰를 담았습니다.</p>
+          <div class="article-meta"><span class="article-date">2024.10.28</span><span class="article-read">읽기 →</span></div>
+        </div>
+      </div>
+
+      <!-- 한국 소식 -->
+      <div class="article-card stagger-card" data-category="korea" style="transition-delay:.2s">
+        <div class="article-img">🌸</div>
+        <div class="article-body">
+          <span class="article-category cat-korea">🇰🇷 한국 소식</span>
+          <h3 class="article-title">2024 한국 뷰티 트렌드 — 자연주의 테라피의 귀환</h3>
+          <p class="article-excerpt">기계 의존에서 벗어나 손의 감각을 회복하는 자연주의 테라피가 한국 에스테틱 시장에서 주목받고 있습니다.</p>
+          <div class="article-meta"><span class="article-date">2024.11.05</span><span class="article-read">읽기 →</span></div>
+        </div>
+      </div>
+
+      <div class="article-card stagger-card" data-category="korea" style="transition-delay:.3s">
+        <div class="article-img">💆‍♀️</div>
+        <div class="article-body">
+          <span class="article-category cat-korea">🇰🇷 한국 소식</span>
+          <h3 class="article-title">강남 에스테틱 원장들이 선택한 레아쥬 — 도입 사례 인터뷰</h3>
+          <p class="article-excerpt">레아쥬를 도입한 강남 에스테틱 원장님들의 솔직한 이야기. 도입 전후 매출 변화와 고객 반응을 공유합니다.</p>
+          <div class="article-meta"><span class="article-date">2024.10.15</span><span class="article-read">읽기 →</span></div>
+        </div>
+      </div>
+
+      <!-- AI·기술 -->
+      <div class="article-card stagger-card" data-category="ai" style="transition-delay:.4s">
+        <div class="article-img">🤖</div>
+        <div class="article-body">
+          <span class="article-category cat-ai">🤖 AI·기술</span>
+          <h3 class="article-title">AI가 분석한 미세전류 테라피의 과학적 근거</h3>
+          <p class="article-excerpt">최신 AI 기반 생체 신호 분석 연구에서 미세전류가 세포 재생에 미치는 영향이 과학적으로 입증되고 있습니다. 최신 연구 결과를 정리했습니다.</p>
+          <div class="article-meta"><span class="article-date">2024.12.01</span><span class="article-read">읽기 →</span></div>
+        </div>
+      </div>
+
+      <div class="article-card stagger-card" data-category="ai" style="transition-delay:.5s">
+        <div class="article-img">💡</div>
+        <div class="article-body">
+          <span class="article-category cat-ai">🤖 AI·기술</span>
+          <h3 class="article-title">에스테틱 원장을 위한 AI 활용 가이드 — SNS 마케팅부터 고객 관리까지</h3>
+          <p class="article-excerpt">AI 도구를 활용해 살롱 운영 효율을 높이는 실용적인 방법을 소개합니다. ChatGPT, Canva AI, 예약 자동화 툴 활용법.</p>
+          <div class="article-meta"><span class="article-date">2024.11.20</span><span class="article-read">읽기 →</span></div>
+        </div>
+      </div>
+
+      <!-- 레아쥬 뉴스 -->
+      <div class="article-card stagger-card" data-category="news" style="transition-delay:.6s">
+        <div class="article-img">📢</div>
+        <div class="article-body">
+          <span class="article-category cat-news">📰 레아쥬 뉴스</span>
+          <h3 class="article-title">레아쥬 아카데미 강남 오픈 — 매주 목요일 정기 교육 시작</h3>
+          <p class="article-excerpt">서울 강남구 학동로에 레아쥬 공식 아카데미가 오픈했습니다. 매주 목요일 11시, 인증강사 라이센스 교육이 정기 진행됩니다.</p>
+          <div class="article-meta"><span class="article-date">2024.09.01</span><span class="article-read">읽기 →</span></div>
+        </div>
+      </div>
+
+      <div class="article-card stagger-card" data-category="news" style="transition-delay:.7s">
+        <div class="article-img">🌏</div>
+        <div class="article-body">
+          <span class="article-category cat-news">📰 레아쥬 뉴스</span>
+          <h3 class="article-title">레아쥬 아시아 총판 — 한국·일본 넘어 아시아 확장 계획 발표</h3>
+          <p class="article-excerpt">(주)리플런스가 레아쥬 아시아 총판으로서 동남아시아 진출 계획을 발표했습니다. 2025년 싱가포르·대만 진출을 목표로 합니다.</p>
+          <div class="article-meta"><span class="article-date">2024.08.15</span><span class="article-read">읽기 →</span></div>
+        </div>
+      </div>
+
+      <div class="article-card stagger-card" data-category="ai" style="transition-delay:.8s">
+        <div class="article-img">⚡</div>
+        <div class="article-body">
+          <span class="article-category cat-ai">🤖 AI·기술</span>
+          <h3 class="article-title">미세전류와 피부 세포 — 최신 바이오테크 연구 동향</h3>
+          <p class="article-excerpt">미세전류가 콜라겐 합성, 세포 재생, 림프 순환에 미치는 영향에 대한 최신 연구 결과를 정리했습니다. 레아쥬 기술의 과학적 배경.</p>
+          <div class="article-meta"><span class="article-date">2024.07.30</span><span class="article-read">읽기 →</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- NEWSLETTER -->
+<section id="newsletter">
+  <div class="container">
+    <div class="newsletter-inner fade-in">
+      <div class="eyebrow" style="color:var(--gold)">NEWSLETTER</div>
+      <div class="gold-line"></div>
+      <h2 class="newsletter-title">레아쥬 매거진 구독</h2>
+      <p class="newsletter-sub">매월 일본 소식, 한국 트렌드, AI 정보를 이메일로 받아보세요.<br/>원장님과 고객 모두를 위한 큐레이션 콘텐츠입니다.</p>
+      <div class="newsletter-form">
+        <input type="email" class="newsletter-input" placeholder="이메일 주소를 입력해주세요" />
+        <button class="newsletter-btn" onclick="subscribeNewsletter()">구독하기</button>
+      </div>
+      <p class="newsletter-note">언제든지 구독 해지 가능합니다. 스팸 메일을 보내지 않습니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="logo">RE<span style="color:var(--gold)">A</span>GE</div>
+        <p>올핸드 미세전류 테라피 — 일본 원천 기술, 아시아 총판<br/>(주)리플런스 | 대표: 조예나 | 010-9679-9498</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h5>브랜드</h5>
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+          <a href="therapy.html">레아쥬테라피</a>
+        </div>
+        <div class="footer-col">
+          <h5>갤러리</h5>
+          <a href="gallery.html">갤러리</a>
+          <a href="magazine.html">매거진</a>
+        </div>
+        <div class="footer-col">
+          <h5>문의</h5>
+          <a href="contact.html">체험 예약</a>
+          <a href="contact.html">도입 상담</a>
+          <a href="contact.html">교육 문의</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2024 REAGE. All rights reserved.</span>
+      <span>본 페이지의 모든 내용은 테라피 관리 목적이며, 의료행위·치료 목적이 아닙니다.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+
+  const progressBar = document.getElementById('scroll-progress');
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    progressBar.style.width = (window.scrollY / total * 100) + '%';
+  });
+
+  const follower = document.getElementById('cursor-follower');
+  const ring = document.getElementById('cursor-ring');
+  let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
+  document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; follower.style.left = mouseX + 'px'; follower.style.top = mouseY + 'px'; });
+  function animateRing() { ringX += (mouseX - ringX) * 0.12; ringY += (mouseY - ringY) * 0.12; ring.style.left = ringX + 'px'; ring.style.top = ringY + 'px'; requestAnimationFrame(animateRing); }
+  animateRing();
+
+  const scrollObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-in').forEach(el => scrollObserver.observe(el));
+
+  const lineObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.gold-line').forEach(el => lineObserver.observe(el));
+
+  const staggerObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const parent = e.target;
+        parent.querySelectorAll('.stagger-card').forEach((card, i) => {
+          setTimeout(() => card.classList.add('visible'), i * 100);
+        });
+        staggerObserver.unobserve(parent);
+      }
+    });
+  }, { threshold: 0.05 });
+  document.querySelectorAll('#articlesGrid').forEach(el => staggerObserver.observe(el));
+
+  function filterArticles(category, tab) {
+    document.querySelectorAll('.mag-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.article-card').forEach(card => {
+      card.style.display = (category === 'all' || card.dataset.category === category) ? '' : 'none';
+    });
+  }
+
+  function subscribeNewsletter() {
+    const input = document.querySelector('.newsletter-input');
+    if (input.value && input.value.includes('@')) {
+      alert('구독 신청이 완료되었습니다. 감사합니다!');
+      input.value = '';
+    } else {
+      alert('올바른 이메일 주소를 입력해주세요.');
+    }
+  }
+
+  window.addEventListener('scroll', () => {
+    document.getElementById('header').style.boxShadow = window.scrollY > 40 ? '0 4px 24px rgba(26,20,18,.1)' : 'none';
+  });
+</script>
+</body>
+</html>

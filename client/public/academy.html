@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>아카데미 — REAGE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --wine: #6B0F1A; --wine-light: #8B1525;
+      --offwhite: #F7F5F2; --charcoal: #1A1412; --gold: #C8A26A;
+      --gold-light: #D4B07A; --gray: #6B6B6B; --light-gray: #E8E6E3;
+      --radius: 14px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--offwhite); color: var(--charcoal); font-size: 16px; line-height: 1.7; overflow-x: hidden; }
+    img { display: block; max-width: 100%; }
+    a { text-decoration: none; color: inherit; }
+    .container { max-width: 1160px; margin: 0 auto; padding: 0 32px; }
+
+    #scroll-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--wine), var(--gold)); z-index: 9999; }
+    #cursor-follower { position: fixed; pointer-events: none; z-index: 9998; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); transform: translate(-50%, -50%); }
+    #cursor-ring { position: fixed; pointer-events: none; z-index: 9998; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(200,162,106,0.4); transform: translate(-50%, -50%); }
+
+    .fade-in { opacity: 0; transform: translateY(32px); transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1), transform 0.75s cubic-bezier(0.22,1,0.36,1); }
+    .fade-in.visible { opacity: 1; transform: none; }
+    .slide-in-left { opacity: 0; transform: translateX(-40px); transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1); }
+    .slide-in-left.visible { opacity: 1; transform: none; }
+    .slide-in-right { opacity: 0; transform: translateX(40px); transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1); }
+    .slide-in-right.visible { opacity: 1; transform: none; }
+    .scale-up { opacity: 0; transform: scale(0.92); transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1); }
+    .scale-up.visible { opacity: 1; transform: scale(1); }
+    .gold-line { width: 0; height: 2px; background: var(--gold); margin: 0 auto 20px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s; }
+    .gold-line.visible { width: 48px; }
+    .stagger-card { opacity: 0; transform: translateY(24px); transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1); }
+    .stagger-card.visible { opacity: 1; transform: none; }
+
+    /* HEADER */
+    #header { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: rgba(247,245,242,.96); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(200,162,106,.2); }
+    #header .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 72px; }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: .18em; color: var(--wine); }
+    .logo span { color: var(--gold); }
+    nav { display: flex; gap: 0; align-items: stretch; }
+    .nav-item { position: relative; display: flex; align-items: center; }
+    .nav-item > a { display: flex; align-items: center; gap: 4px; padding: 0 16px; font-size: 13.5px; font-weight: 500; color: var(--charcoal); height: 72px; letter-spacing: .04em; transition: color .2s; }
+    .nav-item > a:hover, .nav-item > a.active { color: var(--wine); }
+    .arrow { display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid currentColor; margin-top: 2px; }
+    .nav-dropdown { display: none; position: absolute; top: 100%; left: 0; min-width: 160px; background: #fff; border-top: 2px solid var(--wine); border-radius: 0 0 10px 10px; box-shadow: 0 8px 32px rgba(26,20,18,.12); padding: 8px 0; z-index: 100; }
+    .nav-item:hover .nav-dropdown { display: block; }
+    .nav-dropdown a { display: block; padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--charcoal); border-bottom: 1px solid rgba(200,162,106,.12); transition: background .15s, color .15s; }
+    .nav-dropdown a:last-child { border-bottom: none; }
+    .nav-dropdown a:hover { background: var(--offwhite); color: var(--wine); }
+    .header-cta { display: flex; gap: 10px; }
+    .btn-primary { display: inline-flex; align-items: center; background: var(--wine); color: #fff; padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-primary:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .btn-outline { display: inline-flex; align-items: center; background: transparent; color: var(--wine); padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--wine); cursor: pointer; transition: background .25s, color .25s, transform .2s; }
+    .btn-outline:hover { background: var(--wine); color: #fff; transform: translateY(-2px); }
+    .btn-gold { display: inline-flex; align-items: center; gap: 8px; background: var(--gold); color: var(--charcoal); padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 700; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-gold:hover { background: var(--gold-light); transform: translateY(-2px); }
+    .btn-wine { display: inline-flex; align-items: center; gap: 8px; background: var(--wine); color: #fff; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-wine:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .btn-outline-light { display: inline-flex; align-items: center; gap: 8px; background: transparent; color: var(--offwhite); padding: 13px 30px; border-radius: 8px; font-size: 15px; font-weight: 600; border: 1.5px solid rgba(247,245,242,.5); cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-outline-light:hover { background: rgba(247,245,242,.12); transform: translateY(-2px); }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 8px; }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--charcoal); border-radius: 2px; }
+    .mobile-menu { display: none; position: fixed; top: 72px; left: 0; right: 0; background: #fff; border-top: 1px solid var(--light-gray); padding: 20px 32px; z-index: 999; box-shadow: 0 8px 32px rgba(26,20,18,.1); }
+    .mobile-menu.open { display: block; }
+    .mobile-menu a { display: block; padding: 12px 0; font-size: 15px; font-weight: 500; border-bottom: 1px solid var(--light-gray); color: var(--charcoal); }
+
+    /* BREADCRUMB */
+    .breadcrumb { background: var(--charcoal); padding: 12px 0; margin-top: 72px; }
+    .breadcrumb .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(247,245,242,.5); }
+    .breadcrumb a { color: rgba(247,245,242,.5); transition: color .2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb .sep { color: rgba(247,245,242,.3); }
+    .breadcrumb .current { color: var(--gold); }
+
+    /* HERO */
+    #academy-hero { background: var(--charcoal); padding: 100px 0 80px; position: relative; overflow: hidden; }
+    #academy-hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 60% at 60% 50%, rgba(107,15,26,.4) 0%, transparent 65%); }
+    .academy-hero-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; position: relative; z-index: 1; }
+    .hero-tag { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 16px; }
+    .hero-title { font-family: 'Noto Serif KR', serif; font-size: clamp(30px, 4.5vw, 50px); font-weight: 700; line-height: 1.25; color: var(--offwhite); margin-bottom: 24px; }
+    .hero-title em { color: var(--gold); font-style: normal; }
+    .hero-sub { font-size: 16px; color: rgba(247,245,242,.75); line-height: 1.85; margin-bottom: 40px; }
+    .hero-btns { display: flex; gap: 16px; flex-wrap: wrap; }
+    .hero-visual { border-radius: 20px; overflow: hidden; aspect-ratio: 4/3; background: rgba(200,162,106,.08); border: 1px solid rgba(200,162,106,.2); display: flex; align-items: center; justify-content: center; }
+    .visual-placeholder { text-align: center; color: rgba(247,245,242,.4); }
+    .visual-placeholder .icon { font-size: 48px; margin-bottom: 12px; }
+    .visual-placeholder p { font-size: 13px; letter-spacing: .08em; }
+
+    /* COURSE CARDS */
+    #courses { padding: 100px 0; background: #fff; }
+    .courses-header { text-align: center; margin-bottom: 64px; }
+    .courses-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(26px, 3.5vw, 40px); font-weight: 700; color: var(--charcoal); margin-bottom: 16px; }
+    .courses-header p { font-size: 16px; color: var(--gray); }
+    .eyebrow { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 12px; }
+
+    .course-card { background: var(--offwhite); border-radius: 20px; overflow: hidden; margin-bottom: 48px; display: grid; grid-template-columns: 1fr 1fr; min-height: 480px; border: 1px solid var(--light-gray); transition: box-shadow .3s; }
+    .course-card:hover { box-shadow: 0 16px 56px rgba(26,20,18,.12); }
+    .course-card.featured { background: var(--charcoal); border-color: rgba(200,162,106,.2); }
+    .course-card-content { padding: 60px 56px; display: flex; flex-direction: column; justify-content: center; }
+    .course-num { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .course-badge { display: inline-block; background: var(--wine); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .08em; padding: 4px 12px; border-radius: 20px; margin-bottom: 16px; }
+    .course-badge.gold { background: var(--gold); color: var(--charcoal); }
+    .course-title { font-family: 'Noto Serif KR', serif; font-size: clamp(22px, 2.8vw, 30px); font-weight: 700; line-height: 1.35; margin-bottom: 20px; }
+    .course-title.light { color: var(--offwhite); }
+    .course-title em { color: var(--gold); font-style: normal; }
+    .course-desc { font-size: 15px; line-height: 1.85; color: var(--gray); margin-bottom: 32px; }
+    .course-desc.light { color: rgba(247,245,242,.75); }
+    .course-meta { display: flex; flex-direction: column; gap: 10px; margin-bottom: 32px; }
+    .meta-row { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; }
+    .meta-icon { width: 20px; height: 20px; flex-shrink: 0; margin-top: 2px; }
+    .meta-label { font-weight: 600; color: var(--charcoal); min-width: 64px; }
+    .meta-label.light { color: var(--gold); }
+    .meta-value { color: var(--gray); }
+    .meta-value.light { color: rgba(247,245,242,.8); }
+    .course-visual { background: rgba(200,162,106,.08); display: flex; align-items: center; justify-content: center; border-left: 1px solid rgba(200,162,106,.15); }
+    .course-visual.dark { background: rgba(200,162,106,.05); border-left-color: rgba(200,162,106,.1); }
+    .course-visual-inner { text-align: center; padding: 40px; }
+    .course-visual-icon { font-size: 64px; margin-bottom: 16px; }
+    .course-visual-label { font-size: 13px; letter-spacing: .08em; color: var(--gray); }
+    .course-visual-label.light { color: rgba(247,245,242,.4); }
+
+    /* CURRICULUM TABLE */
+    .curriculum-table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+    .curriculum-table th { padding: 12px 16px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-align: left; background: rgba(200,162,106,.08); color: var(--gold); border-bottom: 1px solid rgba(200,162,106,.2); }
+    .curriculum-table td { padding: 12px 16px; font-size: 13.5px; border-bottom: 1px solid rgba(247,245,242,.08); color: rgba(247,245,242,.8); }
+    .curriculum-table tr:last-child td { border-bottom: none; }
+    .curriculum-table.light th { background: rgba(107,15,26,.06); color: var(--wine); border-bottom-color: rgba(107,15,26,.12); }
+    .curriculum-table.light td { border-bottom-color: var(--light-gray); color: var(--charcoal); }
+    .curriculum-table.light tr:hover td { background: rgba(107,15,26,.03); }
+
+    /* LOCATION */
+    #location { background: var(--charcoal); padding: 100px 0; }
+    .location-header { text-align: center; margin-bottom: 64px; }
+    .location-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(26px, 3.5vw, 40px); font-weight: 700; color: var(--offwhite); margin-bottom: 16px; }
+    .location-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    .location-card { background: rgba(247,245,242,.04); border: 1px solid rgba(200,162,106,.15); border-radius: var(--radius); padding: 40px; }
+    .location-card-title { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .location-card h3 { font-size: 20px; font-weight: 700; color: var(--offwhite); margin-bottom: 24px; }
+    .location-info-row { display: flex; gap: 12px; margin-bottom: 16px; align-items: flex-start; }
+    .location-info-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+    .location-info-text { font-size: 14.5px; color: rgba(247,245,242,.8); line-height: 1.6; }
+    .location-info-text strong { color: var(--gold); display: block; font-size: 13px; letter-spacing: .06em; margin-bottom: 4px; }
+    .map-placeholder { margin-top: 24px; background: rgba(247,245,242,.06); border-radius: 10px; height: 200px; display: flex; align-items: center; justify-content: center; border: 1px dashed rgba(200,162,106,.2); }
+    .map-placeholder p { font-size: 13px; color: rgba(247,245,242,.3); }
+
+    /* FAQ */
+    #faq { background: var(--offwhite); padding: 100px 0; }
+    .faq-header { text-align: center; margin-bottom: 64px; }
+    .faq-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(26px, 3.5vw, 40px); font-weight: 700; color: var(--charcoal); margin-bottom: 16px; }
+    .faq-list { max-width: 800px; margin: 0 auto; }
+    .faq-item { border-bottom: 1px solid var(--light-gray); }
+    .faq-q { display: flex; justify-content: space-between; align-items: center; padding: 24px 0; cursor: pointer; font-size: 16px; font-weight: 600; color: var(--charcoal); gap: 16px; }
+    .faq-q:hover { color: var(--wine); }
+    .faq-icon { width: 24px; height: 24px; border-radius: 50%; background: var(--wine); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; transition: transform .3s; }
+    .faq-item.open .faq-icon { transform: rotate(45deg); }
+    .faq-a { display: none; padding: 0 0 24px; font-size: 15px; color: var(--gray); line-height: 1.8; }
+    .faq-item.open .faq-a { display: block; }
+
+    /* CTA */
+    #academy-cta { background: var(--wine); padding: 100px 0; text-align: center; }
+    .cta-inner { max-width: 640px; margin: 0 auto; }
+    .cta-title { font-family: 'Noto Serif KR', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 700; color: var(--offwhite); line-height: 1.35; margin-bottom: 20px; }
+    .cta-sub { font-size: 16px; color: rgba(247,245,242,.8); line-height: 1.8; margin-bottom: 40px; }
+    .cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .cta-contact { margin-top: 32px; font-size: 18px; font-weight: 700; color: var(--gold); }
+    .cta-contact a { color: var(--gold); }
+
+    /* FOOTER */
+    #footer { background: #0F0C0B; color: rgba(247,245,242,.6); padding: 60px 0 32px; }
+    .footer-inner { display: grid; grid-template-columns: 1fr auto; gap: 60px; margin-bottom: 40px; }
+    .footer-brand .logo { margin-bottom: 16px; }
+    .footer-brand p { font-size: 13px; line-height: 1.8; }
+    .footer-links { display: flex; gap: 60px; }
+    .footer-col h5 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .footer-col a { display: block; font-size: 13px; margin-bottom: 10px; color: rgba(247,245,242,.55); transition: color .2s; }
+    .footer-col a:hover { color: var(--gold); }
+    .footer-bottom { border-top: 1px solid rgba(247,245,242,.08); padding-top: 24px; display: flex; justify-content: space-between; font-size: 12px; flex-wrap: wrap; gap: 8px; }
+
+    @media (max-width: 900px) {
+      nav, .header-cta { display: none; }
+      .hamburger { display: flex; }
+      .academy-hero-inner { grid-template-columns: 1fr; gap: 40px; }
+      .course-card { grid-template-columns: 1fr; }
+      .course-visual { min-height: 200px; border-left: none; border-top: 1px solid rgba(200,162,106,.15); }
+      .location-grid { grid-template-columns: 1fr; }
+      .footer-inner { grid-template-columns: 1fr; gap: 40px; }
+      .footer-links { flex-wrap: wrap; gap: 32px; }
+    }
+    @media (max-width: 600px) {
+      .container { padding: 0 20px; }
+      .course-card-content { padding: 40px 28px; }
+      .cta-btns { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+<div id="cursor-follower"></div>
+<div id="cursor-ring"></div>
+
+<!-- HEADER -->
+<header id="header">
+  <div class="inner">
+    <a href="index.html" class="logo">RE<span>A</span>GE</a>
+    <nav>
+      <div class="nav-item">
+        <a href="brand-intro.html">브랜드 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="therapy.html">레아쥬테라피</a></div>
+      <div class="nav-item">
+        <a href="reage-device.html">제품소개 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="product-s1.html">S1크림</a>
+          <a href="product-m2.html">M2크림</a>
+          <a href="product-f3.html">F3크림</a>
+          <a href="product-new1.html">신제품1</a>
+          <a href="product-new2.html">신제품2</a>
+          <a href="product-new3.html">신제품3</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="academy.html" class="active">아카데미</a></div>
+      <div class="nav-item"><a href="review.html">후기</a></div>
+      <div class="nav-item">
+        <a href="gallery.html">갤러리 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="gallery.html">갤러리</a>
+          <a href="magazine.html">매거진</a>
+        </div>
+      </div>
+    </nav>
+    <div class="header-cta">
+      <a href="contact.html" class="btn-primary">체험 예약</a>
+      <a href="contact.html" class="btn-outline">도입 상담</a>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  </div>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="brand-intro.html">브랜드소개</a>
+  <a href="brand-story.html">브랜드스토리</a>
+  <a href="therapy.html">레아쥬테라피</a>
+  <a href="reage-device.html">레아쥬기기</a>
+  <a href="academy.html">아카데미</a>
+  <a href="review.html">후기</a>
+  <a href="gallery.html">갤러리</a>
+  <a href="magazine.html">매거진</a>
+  <a href="contact.html">체험 예약</a>
+</div>
+
+<div class="breadcrumb">
+  <div class="inner">
+    <a href="index.html">홈</a>
+    <span class="sep">›</span>
+    <span class="current">아카데미</span>
+  </div>
+</div>
+
+<!-- HERO -->
+<section id="academy-hero">
+  <div class="container">
+    <div class="academy-hero-inner">
+      <div class="fade-in">
+        <div class="hero-tag">REAGE Academy · 레아쥬 공식 교육기관</div>
+        <h1 class="hero-title">
+          누가 해도 같은 품질.<br/><em>레아쥬 인증 시스템.</em>
+        </h1>
+        <p class="hero-sub">
+          감에 의존하지 않습니다. 초보자도 2주면 고객이 만족하는 수준을 구현하는 — 레아쥬 공식 커리큘럼으로 배웁니다.
+        </p>
+        <div class="hero-btns">
+          <a href="#courses" class="btn-gold">교육 과정 보기</a>
+          <a href="contact.html" class="btn-outline-light">교육 문의하기</a>
+        </div>
+      </div>
+      <div class="hero-visual fade-in" style="transition-delay:.2s">
+        <div class="visual-placeholder">
+          <div class="icon">🎓</div>
+          <p>아카데미 교육 현장 이미지</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COURSES -->
+<section id="courses">
+  <div class="container">
+    <div class="courses-header fade-in">
+      <div class="eyebrow">EDUCATION PROGRAMS</div>
+      <div class="gold-line"></div>
+      <h2>3가지 교육 과정</h2>
+      <p>레아쥬 공식 아카데미에서 운영하는 정규 교육 과정입니다.</p>
+    </div>
+
+    <!-- 과정 1 -->
+    <div class="course-card slide-in-left">
+      <div class="course-card-content">
+        <div class="course-num">COURSE 01</div>
+        <span class="course-badge">정규 라이센스</span>
+        <h2 class="course-title">레아쥬 인증강사<br/>라이센스 교육</h2>
+        <p class="course-desc">매주 목요일 정기 개강. 레아쥬 올핸드 미세전류 테라피의 기초부터 실전까지 — 일본 원천 커리큘럼을 기반으로 한 공식 인증 과정입니다.</p>
+        <div class="course-meta">
+          <div class="meta-row">
+            <span class="meta-icon">📅</span>
+            <span class="meta-label">일정</span>
+            <span class="meta-value">매주 목요일 11:00 – 15:00 (4시간)</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📍</span>
+            <span class="meta-label">장소</span>
+            <span class="meta-value">서울 강남구 학동로20길 19-3, 3층 (레아쥬 아카데미)</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📞</span>
+            <span class="meta-label">문의</span>
+            <span class="meta-value">010-9679-9498</span>
+          </div>
+        </div>
+        <a href="contact.html" class="btn-wine">교육 신청하기</a>
+      </div>
+      <div class="course-visual">
+        <div class="course-visual-inner">
+          <div class="course-visual-icon">🤲</div>
+          <div class="course-visual-label">인증강사 교육 이미지</div>
+          <table class="curriculum-table light" style="margin-top:24px; text-align:left;">
+            <thead><tr><th>구분</th><th>내용</th></tr></thead>
+            <tbody>
+              <tr><td>1부</td><td>미세전류 이론 · 기기 구조 이해</td></tr>
+              <tr><td>2부</td><td>올핸드 기본 테크닉 실습</td></tr>
+              <tr><td>3부</td><td>부위별 심화 테크닉 실습</td></tr>
+              <tr><td>4부</td><td>실전 시술 · Q&A · 인증 평가</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 과정 2 -->
+    <div class="course-card featured slide-in-right" style="transition-delay:.1s">
+      <div class="course-card-content">
+        <div class="course-num" style="color:var(--gold)">COURSE 02</div>
+        <span class="course-badge gold">메디컬 전문</span>
+        <h2 class="course-title light">레아쥬 메디컬<br/><em>라이센스 교육</em></h2>
+        <p class="course-desc light">병원·클리닉·의료 에스테틱 현장을 위한 전문 과정. 의료 현장에서 요구되는 심화 프로토콜과 임상 적용 방법을 집중적으로 학습합니다.</p>
+        <div class="course-meta">
+          <div class="meta-row">
+            <span class="meta-icon">🏥</span>
+            <span class="meta-label light">대상</span>
+            <span class="meta-value light">의료 에스테틱 종사자, 클리닉 원장·직원</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📍</span>
+            <span class="meta-label light">장소</span>
+            <span class="meta-value light">서울 강남구 학동로20길 19-3, 3층</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📞</span>
+            <span class="meta-label light">문의</span>
+            <span class="meta-value light">010-9679-9498</span>
+          </div>
+        </div>
+        <a href="contact.html" class="btn-gold">교육 문의하기</a>
+      </div>
+      <div class="course-visual dark">
+        <div class="course-visual-inner">
+          <div class="course-visual-icon">⚕️</div>
+          <div class="course-visual-label light">메디컬 교육 이미지</div>
+          <table class="curriculum-table" style="margin-top:24px; text-align:left;">
+            <thead><tr><th>구분</th><th>내용</th></tr></thead>
+            <tbody>
+              <tr><td>심화 이론</td><td>의료 현장 적용 미세전류 원리</td></tr>
+              <tr><td>임상 프로토콜</td><td>증상별 맞춤 테크닉</td></tr>
+              <tr><td>케이스 스터디</td><td>실제 임상 사례 분석</td></tr>
+              <tr><td>인증 평가</td><td>메디컬 라이센스 취득</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 과정 3 -->
+    <div class="course-card slide-in-left" style="transition-delay:.2s">
+      <div class="course-card-content">
+        <div class="course-num">COURSE 03</div>
+        <span class="course-badge">창업 전문</span>
+        <h2 class="course-title">창업 현장 학습 교육<br/><em>(창업 예정자 별도 교육)</em></h2>
+        <p class="course-desc">창업을 준비하는 분들을 위한 맞춤 교육. 기술 습득을 넘어 — 매장 운영, 고객 관리, 메뉴 구성, 수익 구조까지 실제 창업 현장에서 배웁니다.</p>
+        <div class="course-meta">
+          <div class="meta-row">
+            <span class="meta-icon">🏪</span>
+            <span class="meta-label">대상</span>
+            <span class="meta-value">창업 예정자, 신규 도입 원장님</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📍</span>
+            <span class="meta-label">장소</span>
+            <span class="meta-value">서울 강남구 학동로20길 19, 1층 (현장 학습 교육장)</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-icon">📞</span>
+            <span class="meta-label">문의</span>
+            <span class="meta-value">010-9679-9498</span>
+          </div>
+        </div>
+        <a href="contact.html" class="btn-wine">창업 상담 신청</a>
+      </div>
+      <div class="course-visual">
+        <div class="course-visual-inner">
+          <div class="course-visual-icon">🏪</div>
+          <div class="course-visual-label">창업 현장 학습 이미지</div>
+          <table class="curriculum-table light" style="margin-top:24px; text-align:left;">
+            <thead><tr><th>구분</th><th>내용</th></tr></thead>
+            <tbody>
+              <tr><td>현장 실습</td><td>실제 운영 매장에서 시술 실습</td></tr>
+              <tr><td>운영 교육</td><td>메뉴 구성 · 가격 설정 · 고객 관리</td></tr>
+              <tr><td>마케팅</td><td>SNS · 예약 시스템 · 홍보 전략</td></tr>
+              <tr><td>수익 구조</td><td>도입 후 손익 분석 · 성장 로드맵</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LOCATION -->
+<section id="location">
+  <div class="container">
+    <div class="location-header fade-in">
+      <div class="eyebrow">LOCATION</div>
+      <div class="gold-line"></div>
+      <h2>교육 장소 안내</h2>
+    </div>
+    <div class="location-grid">
+      <div class="location-card stagger-card">
+        <div class="location-card-title">ACADEMY</div>
+        <h3>레아쥬 아카데미</h3>
+        <div class="location-info-row">
+          <span class="location-info-icon">📍</span>
+          <div class="location-info-text">
+            <strong>주소</strong>
+            서울 강남구 학동로20길 19-3, 3층
+          </div>
+        </div>
+        <div class="location-info-row">
+          <span class="location-info-icon">📞</span>
+          <div class="location-info-text">
+            <strong>문의</strong>
+            <a href="tel:01096799498" style="color:var(--gold)">010-9679-9498</a>
+          </div>
+        </div>
+        <div class="location-info-row">
+          <span class="location-info-icon">🕐</span>
+          <div class="location-info-text">
+            <strong>운영 시간</strong>
+            평일 10:00 – 18:00 (교육 시간 별도)
+          </div>
+        </div>
+        <div class="location-info-row">
+          <span class="location-info-icon">🚇</span>
+          <div class="location-info-text">
+            <strong>교통</strong>
+            7호선 학동역 · 강남구청역 도보 이용 가능
+          </div>
+        </div>
+        <div class="map-placeholder"><p>지도 이미지 / 지도 위젯 삽입 예정</p></div>
+      </div>
+      <div class="location-card stagger-card" style="transition-delay:.1s">
+        <div class="location-card-title">FIELD TRAINING CENTER</div>
+        <h3>현장 학습 교육장</h3>
+        <div class="location-info-row">
+          <span class="location-info-icon">📍</span>
+          <div class="location-info-text">
+            <strong>주소</strong>
+            서울 강남구 학동로20길 19, 1층
+          </div>
+        </div>
+        <div class="location-info-row">
+          <span class="location-info-icon">📞</span>
+          <div class="location-info-text">
+            <strong>문의</strong>
+            <a href="tel:01096799498" style="color:var(--gold)">010-9679-9498</a>
+          </div>
+        </div>
+        <div class="location-info-row">
+          <span class="location-info-icon">🏪</span>
+          <div class="location-info-text">
+            <strong>특징</strong>
+            실제 운영 중인 레아쥬 살롱에서 현장 실습 진행
+          </div>
+        </div>
+        <div class="location-info-row">
+          <span class="location-info-icon">👥</span>
+          <div class="location-info-text">
+            <strong>대상</strong>
+            창업 예정자 · 신규 도입 원장님 전용
+          </div>
+        </div>
+        <div class="map-placeholder"><p>지도 이미지 / 지도 위젯 삽입 예정</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="container">
+    <div class="faq-header fade-in">
+      <div class="eyebrow" style="color:var(--wine)">FAQ</div>
+      <div class="gold-line"></div>
+      <h2>자주 묻는 질문</h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>에스테틱 경력이 없어도 교육을 받을 수 있나요?</span>
+          <div class="faq-icon">+</div>
+        </div>
+        <div class="faq-a">네, 가능합니다. 레아쥬 커리큘럼은 초보자도 체계적으로 배울 수 있도록 설계되어 있습니다. 기초 이론부터 실습까지 단계별로 진행되며, 경력에 관계없이 수강 가능합니다.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>교육 수료 후 바로 영업을 시작할 수 있나요?</span>
+          <div class="faq-icon">+</div>
+        </div>
+        <div class="faq-a">인증강사 라이센스 취득 후 즉시 시술 가능합니다. 도입 시 기기 설치, 운영 매뉴얼, 홍보 자료 등을 함께 지원하여 빠른 오픈을 도와드립니다.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>교육 일정을 개인적으로 조율할 수 있나요?</span>
+          <div class="faq-icon">+</div>
+        </div>
+        <div class="faq-a">정규 교육은 매주 목요일 11:00~15:00에 진행됩니다. 창업 현장 학습 교육 및 메디컬 라이센스 교육은 별도 일정 협의가 가능합니다. 010-9679-9498로 문의해 주세요.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>교육비는 어떻게 되나요?</span>
+          <div class="faq-icon">+</div>
+        </div>
+        <div class="faq-a">교육 과정별 비용은 상담을 통해 안내드립니다. 기기 도입 패키지와 연계된 교육 지원 혜택도 있으니, 010-9679-9498로 문의해 주시면 자세히 안내드립니다.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>교육 후 지속적인 지원이 있나요?</span>
+          <div class="faq-icon">+</div>
+        </div>
+        <div class="faq-a">도입 이후에도 정기 연습회, 신규 테크닉 업데이트 교육, 운영 상담, 홍보 자료 지원 등 지속적인 사후 관리를 제공합니다. 레아쥬는 기기 판매가 아닌 시스템 파트너십을 지향합니다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="academy-cta">
+  <div class="container">
+    <div class="cta-inner fade-in">
+      <div class="eyebrow" style="color:var(--gold)">START YOUR JOURNEY</div>
+      <div class="gold-line"></div>
+      <h2 class="cta-title">교육 문의는 언제든지 환영합니다.</h2>
+      <p class="cta-sub">매주 목요일 정기 교육 외에도, 개인 일정에 맞춘 상담이 가능합니다.</p>
+      <div class="cta-btns">
+        <a href="contact.html" class="btn-gold" style="padding:16px 40px; font-size:16px;">교육 신청하기</a>
+        <a href="contact.html" class="btn-outline-light" style="padding:15px 38px; font-size:16px;">창업 상담 신청</a>
+      </div>
+      <div class="cta-contact">
+        📞 <a href="tel:01096799498">010-9679-9498</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="logo">RE<span style="color:var(--gold)">A</span>GE</div>
+        <p>올핸드 미세전류 테라피 — 일본 원천 기술, 아시아 총판<br/>(주)리플런스 | 대표: 조예나 | 010-9679-9498<br/>교육·도입 상담: 평일 10:00 – 18:00</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h5>브랜드</h5>
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+          <a href="therapy.html">레아쥬테라피</a>
+        </div>
+        <div class="footer-col">
+          <h5>제품</h5>
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="academy.html">아카데미</a>
+          <a href="review.html">후기</a>
+        </div>
+        <div class="footer-col">
+          <h5>문의</h5>
+          <a href="contact.html">체험 예약</a>
+          <a href="contact.html">도입 상담</a>
+          <a href="contact.html">교육 문의</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2024 REAGE. All rights reserved.</span>
+      <span>본 페이지의 모든 내용은 테라피 관리 목적이며, 의료행위·치료 목적이 아닙니다.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+  function toggleFaq(el) {
+    const item = el.parentElement;
+    item.classList.toggle('open');
+  }
+
+  const progressBar = document.getElementById('scroll-progress');
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    progressBar.style.width = (window.scrollY / total * 100) + '%';
+  });
+
+  const follower = document.getElementById('cursor-follower');
+  const ring = document.getElementById('cursor-ring');
+  let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
+  document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; follower.style.left = mouseX + 'px'; follower.style.top = mouseY + 'px'; });
+  function animateRing() { ringX += (mouseX - ringX) * 0.12; ringY += (mouseY - ringY) * 0.12; ring.style.left = ringX + 'px'; ring.style.top = ringY + 'px'; requestAnimationFrame(animateRing); }
+  animateRing();
+
+  const motionSelector = '.fade-in, .slide-in-left, .slide-in-right, .scale-up';
+  const scrollObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll(motionSelector).forEach(el => scrollObserver.observe(el));
+
+  const lineObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.gold-line').forEach(el => lineObserver.observe(el));
+
+  const staggerObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const parent = e.target;
+        parent.querySelectorAll('.stagger-card').forEach((card, i) => {
+          setTimeout(() => card.classList.add('visible'), i * 120);
+        });
+        staggerObserver.unobserve(parent);
+      }
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.location-grid').forEach(el => staggerObserver.observe(el));
+
+  window.addEventListener('scroll', () => {
+    document.getElementById('header').style.boxShadow = window.scrollY > 40 ? '0 4px 24px rgba(26,20,18,.1)' : 'none';
+  });
+</script>
+</body>
+</html>

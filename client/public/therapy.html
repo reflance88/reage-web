@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>레아쥬 테라피 — REAGE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --wine: #6B0F1A; --wine-light: #8B1525; --wine-dark: #4A0A12;
+      --offwhite: #F7F5F2; --charcoal: #1A1412; --gold: #C8A26A;
+      --gold-light: #D4B07A; --gray: #6B6B6B; --light-gray: #E8E6E3;
+      --radius: 14px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--offwhite); color: var(--charcoal); font-size: 16px; line-height: 1.7; overflow-x: hidden; }
+    img { display: block; max-width: 100%; }
+    a { text-decoration: none; color: inherit; }
+    .container { max-width: 1160px; margin: 0 auto; padding: 0 32px; }
+
+    /* ─── SCROLL PROGRESS ─── */
+    #scroll-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--wine), var(--gold)); z-index: 9999; transition: width .1s linear; }
+    #cursor-follower { position: fixed; pointer-events: none; z-index: 9998; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); transform: translate(-50%, -50%); transition: transform 0.1s ease; }
+    #cursor-ring { position: fixed; pointer-events: none; z-index: 9998; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(200,162,106,0.4); transform: translate(-50%, -50%); transition: transform 0.18s ease; }
+
+    /* ─── MOTION ─── */
+    .fade-in { opacity: 0; transform: translateY(32px); transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1), transform 0.75s cubic-bezier(0.22,1,0.36,1); }
+    .fade-in.visible { opacity: 1; transform: none; }
+    .slide-in-left { opacity: 0; transform: translateX(-40px); transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1); }
+    .slide-in-left.visible { opacity: 1; transform: none; }
+    .slide-in-right { opacity: 0; transform: translateX(40px); transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1); }
+    .slide-in-right.visible { opacity: 1; transform: none; }
+    .blur-in { opacity: 0; filter: blur(12px); transform: scale(0.97); transition: opacity 0.9s ease, filter 0.9s ease, transform 0.9s ease; }
+    .blur-in.visible { opacity: 1; filter: blur(0); transform: scale(1); }
+    .scale-up { opacity: 0; transform: scale(0.92); transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1); }
+    .scale-up.visible { opacity: 1; transform: scale(1); }
+    .gold-line, .gold-line-left { width: 0; transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s; }
+    .gold-line.visible, .gold-line-left.visible { width: 48px; }
+    .stagger-card { opacity: 0; transform: translateY(24px); transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1); }
+    .stagger-card.visible { opacity: 1; transform: none; }
+
+    /* ─── HEADER ─── */
+    #header { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: rgba(247,245,242,.96); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(200,162,106,.2); }
+    #header .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 72px; }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: .18em; color: var(--wine); }
+    .logo span { color: var(--gold); }
+    nav { display: flex; gap: 0; align-items: stretch; }
+    .nav-item { position: relative; display: flex; align-items: center; }
+    .nav-item > a { display: flex; align-items: center; gap: 4px; padding: 0 16px; font-size: 13.5px; font-weight: 500; color: var(--charcoal); height: 72px; letter-spacing: .04em; transition: color .2s; }
+    .nav-item > a:hover, .nav-item > a.active { color: var(--wine); }
+    .arrow { display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid currentColor; margin-top: 2px; }
+    .nav-dropdown { display: none; position: absolute; top: 100%; left: 0; min-width: 160px; background: #fff; border-top: 2px solid var(--wine); border-radius: 0 0 10px 10px; box-shadow: 0 8px 32px rgba(26,20,18,.12); padding: 8px 0; z-index: 100; }
+    .nav-item:hover .nav-dropdown { display: block; }
+    .nav-dropdown a { display: block; padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--charcoal); border-bottom: 1px solid rgba(200,162,106,.12); transition: background .15s, color .15s; }
+    .nav-dropdown a:last-child { border-bottom: none; }
+    .nav-dropdown a:hover { background: var(--offwhite); color: var(--wine); }
+    .header-cta { display: flex; gap: 10px; }
+    .btn-primary { display: inline-flex; align-items: center; background: var(--wine); color: #fff; padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-primary:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .btn-outline { display: inline-flex; align-items: center; background: transparent; color: var(--wine); padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--wine); cursor: pointer; transition: background .25s, color .25s, transform .2s; }
+    .btn-outline:hover { background: var(--wine); color: #fff; transform: translateY(-2px); }
+    .btn-gold { display: inline-flex; align-items: center; gap: 8px; background: var(--gold); color: var(--charcoal); padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 700; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-gold:hover { background: var(--gold-light); transform: translateY(-2px); }
+    .btn-wine { display: inline-flex; align-items: center; gap: 8px; background: var(--wine); color: #fff; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-wine:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .btn-outline-light { display: inline-flex; align-items: center; gap: 8px; background: transparent; color: var(--offwhite); padding: 13px 30px; border-radius: 8px; font-size: 15px; font-weight: 600; border: 1.5px solid rgba(247,245,242,.5); cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-outline-light:hover { background: rgba(247,245,242,.12); transform: translateY(-2px); }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 8px; }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--charcoal); border-radius: 2px; }
+    .mobile-menu { display: none; position: fixed; top: 72px; left: 0; right: 0; background: #fff; border-top: 1px solid var(--light-gray); padding: 20px 32px; z-index: 999; box-shadow: 0 8px 32px rgba(26,20,18,.1); }
+    .mobile-menu.open { display: block; }
+    .mobile-menu a { display: block; padding: 12px 0; font-size: 15px; font-weight: 500; border-bottom: 1px solid var(--light-gray); color: var(--charcoal); }
+    .mobile-menu a:hover { color: var(--wine); }
+
+    /* ─── BREADCRUMB ─── */
+    .breadcrumb { background: var(--charcoal); padding: 12px 0; margin-top: 72px; }
+    .breadcrumb .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(247,245,242,.5); }
+    .breadcrumb a { color: rgba(247,245,242,.5); transition: color .2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb .sep { color: rgba(247,245,242,.3); }
+    .breadcrumb .current { color: var(--gold); }
+
+    /* ─── HERO ─── */
+    #therapy-hero {
+      background: var(--charcoal);
+      padding: 100px 0 80px;
+      position: relative; overflow: hidden;
+    }
+    #therapy-hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 65% 50%, rgba(107,15,26,.4) 0%, transparent 65%);
+    }
+    .therapy-hero-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; position: relative; z-index: 1; }
+    .therapy-hero-tag { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 16px; }
+    .therapy-hero-title { font-family: 'Noto Serif KR', serif; font-size: clamp(30px, 4.5vw, 50px); font-weight: 700; line-height: 1.25; color: var(--offwhite); margin-bottom: 24px; }
+    .therapy-hero-title em { color: var(--gold); font-style: normal; }
+    .therapy-hero-sub { font-size: 16px; color: rgba(247,245,242,.75); line-height: 1.85; margin-bottom: 40px; }
+    .therapy-hero-btns { display: flex; gap: 16px; flex-wrap: wrap; }
+    .therapy-hero-visual { border-radius: 20px; overflow: hidden; aspect-ratio: 4/5; background: rgba(200,162,106,.08); border: 1px solid rgba(200,162,106,.2); display: flex; align-items: center; justify-content: center; position: relative; }
+    .visual-placeholder { text-align: center; color: rgba(247,245,242,.4); }
+    .visual-placeholder .icon { font-size: 48px; margin-bottom: 12px; }
+    .visual-placeholder p { font-size: 13px; letter-spacing: .08em; }
+
+    /* ─── KEY STATS ─── */
+    .key-stats { background: var(--wine); padding: 48px 0; }
+    .key-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+    .stat-item { text-align: center; padding: 20px 16px; border-right: 1px solid rgba(247,245,242,.15); }
+    .stat-item:last-child { border-right: none; }
+    .stat-value { font-family: 'Noto Serif KR', serif; font-size: clamp(28px, 3.5vw, 40px); font-weight: 700; color: var(--gold); line-height: 1; margin-bottom: 8px; }
+    .stat-label { font-size: 12px; color: rgba(247,245,242,.75); letter-spacing: .06em; }
+
+    /* ─── DEFINITION ─── */
+    #definition { background: #fff; padding: 100px 0; }
+    .definition-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+    .section-label { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 12px; }
+    .section-title { font-family: 'Noto Serif KR', serif; font-size: clamp(24px, 3vw, 36px); font-weight: 700; line-height: 1.35; margin-bottom: 24px; }
+    .section-title em { color: var(--wine); font-style: normal; }
+    .section-body { font-size: 15.5px; line-height: 1.9; color: var(--charcoal); }
+    .section-body p { margin-bottom: 16px; }
+    .section-body p:last-child { margin-bottom: 0; }
+
+    /* ─── COMPARISON ─── */
+    #comparison { background: var(--charcoal); padding: 100px 0; }
+    .comparison-header { text-align: center; margin-bottom: 64px; }
+    .comparison-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(24px, 3.5vw, 38px); font-weight: 700; color: var(--offwhite); margin-bottom: 16px; }
+    .comparison-header p { font-size: 16px; color: rgba(247,245,242,.65); max-width: 600px; margin: 0 auto; }
+    .flow-diagram { display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px; align-items: center; margin-bottom: 56px; }
+    .flow-box { border-radius: 16px; padding: 32px 24px; text-align: center; }
+    .flow-box.normal { background: rgba(247,245,242,.05); border: 1px solid rgba(247,245,242,.1); }
+    .flow-box.reage { background: rgba(107,15,26,.3); border: 1px solid rgba(200,162,106,.3); }
+    .flow-box h3 { font-size: 15px; font-weight: 700; margin-bottom: 16px; }
+    .flow-box h3.normal-title { color: rgba(247,245,242,.6); }
+    .flow-box h3.reage-title { color: var(--gold); }
+    .flow-steps { display: flex; flex-direction: column; gap: 8px; }
+    .flow-step { font-size: 13px; padding: 8px 12px; border-radius: 8px; }
+    .flow-step.normal { background: rgba(247,245,242,.06); color: rgba(247,245,242,.65); }
+    .flow-step.reage { background: rgba(200,162,106,.12); color: var(--gold); font-weight: 600; }
+    .flow-arrow { text-align: center; font-size: 24px; color: var(--gold); }
+    .compare-table { width: 100%; border-collapse: collapse; border-radius: var(--radius); overflow: hidden; }
+    .compare-table th { padding: 16px 20px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-align: left; }
+    .compare-table th:first-child { background: rgba(247,245,242,.06); color: rgba(247,245,242,.6); }
+    .compare-table th.normal-col { background: rgba(247,245,242,.06); color: rgba(247,245,242,.6); text-align: center; }
+    .compare-table th.reage-col { background: var(--wine); color: var(--gold); text-align: center; }
+    .compare-table td { padding: 14px 20px; font-size: 14px; border-bottom: 1px solid rgba(247,245,242,.06); }
+    .compare-table td:first-child { color: rgba(247,245,242,.6); font-size: 13px; }
+    .compare-table td.normal-val { background: rgba(247,245,242,.03); color: rgba(247,245,242,.55); text-align: center; }
+    .compare-table td.reage-val { background: rgba(107,15,26,.15); color: var(--offwhite); text-align: center; font-weight: 500; }
+    .compare-table tr:last-child td { border-bottom: none; }
+
+    /* ─── DATA ─── */
+    #data { background: var(--offwhite); padding: 100px 0; }
+    .data-header { text-align: center; margin-bottom: 64px; }
+    .data-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(24px, 3.5vw, 38px); font-weight: 700; color: var(--charcoal); margin-bottom: 16px; }
+    .data-header p { font-size: 14px; color: var(--gray); }
+    .data-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px; }
+    .data-card { background: #fff; border-radius: var(--radius); padding: 40px; border: 1px solid var(--light-gray); }
+    .data-card-num { font-size: 11px; letter-spacing: .18em; color: var(--gold); font-weight: 700; margin-bottom: 12px; }
+    .data-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--charcoal); }
+    .data-bar-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+    .data-bar-label { font-size: 13px; color: var(--gray); min-width: 80px; }
+    .data-bar-track { flex: 1; height: 10px; background: var(--light-gray); border-radius: 5px; overflow: hidden; }
+    .data-bar-fill { height: 100%; border-radius: 5px; background: var(--wine); transition: width 1.5s cubic-bezier(0.22,1,0.36,1); width: 0; }
+    .data-bar-fill.gold { background: var(--gold); }
+    .data-bar-value { font-size: 14px; font-weight: 700; color: var(--wine); min-width: 60px; text-align: right; }
+    .data-bar-value.gold { color: var(--gold); }
+    .data-note { font-size: 12px; color: var(--gray); margin-top: 16px; line-height: 1.6; }
+    .brainwave-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .brainwave-box { border-radius: 10px; padding: 20px; text-align: center; }
+    .brainwave-box.before { background: rgba(107,15,26,.06); border: 1px solid rgba(107,15,26,.12); }
+    .brainwave-box.after { background: rgba(200,162,106,.08); border: 1px solid rgba(200,162,106,.2); }
+    .brainwave-label { font-size: 11px; letter-spacing: .12em; font-weight: 700; margin-bottom: 12px; }
+    .brainwave-label.before { color: var(--wine); }
+    .brainwave-label.after { color: var(--gold); }
+    .brainwave-item { font-size: 13px; margin-bottom: 6px; }
+    .brainwave-item span { font-weight: 700; }
+    .data-disclaimer { text-align: center; margin-top: 40px; font-size: 12px; color: var(--gray); line-height: 1.7; padding: 20px; background: #fff; border-radius: 10px; border: 1px solid var(--light-gray); }
+
+    /* ─── FEATURES ─── */
+    #features { background: var(--charcoal); padding: 100px 0; }
+    .features-header { text-align: center; margin-bottom: 64px; }
+    .features-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(24px, 3.5vw, 38px); font-weight: 700; color: var(--offwhite); margin-bottom: 16px; }
+    .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .feature-card { background: rgba(247,245,242,.04); border: 1px solid rgba(200,162,106,.15); border-radius: var(--radius); padding: 40px 28px; transition: background .25s, border-color .25s; }
+    .feature-card:hover { background: rgba(247,245,242,.07); border-color: rgba(200,162,106,.35); }
+    .feature-num { font-size: 11px; letter-spacing: .18em; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .feature-icon { font-size: 32px; margin-bottom: 16px; }
+    .feature-card h3 { font-size: 17px; font-weight: 700; color: var(--gold); margin-bottom: 8px; }
+    .feature-card .feature-sub { font-size: 13px; color: rgba(247,245,242,.5); margin-bottom: 16px; font-style: italic; }
+    .feature-card p { font-size: 14px; color: rgba(247,245,242,.7); line-height: 1.8; }
+
+    /* ─── VOICES ─── */
+    #voices { background: var(--offwhite); padding: 100px 0; }
+    .voices-header { text-align: center; margin-bottom: 64px; }
+    .voices-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(24px, 3.5vw, 38px); font-weight: 700; color: var(--charcoal); margin-bottom: 16px; }
+    .voices-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    .voice-card { border-radius: var(--radius); padding: 40px; }
+    .voice-card.director { background: var(--wine); color: var(--offwhite); }
+    .voice-card.customer { background: var(--charcoal); color: var(--offwhite); }
+    .voice-card-title { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .voice-card h3 { font-family: 'Noto Serif KR', serif; font-size: 20px; font-weight: 700; color: var(--offwhite); margin-bottom: 24px; line-height: 1.4; }
+    .voice-list { list-style: none; }
+    .voice-list li { font-size: 14.5px; color: rgba(247,245,242,.8); line-height: 1.7; padding: 10px 0; border-bottom: 1px solid rgba(247,245,242,.1); display: flex; gap: 10px; }
+    .voice-list li:last-child { border-bottom: none; }
+    .voice-list li::before { content: '→'; color: var(--gold); flex-shrink: 0; }
+
+    /* ─── CHECKLIST ─── */
+    #checklist { background: #fff; padding: 100px 0; }
+    .checklist-header { text-align: center; margin-bottom: 64px; }
+    .checklist-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(24px, 3.5vw, 38px); font-weight: 700; color: var(--charcoal); margin-bottom: 16px; }
+    .checklist-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    .checklist-card { border-radius: var(--radius); padding: 40px; border: 1px solid var(--light-gray); }
+    .checklist-card-title { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .checklist-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 24px; color: var(--charcoal); }
+    .check-list { list-style: none; margin-bottom: 32px; }
+    .check-list li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--light-gray); font-size: 14.5px; line-height: 1.6; }
+    .check-list li:last-child { border-bottom: none; }
+    .check-icon { width: 20px; height: 20px; border-radius: 4px; background: var(--wine); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+    .check-icon svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 2.5; }
+    .checklist-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    /* ─── CTA ─── */
+    #therapy-cta { background: var(--charcoal); padding: 100px 0; text-align: center; background-image: linear-gradient(135deg, var(--charcoal) 0%, #2A1A18 50%, var(--charcoal) 100%); background-size: 200% 200%; animation: gradientShift 8s ease infinite; }
+    @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    .cta-inner { max-width: 640px; margin: 0 auto; }
+    .cta-title { font-family: 'Noto Serif KR', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 700; color: var(--offwhite); line-height: 1.35; margin-bottom: 20px; }
+    .cta-sub { font-size: 16px; color: rgba(247,245,242,.7); line-height: 1.8; margin-bottom: 40px; }
+    .cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .gold-line { width: 48px; height: 2px; background: var(--gold); margin: 0 auto 20px; }
+    .eyebrow { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 12px; }
+    .legal-note { font-size: 12px; color: rgba(247,245,242,.4); margin-top: 32px; line-height: 1.7; }
+
+    /* ─── FOOTER ─── */
+    #footer { background: #0F0C0B; color: rgba(247,245,242,.6); padding: 60px 0 32px; }
+    .footer-inner { display: grid; grid-template-columns: 1fr auto; gap: 60px; margin-bottom: 40px; }
+    .footer-brand .logo { margin-bottom: 16px; }
+    .footer-brand p { font-size: 13px; line-height: 1.8; }
+    .footer-links { display: flex; gap: 60px; }
+    .footer-col h5 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .footer-col a { display: block; font-size: 13px; margin-bottom: 10px; color: rgba(247,245,242,.55); transition: color .2s; }
+    .footer-col a:hover { color: var(--gold); }
+    .footer-bottom { border-top: 1px solid rgba(247,245,242,.08); padding-top: 24px; display: flex; justify-content: space-between; font-size: 12px; flex-wrap: wrap; gap: 8px; }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 900px) {
+      nav, .header-cta { display: none; }
+      .hamburger { display: flex; }
+      .therapy-hero-inner { grid-template-columns: 1fr; gap: 40px; }
+      .definition-inner { grid-template-columns: 1fr; gap: 40px; }
+      .data-grid { grid-template-columns: 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
+      .voices-grid { grid-template-columns: 1fr; }
+      .checklist-grid { grid-template-columns: 1fr; }
+      .key-stats-grid { grid-template-columns: 1fr 1fr; }
+      .stat-item:nth-child(2) { border-right: none; }
+      .flow-diagram { grid-template-columns: 1fr; }
+      .flow-arrow { transform: rotate(90deg); }
+      .footer-inner { grid-template-columns: 1fr; gap: 40px; }
+      .footer-links { flex-wrap: wrap; gap: 32px; }
+    }
+    @media (max-width: 600px) {
+      .container { padding: 0 20px; }
+      .cta-btns { flex-direction: column; align-items: center; }
+      .brainwave-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+<div id="cursor-follower"></div>
+<div id="cursor-ring"></div>
+
+<!-- ─── HEADER ─── -->
+<header id="header">
+  <div class="inner">
+    <a href="index.html" class="logo">RE<span>A</span>GE</a>
+    <nav>
+      <div class="nav-item">
+        <a href="brand-intro.html">브랜드 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+        </div>
+      </div>
+      <div class="nav-item">
+        <a href="therapy.html" class="active">레아쥬테라피</a>
+      </div>
+      <div class="nav-item">
+        <a href="reage-device.html">제품소개 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="product-s1.html">S1크림</a>
+          <a href="product-m2.html">M2크림</a>
+          <a href="product-f3.html">F3크림</a>
+          <a href="product-new1.html">신제품1</a>
+          <a href="product-new2.html">신제품2</a>
+          <a href="product-new3.html">신제품3</a>
+        </div>
+      </div>
+      <div class="nav-item">
+        <a href="academy.html">아카데미</a>
+      </div>
+      <div class="nav-item">
+        <a href="review.html">후기</a>
+      </div>
+      <div class="nav-item">
+        <a href="gallery.html">갤러리 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="gallery.html">갤러리</a>
+          <a href="magazine.html">매거진</a>
+        </div>
+      </div>
+    </nav>
+    <div class="header-cta">
+      <a href="contact.html" class="btn-primary">체험 예약</a>
+      <a href="contact.html" class="btn-outline">도입 상담</a>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="brand-intro.html">브랜드소개</a>
+  <a href="brand-story.html">브랜드스토리</a>
+  <a href="therapy.html">레아쥬테라피</a>
+  <a href="reage-device.html">레아쥬기기</a>
+  <a href="academy.html">아카데미</a>
+  <a href="review.html">후기</a>
+  <a href="gallery.html">갤러리</a>
+  <a href="magazine.html">매거진</a>
+  <a href="contact.html">체험 예약</a>
+</div>
+
+<div class="breadcrumb">
+  <div class="inner">
+    <a href="index.html">홈</a>
+    <span class="sep">›</span>
+    <span class="current">레아쥬테라피</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     섹션 1. HERO
+════════════════════════════════════ -->
+<section id="therapy-hero">
+  <div class="container">
+    <div class="therapy-hero-inner">
+      <div class="fade-in">
+        <div class="therapy-hero-tag">REAGE Therapy · 올핸드 미세전류 테라피</div>
+        <h1 class="therapy-hero-title">
+          손으로 전달하는 미세전류.<br/><em>통증 없이, 깊이 있게.</em>
+        </h1>
+        <p class="therapy-hero-sub">
+          소프트 터치만으로 심부 근막까지 —<br/>
+          일본 20년, 1,200개 현장이 선택한 올핸드 미세전류 테라피.
+        </p>
+        <div class="therapy-hero-btns">
+          <a href="#data" class="btn-gold">측정 데이터 보기</a>
+          <a href="contact.html" class="btn-outline-light">체험 예약하기</a>
+        </div>
+      </div>
+      <div class="therapy-hero-visual blur-in" style="transition-delay:.2s">
+        <div class="visual-placeholder">
+          <div class="icon">🤲</div>
+          <p>테라피스트 손 클로즈업<br/>고급 스파 무드 이미지</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── KEY STATS ─── -->
+<div class="key-stats">
+  <div class="container">
+    <div class="key-stats-grid">
+      <div class="stat-item scale-up">
+        <div class="stat-value">30분</div>
+        <div class="stat-label">1회 관리 시간 · 즉각적 체감</div>
+      </div>
+      <div class="stat-item scale-up" style="transition-delay:.1s">
+        <div class="stat-value">0건</div>
+        <div class="stat-label">20년간 안전 문제 보고</div>
+      </div>
+      <div class="stat-item scale-up" style="transition-delay:.2s">
+        <div class="stat-value"><span data-count="1200">0</span>+</div>
+        <div class="stat-label">일본·한국 도입 현장 수</div>
+      </div>
+      <div class="stat-item scale-up" style="transition-delay:.3s">
+        <div class="stat-value">500%</div>
+        <div class="stat-label">세포 ATP 생성 증가율</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     섹션 2. 한 줄 정의
+════════════════════════════════════ -->
+<section id="definition">
+  <div class="container">
+    <div class="definition-inner">
+      <div class="slide-in-left">
+        <div class="section-label">WHAT IS REAGE</div>
+        <h2 class="section-title">기기가 만든 5V 미세전류가<br/><em>손끝을 통해 흐릅니다.</em></h2>
+        <div class="section-body">
+          <p><strong>레아쥬(REAGE) 테라피</strong>는 미세전류를 금속 도자가 아닌 테라피스트의 손을 통해 전달하는 올핸드 에너지 테라피입니다.</p>
+          <p>기기가 만든 5V의 미세전류가 테라피스트의 몸을 거쳐 손끝으로 흐르며, 시술자와 고객 양쪽 모두에게 에너지가 전달됩니다. 테라피스트는 고객의 근육 상태를 실시간으로 느끼면서, 동시에 그 손끝을 통해 미세전류를 전달할 수 있습니다.</p>
+          <p>이것이 기계적인 핸드피스 방식과 레아쥬가 근본적으로 다른 이유입니다.</p>
+        </div>
+      </div>
+      <div class="slide-in-right" style="transition-delay:.15s">
+        <div style="background: var(--offwhite); border-radius: 16px; padding: 40px; border: 1px solid var(--light-gray);">
+          <div style="font-size:11px; letter-spacing:.18em; color:var(--gold); font-weight:700; margin-bottom:20px;">전달 구조 비교</div>
+          <div style="margin-bottom:16px; padding:16px; background:#fff; border-radius:10px; border-left:3px solid rgba(107,15,26,.3)">
+            <div style="font-size:12px; color:var(--gray); margin-bottom:6px; font-weight:600;">일반 기기</div>
+            <div style="font-size:14px; color:var(--charcoal);">기기 → 금속 도자/핸드피스 → 피부 표면 (일방향)</div>
+          </div>
+          <div style="padding:16px; background:rgba(107,15,26,.05); border-radius:10px; border-left:3px solid var(--wine)">
+            <div style="font-size:12px; color:var(--wine); margin-bottom:6px; font-weight:700;">레아쥬</div>
+            <div style="font-size:14px; color:var(--charcoal); font-weight:500;">기기 → 발판 → 테라피스트의 손 → 고객 심부 근막 (상호작용)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     섹션 3. 올핸드가 다른 이유
+════════════════════════════════════ -->
+<section id="comparison">
+  <div class="container">
+    <div class="comparison-header fade-in">
+      <div class="eyebrow">WHY ALL-HAND</div>
+      <div class="gold-line"></div>
+      <h2>사람의 몸은 모두 다릅니다.<br/>그래서 사람의 손이 필요합니다.</h2>
+      <p>큰 근육과 작은 근육, 뭉친 곳과 이완된 곳에 같은 강도를 줄 수는 없습니다. 테라피스트의 손은 고객의 반응을 실시간으로 읽고, 에너지의 깊이와 리듬을 그 자리에서 조절합니다.</p>
+    </div>
+    <div class="scale-up">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th class="normal-col">핸드피스 / 금속 도자</th>
+            <th class="reage-col">레아쥬 올핸드</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>전달 경로</td>
+            <td class="normal-val">기기 → 금속 → 피부 표면</td>
+            <td class="reage-val">기기 → 손 → 심부 근막</td>
+          </tr>
+          <tr>
+            <td>감지 능력</td>
+            <td class="normal-val">기계적 접촉 (일방향)</td>
+            <td class="reage-val">결절·뭉침 실시간 촉진</td>
+          </tr>
+          <tr>
+            <td>강도 조절</td>
+            <td class="normal-val">기기 설정에 의존 (일률적)</td>
+            <td class="reage-val">부위·체형·반응에 따라 즉시 변경</td>
+          </tr>
+          <tr>
+            <td>에너지 깊이</td>
+            <td class="normal-val">표면 위주</td>
+            <td class="reage-val">표층 → 천층 근막 → 심부 근막 3단계</td>
+          </tr>
+          <tr>
+            <td>고객 체감</td>
+            <td class="normal-val">자극감·차가움·찌릿함 가능</td>
+            <td class="reage-val">따뜻한 체온 + 소프트 터치 → 깊은 이완</td>
+          </tr>
+          <tr>
+            <td>시술자 영향</td>
+            <td class="normal-val">해당 없음</td>
+            <td class="reage-val">5V 상호 충전 — 시술자도 활성화</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     섹션 4. 측정 데이터
+════════════════════════════════════ -->
+<section id="data">
+  <div class="container">
+    <div class="data-header fade-in">
+      <div class="eyebrow" style="color:var(--wine)">MEASURED DATA</div>
+      <div class="gold-line"></div>
+      <h2>느낌이 아닙니다. 측정된 변화입니다.</h2>
+      <p>출처: 일본 원적외선응용연구회 · 아이치산업과학기술센터 · 뇌파측정 ALPHA MASTER</p>
+    </div>
+    <div class="data-grid">
+      <!-- 피부 온도 -->
+      <div class="data-card stagger-card">
+        <div class="data-card-num">① 피부 온도</div>
+        <h3>관리 30분 후 +2.3℃ 상승</h3>
+        <div class="data-bar-row">
+          <div class="data-bar-label">관리 전</div>
+          <div class="data-bar-track"><div class="data-bar-fill" data-width="70"></div></div>
+          <div class="data-bar-value">33.8℃</div>
+        </div>
+        <div class="data-bar-row">
+          <div class="data-bar-label">관리 후</div>
+          <div class="data-bar-track"><div class="data-bar-fill gold" data-width="95"></div></div>
+          <div class="data-bar-value gold">36.1℃</div>
+        </div>
+        <div class="data-note">체온 1℃ 상승 시 기초대사 약 13%, 면역력 약 5~6배 상승. 손발이 따뜻해지고 상열하한이 정돈되는 체감.</div>
+      </div>
+      <!-- 혈류량 -->
+      <div class="data-card stagger-card" style="transition-delay:.1s">
+        <div class="data-card-num">② 혈류량</div>
+        <h3>관리 30분 후 175% 증가</h3>
+        <div class="data-bar-row">
+          <div class="data-bar-label">관리 전</div>
+          <div class="data-bar-track"><div class="data-bar-fill" data-width="36"></div></div>
+          <div class="data-bar-value">기준치</div>
+        </div>
+        <div class="data-bar-row">
+          <div class="data-bar-label">관리 후</div>
+          <div class="data-bar-track"><div class="data-bar-fill gold" data-width="100"></div></div>
+          <div class="data-bar-value gold">+175%</div>
+        </div>
+        <div class="data-note">혈류 증가로 산소·영양 공급이 원활해지고, 노폐물과 염증 물질 배출이 빨라집니다.</div>
+      </div>
+      <!-- 림프 순환 -->
+      <div class="data-card stagger-card" style="transition-delay:.2s">
+        <div class="data-card-num">③ 림프 순환</div>
+        <h3>관리 30분 후 140% 개선</h3>
+        <div class="data-bar-row">
+          <div class="data-bar-label">관리 전</div>
+          <div class="data-bar-track"><div class="data-bar-fill" data-width="42"></div></div>
+          <div class="data-bar-value">기준치</div>
+        </div>
+        <div class="data-bar-row">
+          <div class="data-bar-label">관리 후</div>
+          <div class="data-bar-track"><div class="data-bar-fill gold" data-width="100"></div></div>
+          <div class="data-bar-value gold">+140%</div>
+        </div>
+        <div class="data-note">부종 감소, 노폐물 배출 촉진, 셀룰라이트 관리의 기초가 됩니다.</div>
+      </div>
+      <!-- 뇌파 -->
+      <div class="data-card stagger-card" style="transition-delay:.3s">
+        <div class="data-card-num">④ 뇌파 변화</div>
+        <h3>β파 감소 → α파 우세로 전환</h3>
+        <div class="brainwave-grid">
+          <div class="brainwave-box before">
+            <div class="brainwave-label before">관리 전</div>
+            <div class="brainwave-item">β파 (긴장) <span style="color:var(--wine)">65.0%</span></div>
+            <div class="brainwave-item">α파 (이완) <span>23.3%</span></div>
+            <div class="brainwave-item">θ파 <span>11.7%</span></div>
+          </div>
+          <div class="brainwave-box after">
+            <div class="brainwave-label after">관리 후 30분</div>
+            <div class="brainwave-item">β파 (긴장) <span>46.7%</span></div>
+            <div class="brainwave-item">α파 (이완) <span style="color:var(--gold); font-weight:700">43.3%</span></div>
+            <div class="brainwave-item">θ파 <span>10.0%</span></div>
+          </div>
+        </div>
+        <div class="data-note">"잠깐 받았는데 푹 잔 것 같다"는 반응의 과학적 근거입니다.</div>
+      </div>
+    </div>
+    <div class="data-disclaimer fade-in">
+      위 데이터는 일본 연구기관의 측정 결과이며, 개인차가 있을 수 있습니다.<br/>
+      의료행위가 아닌 관리·케어 목적의 정보입니다.
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     섹션 5. 레아쥬 5가지 특징
+════════════════════════════════════ -->
+<section id="features">
+  <div class="container">
+    <div class="features-header fade-in">
+      <div class="eyebrow">5 PRINCIPLES</div>
+      <div class="gold-line"></div>
+      <h2>레아쥬가 20년간 지켜온 5가지.</h2>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card stagger-card">
+        <div class="feature-num">01</div>
+        <div class="feature-icon">🤲</div>
+        <h3>올핸드 전달</h3>
+        <div class="feature-sub">손끝이 감지하고, 에너지가 완성합니다.</div>
+        <p>테라피스트의 손은 고객의 근육 상태를 실시간으로 읽습니다. 뭉침, 결절, 긴장 패턴을 촉진으로 찾아내고, 부위에 따라 미세전류의 깊이와 리듬을 즉시 조절합니다. 금속 도자로는 불가능한 정밀함입니다.</p>
+      </div>
+      <div class="feature-card stagger-card" style="transition-delay:.1s">
+        <div class="feature-num">02</div>
+        <div class="feature-icon">✨</div>
+        <h3>제로 통증, 깊은 케어</h3>
+        <div class="feature-sub">강하게 누르지 않습니다. 미세전류가 일합니다.</div>
+        <p>마이크로암페어(μA) 수준의 전류는 인체가 감지하지 못할 정도로 미세합니다. 찌릿하거나 근육이 수축하는 느낌 없이, 소프트 터치만으로 심부 근막까지 에너지가 도달합니다.</p>
+      </div>
+      <div class="feature-card stagger-card" style="transition-delay:.2s">
+        <div class="feature-num">03</div>
+        <div class="feature-icon">⚡</div>
+        <h3>시술자·고객 상호 충전</h3>
+        <div class="feature-sub">관리할수록, 원장님도 함께 건강해집니다.</div>
+        <p>레아쥬의 5V 미세전류는 시술자와 고객 양방향으로 흐릅니다. 기존 수기 테라피의 가장 큰 문제 — 관절염, 손목 통증, 만성 피로 — 에서 벗어나, 소프트 터치로 오래 일할 수 있는 환경을 만듭니다.</p>
+      </div>
+      <div class="feature-card stagger-card" style="transition-delay:.3s">
+        <div class="feature-num">04</div>
+        <div class="feature-icon">📈</div>
+        <h3>누적형 체감</h3>
+        <div class="feature-sub">당일보다 다음날이 더 좋습니다.</div>
+        <p>관리 직후 깊은 편안함이 시작되고, 다음날 몸이 더 가볍고, 그 다음날까지 정돈된 느낌이 이어집니다. 이 "점점 좋아지는 체감"이 고객의 자발적 재방문으로 이어집니다.</p>
+      </div>
+      <div class="feature-card stagger-card" style="transition-delay:.4s">
+        <div class="feature-num">05</div>
+        <div class="feature-icon">🛡️</div>
+        <h3>20년 무고장 내구성</h3>
+        <div class="feature-sub">원장님이 은퇴할 때까지, 같은 성능.</div>
+        <p>일본에서 20년 이상 업그레이드되며 검증된 기기 설계. 수년이 지나도 동일한 파형, 동일한 출력. 현장 고장률 제로 수준의 안정성으로, 기기 걱정 없이 운영에 집중할 수 있습니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     섹션 6. 원장님·고객 감동
+════════════════════════════════════ -->
+<section id="voices">
+  <div class="container">
+    <div class="voices-header fade-in">
+      <div class="eyebrow" style="color:var(--wine)">REAL VOICES</div>
+      <div class="gold-line"></div>
+      <h2>원장님의 감동 / 고객의 감동</h2>
+    </div>
+    <div class="voices-grid">
+      <div class="voice-card director slide-in-left">
+        <div class="voice-card-title">DIRECTOR'S VOICE</div>
+        <h3>"나와 직원의 건강도 지켜줍니다."</h3>
+        <ul class="voice-list">
+          <li>"경락 10년 하면서 손목이 다 망가졌는데, 레아쥬 시작하고 오히려 컨디션이 좋아졌어요."</li>
+          <li>"신입 직원도 2주 교육이면 고객이 만족하는 수준을 바로 구현해요. 시스템의 힘이에요."</li>
+          <li>"기존 메뉴에 프리미엄 옵션으로 붙였더니, 객단가가 확 올라갔어요."</li>
+          <li>"기기 산 지 3년째인데, 단 한 번도 고장이 없었어요."</li>
+        </ul>
+      </div>
+      <div class="voice-card customer slide-in-right" style="transition-delay:.1s">
+        <div class="voice-card-title">CUSTOMER'S VOICE</div>
+        <h3>"돌아가는 길이 달라요."</h3>
+        <ul class="voice-list">
+          <li>"경락 10년 받았는데, 처음으로 아프지 않으면서 확실한 변화를 느꼈어요."</li>
+          <li>"받는 동안 잠이 들었어요. 이런 편안함은 처음이에요."</li>
+          <li>"다음날 아침 거울 보고 놀랐어요. 얼굴 라인이 확연히 다르더라고요."</li>
+          <li>"주변에서 '요즘 뭐 해?' 라고 물어볼 정도로 표가 나요."</li>
+          <li>"관리가 아니라 제 컨디션 루틴이에요. 매주 예약합니다."</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     섹션 7. 이런 분들에게
+════════════════════════════════════ -->
+<section id="checklist">
+  <div class="container">
+    <div class="checklist-header fade-in">
+      <div class="eyebrow" style="color:var(--wine)">FOR YOU</div>
+      <div class="gold-line"></div>
+      <h2>이런 분들에게 추천합니다</h2>
+    </div>
+    <div class="checklist-grid">
+      <div class="checklist-card slide-in-left">
+        <div class="checklist-card-title">FOR DIRECTORS</div>
+        <h3>원장님이라면 ✓</h3>
+        <ul class="check-list">
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>직원이 힘들어서 자꾸 그만두는 문제를 해결하고 싶다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>누가 시술해도 같은 품질이 나오는 시스템을 원한다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>기존 메뉴에 프리미엄 옵션을 붙여 객단가를 올리고 싶다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>고객에게 통증 없이 확실한 변화를 보여주고 싶다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>기기 고장 걱정 없이 안정적으로 운영하고 싶다</li>
+        </ul>
+        <div class="checklist-btns">
+          <a href="contact.html" class="btn-wine">도입 상담 신청</a>
+          <a href="contact.html" class="btn-outline">체험 예약</a>
+        </div>
+      </div>
+      <div class="checklist-card slide-in-right" style="transition-delay:.1s">
+        <div class="checklist-card-title">FOR CUSTOMERS</div>
+        <h3>고객이라면 ✓</h3>
+        <ul class="check-list">
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>만성 통증·뭉침이 있는데 강한 마사지는 부담스럽다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>받으면서 찌릿하거나 아픈 경험이 싫었다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>스트레스·불면으로 깊은 이완이 필요하다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>얼굴 리프팅·바디라인 정돈을 편안하게 받고 싶다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>받은 다음날까지 몸이 가벼워지는 관리를 원한다</li>
+        </ul>
+        <div class="checklist-btns">
+          <a href="contact.html" class="btn-wine">체험 예약하기</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     섹션 8. CTA
+════════════════════════════════════ -->
+<section id="therapy-cta">
+  <div class="container">
+    <div class="cta-inner fade-in">
+      <div class="eyebrow">EXPERIENCE REAGE</div>
+      <div class="gold-line"></div>
+      <h2 class="cta-title">글로는 전할 수 없는 차이가 있습니다.<br/>30분이면 충분합니다.</h2>
+      <p class="cta-sub">직접 받아보시면, 왜 1,200개 현장이 선택했는지 몸이 먼저 답합니다.</p>
+      <div class="cta-btns">
+        <a href="contact.html" class="btn-gold" style="padding:16px 40px; font-size:16px;">체험 예약하기</a>
+        <a href="contact.html" class="btn-outline-light" style="padding:15px 38px; font-size:16px;">도입 상담 신청</a>
+      </div>
+      <div class="legal-note">
+        본 페이지의 내용은 의료행위·치료 목적이 아닌 테라피·관리 정보입니다.<br/>
+        효과는 개인차가 있으며, 측정 데이터는 일본 연구기관의 결과입니다.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer id="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="logo">RE<span style="color:var(--gold)">A</span>GE</div>
+        <p>올핸드 미세전류 테라피 — 일본 원천 기술, 아시아 총판<br/>(주)리플런스 | 대표: 조예나 | 010-9679-9498<br/>교육·도입 상담: 평일 10:00 – 18:00</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h5>브랜드</h5>
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+          <a href="therapy.html">레아쥬테라피</a>
+        </div>
+        <div class="footer-col">
+          <h5>제품</h5>
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="academy.html">아카데미</a>
+          <a href="review.html">후기</a>
+        </div>
+        <div class="footer-col">
+          <h5>문의</h5>
+          <a href="contact.html">체험 예약</a>
+          <a href="contact.html">도입 상담</a>
+          <a href="contact.html">교육 문의</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2024 REAGE. All rights reserved.</span>
+      <span>본 페이지의 모든 내용은 테라피 관리 목적이며, 의료행위·치료 목적이 아닙니다.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+
+  /* 스크롤 프로그레스 */
+  const progressBar = document.getElementById('scroll-progress');
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    progressBar.style.width = (window.scrollY / total * 100) + '%';
+  });
+
+  /* 커서 팔로워 */
+  const follower = document.getElementById('cursor-follower');
+  const ring = document.getElementById('cursor-ring');
+  let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
+  document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; follower.style.left = mouseX + 'px'; follower.style.top = mouseY + 'px'; });
+  function animateRing() { ringX += (mouseX - ringX) * 0.12; ringY += (mouseY - ringY) * 0.12; ring.style.left = ringX + 'px'; ring.style.top = ringY + 'px'; requestAnimationFrame(animateRing); }
+  animateRing();
+
+  /* 스크롤 트리거 */
+  const motionSelector = '.fade-in, .slide-in-left, .slide-in-right, .blur-in, .scale-up';
+  const scrollObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll(motionSelector).forEach(el => scrollObserver.observe(el));
+
+  /* 골드 라인 */
+  const lineObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.gold-line, .gold-line-left').forEach(el => lineObserver.observe(el));
+
+  /* 스태거 카드 */
+  const staggerObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const parent = e.target;
+        parent.querySelectorAll('.stagger-card').forEach((card, i) => {
+          setTimeout(() => card.classList.add('visible'), i * 120);
+        });
+        staggerObserver.unobserve(parent);
+      }
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.data-grid, .features-grid').forEach(el => staggerObserver.observe(el));
+
+  /* 카운트업 */
+  function countUp(el, target, duration = 1800) {
+    let start = 0;
+    const step = target / (duration / 16);
+    const timer = setInterval(() => {
+      start += step;
+      if (start >= target) { start = target; clearInterval(timer); }
+      el.textContent = Math.floor(start).toLocaleString();
+    }, 16);
+  }
+  const countObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('[data-count]').forEach(el => countUp(el, parseInt(el.dataset.count)));
+        countObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.key-stats-grid').forEach(el => countObserver.observe(el));
+
+  /* 데이터 바 애니메이션 */
+  const barObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.data-bar-fill[data-width]').forEach(bar => {
+          setTimeout(() => { bar.style.width = bar.dataset.width + '%'; }, 300);
+        });
+        barObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  document.querySelectorAll('.data-card').forEach(el => barObserver.observe(el));
+
+  /* 헤더 스크롤 */
+  window.addEventListener('scroll', () => {
+    document.getElementById('header').style.boxShadow = window.scrollY > 40 ? '0 4px 24px rgba(26,20,18,.1)' : 'none';
+  });
+</script>
+</body>
+</html>

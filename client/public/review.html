@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>고객 후기 — REAGE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --wine: #6B0F1A; --wine-light: #8B1525;
+      --offwhite: #F7F5F2; --charcoal: #1A1412; --gold: #C8A26A;
+      --gold-light: #D4B07A; --gray: #6B6B6B; --light-gray: #E8E6E3;
+      --radius: 14px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--offwhite); color: var(--charcoal); font-size: 16px; line-height: 1.7; overflow-x: hidden; }
+    a { text-decoration: none; color: inherit; }
+    .container { max-width: 1160px; margin: 0 auto; padding: 0 32px; }
+
+    #scroll-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--wine), var(--gold)); z-index: 9999; }
+    #cursor-follower { position: fixed; pointer-events: none; z-index: 9998; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); transform: translate(-50%, -50%); }
+    #cursor-ring { position: fixed; pointer-events: none; z-index: 9998; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(200,162,106,0.4); transform: translate(-50%, -50%); }
+
+    .fade-in { opacity: 0; transform: translateY(32px); transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1), transform 0.75s cubic-bezier(0.22,1,0.36,1); }
+    .fade-in.visible { opacity: 1; transform: none; }
+    .slide-in-left { opacity: 0; transform: translateX(-40px); transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1); }
+    .slide-in-left.visible { opacity: 1; transform: none; }
+    .slide-in-right { opacity: 0; transform: translateX(40px); transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1); }
+    .slide-in-right.visible { opacity: 1; transform: none; }
+    .stagger-card { opacity: 0; transform: translateY(24px); transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1); }
+    .stagger-card.visible { opacity: 1; transform: none; }
+    .gold-line { width: 0; height: 2px; background: var(--gold); margin: 0 auto 20px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s; }
+    .gold-line.visible { width: 48px; }
+
+    /* HEADER */
+    #header { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: rgba(247,245,242,.96); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(200,162,106,.2); }
+    #header .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 72px; }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: .18em; color: var(--wine); }
+    .logo span { color: var(--gold); }
+    nav { display: flex; align-items: stretch; }
+    .nav-item { position: relative; display: flex; align-items: center; }
+    .nav-item > a { display: flex; align-items: center; gap: 4px; padding: 0 16px; font-size: 13.5px; font-weight: 500; color: var(--charcoal); height: 72px; letter-spacing: .04em; transition: color .2s; }
+    .nav-item > a:hover, .nav-item > a.active { color: var(--wine); }
+    .arrow { display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid currentColor; margin-top: 2px; }
+    .nav-dropdown { display: none; position: absolute; top: 100%; left: 0; min-width: 160px; background: #fff; border-top: 2px solid var(--wine); border-radius: 0 0 10px 10px; box-shadow: 0 8px 32px rgba(26,20,18,.12); padding: 8px 0; z-index: 100; }
+    .nav-item:hover .nav-dropdown { display: block; }
+    .nav-dropdown a { display: block; padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--charcoal); border-bottom: 1px solid rgba(200,162,106,.12); transition: background .15s, color .15s; }
+    .nav-dropdown a:last-child { border-bottom: none; }
+    .nav-dropdown a:hover { background: var(--offwhite); color: var(--wine); }
+    .header-cta { display: flex; gap: 10px; }
+    .btn-primary { display: inline-flex; align-items: center; background: var(--wine); color: #fff; padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-primary:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .btn-outline { display: inline-flex; align-items: center; background: transparent; color: var(--wine); padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--wine); cursor: pointer; transition: background .25s, color .25s, transform .2s; }
+    .btn-outline:hover { background: var(--wine); color: #fff; transform: translateY(-2px); }
+    .btn-gold { display: inline-flex; align-items: center; gap: 8px; background: var(--gold); color: var(--charcoal); padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 700; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-gold:hover { background: var(--gold-light); transform: translateY(-2px); }
+    .btn-wine { display: inline-flex; align-items: center; gap: 8px; background: var(--wine); color: #fff; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-wine:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .btn-outline-light { display: inline-flex; align-items: center; gap: 8px; background: transparent; color: var(--offwhite); padding: 13px 30px; border-radius: 8px; font-size: 15px; font-weight: 600; border: 1.5px solid rgba(247,245,242,.5); cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-outline-light:hover { background: rgba(247,245,242,.12); transform: translateY(-2px); }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 8px; }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--charcoal); border-radius: 2px; }
+    .mobile-menu { display: none; position: fixed; top: 72px; left: 0; right: 0; background: #fff; border-top: 1px solid var(--light-gray); padding: 20px 32px; z-index: 999; box-shadow: 0 8px 32px rgba(26,20,18,.1); }
+    .mobile-menu.open { display: block; }
+    .mobile-menu a { display: block; padding: 12px 0; font-size: 15px; font-weight: 500; border-bottom: 1px solid var(--light-gray); }
+
+    /* BREADCRUMB */
+    .breadcrumb { background: var(--charcoal); padding: 12px 0; margin-top: 72px; }
+    .breadcrumb .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(247,245,242,.5); }
+    .breadcrumb a { color: rgba(247,245,242,.5); transition: color .2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb .sep { color: rgba(247,245,242,.3); }
+    .breadcrumb .current { color: var(--gold); }
+
+    /* HERO */
+    #review-hero { background: var(--charcoal); padding: 100px 0 80px; text-align: center; position: relative; overflow: hidden; }
+    #review-hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(107,15,26,.5) 0%, transparent 70%); }
+    .hero-inner { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; }
+    .eyebrow { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 12px; }
+    .hero-title { font-family: 'Noto Serif KR', serif; font-size: clamp(30px, 4.5vw, 52px); font-weight: 700; line-height: 1.25; color: var(--offwhite); margin-bottom: 24px; }
+    .hero-title em { color: var(--gold); font-style: normal; }
+    .hero-sub { font-size: 16px; color: rgba(247,245,242,.75); line-height: 1.85; margin-bottom: 40px; }
+    .hero-stats { display: flex; justify-content: center; gap: 60px; margin-top: 48px; }
+    .hero-stat-val { font-size: 36px; font-weight: 700; color: var(--gold); font-family: 'Noto Serif KR', serif; }
+    .hero-stat-label { font-size: 12px; color: rgba(247,245,242,.6); letter-spacing: .08em; margin-top: 4px; }
+
+    /* FILTER TABS */
+    .filter-tabs { background: #fff; border-bottom: 1px solid var(--light-gray); position: sticky; top: 72px; z-index: 100; }
+    .filter-tabs-inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; gap: 0; overflow-x: auto; }
+    .filter-tab { padding: 18px 24px; font-size: 14px; font-weight: 600; color: var(--gray); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: color .2s, border-color .2s; }
+    .filter-tab:hover { color: var(--charcoal); }
+    .filter-tab.active { color: var(--wine); border-bottom-color: var(--wine); }
+
+    /* BEFORE/AFTER */
+    #before-after { padding: 100px 0; background: var(--offwhite); }
+    .section-header { text-align: center; margin-bottom: 64px; }
+    .section-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(26px, 3.5vw, 40px); font-weight: 700; color: var(--charcoal); margin-bottom: 16px; }
+    .section-header p { font-size: 16px; color: var(--gray); }
+    .ba-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+    .ba-card { background: #fff; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--light-gray); transition: box-shadow .3s, transform .3s; }
+    .ba-card:hover { box-shadow: 0 16px 48px rgba(26,20,18,.12); transform: translateY(-4px); }
+    .ba-images { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .ba-img { aspect-ratio: 3/4; background: var(--light-gray); display: flex; align-items: center; justify-content: center; position: relative; }
+    .ba-img.before { background: #e8e4e0; }
+    .ba-img.after { background: #d4c4b0; }
+    .ba-img-label { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; letter-spacing: .12em; padding: 3px 10px; border-radius: 20px; }
+    .ba-img.before .ba-img-label { background: rgba(26,20,18,.6); color: #fff; }
+    .ba-img.after .ba-img-label { background: var(--wine); color: #fff; }
+    .ba-img-placeholder { font-size: 32px; }
+    .ba-info { padding: 20px 24px; }
+    .ba-tag { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--wine); margin-bottom: 8px; }
+    .ba-concern { font-size: 15px; font-weight: 700; color: var(--charcoal); margin-bottom: 8px; }
+    .ba-sessions { font-size: 13px; color: var(--gray); }
+    .ba-result { font-size: 13px; color: var(--wine); font-weight: 600; margin-top: 8px; }
+
+    /* REVIEW CARDS */
+    #reviews { padding: 100px 0; background: #fff; }
+    .reviews-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+    .review-card { background: var(--offwhite); border-radius: var(--radius); padding: 32px 28px; border: 1px solid var(--light-gray); transition: box-shadow .3s, transform .3s; position: relative; overflow: hidden; }
+    .review-card::before { content: '"'; position: absolute; top: 16px; right: 24px; font-size: 80px; font-family: 'Noto Serif KR', serif; color: rgba(200,162,106,.12); line-height: 1; }
+    .review-card:hover { box-shadow: 0 12px 40px rgba(26,20,18,.1); transform: translateY(-3px); }
+    .review-stars { display: flex; gap: 3px; margin-bottom: 16px; }
+    .star { color: var(--gold); font-size: 16px; }
+    .review-text { font-size: 15px; line-height: 1.85; color: var(--charcoal); margin-bottom: 24px; position: relative; z-index: 1; }
+    .review-author { display: flex; align-items: center; gap: 12px; }
+    .review-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--light-gray); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .review-name { font-size: 14px; font-weight: 700; color: var(--charcoal); }
+    .review-meta { font-size: 12px; color: var(--gray); margin-top: 2px; }
+    .review-badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 3px 10px; border-radius: 20px; background: rgba(107,15,26,.08); color: var(--wine); margin-top: 6px; }
+
+    /* SNS REVIEWS */
+    #sns-reviews { padding: 100px 0; background: var(--charcoal); }
+    .sns-header { text-align: center; margin-bottom: 64px; }
+    .sns-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(26px, 3.5vw, 40px); font-weight: 700; color: var(--offwhite); margin-bottom: 16px; }
+    .sns-header p { font-size: 16px; color: rgba(247,245,242,.7); }
+    .sns-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .sns-card { background: rgba(247,245,242,.04); border: 1px solid rgba(200,162,106,.15); border-radius: 12px; overflow: hidden; transition: border-color .3s, transform .3s; cursor: pointer; }
+    .sns-card:hover { border-color: rgba(200,162,106,.4); transform: translateY(-4px); }
+    .sns-img { aspect-ratio: 1; background: rgba(200,162,106,.08); display: flex; align-items: center; justify-content: center; font-size: 40px; }
+    .sns-info { padding: 16px; }
+    .sns-platform { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--gold); margin-bottom: 6px; }
+    .sns-text { font-size: 13px; color: rgba(247,245,242,.7); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .sns-likes { font-size: 12px; color: rgba(247,245,242,.4); margin-top: 10px; }
+
+    /* NUMBERS */
+    #review-numbers { padding: 80px 0; background: var(--wine); }
+    .numbers-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+    .number-item { text-align: center; padding: 40px 20px; border-right: 1px solid rgba(247,245,242,.15); }
+    .number-item:last-child { border-right: none; }
+    .number-val { font-size: clamp(36px, 5vw, 56px); font-weight: 700; color: var(--gold); font-family: 'Noto Serif KR', serif; }
+    .number-label { font-size: 14px; color: rgba(247,245,242,.8); margin-top: 8px; }
+
+    /* CTA */
+    #review-cta { background: var(--offwhite); padding: 100px 0; text-align: center; }
+    .cta-title { font-family: 'Noto Serif KR', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 700; color: var(--charcoal); line-height: 1.35; margin-bottom: 20px; }
+    .cta-sub { font-size: 16px; color: var(--gray); line-height: 1.8; margin-bottom: 40px; }
+    .cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+    /* FOOTER */
+    #footer { background: #0F0C0B; color: rgba(247,245,242,.6); padding: 60px 0 32px; }
+    .footer-inner { display: grid; grid-template-columns: 1fr auto; gap: 60px; margin-bottom: 40px; }
+    .footer-brand p { font-size: 13px; line-height: 1.8; }
+    .footer-links { display: flex; gap: 60px; }
+    .footer-col h5 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .footer-col a { display: block; font-size: 13px; margin-bottom: 10px; color: rgba(247,245,242,.55); transition: color .2s; }
+    .footer-col a:hover { color: var(--gold); }
+    .footer-bottom { border-top: 1px solid rgba(247,245,242,.08); padding-top: 24px; display: flex; justify-content: space-between; font-size: 12px; flex-wrap: wrap; gap: 8px; }
+
+    @media (max-width: 900px) {
+      nav, .header-cta { display: none; }
+      .hamburger { display: flex; }
+      .ba-grid { grid-template-columns: 1fr 1fr; }
+      .reviews-grid { grid-template-columns: 1fr 1fr; }
+      .sns-grid { grid-template-columns: repeat(2, 1fr); }
+      .numbers-grid { grid-template-columns: repeat(2, 1fr); }
+      .number-item:nth-child(2) { border-right: none; }
+      .number-item:nth-child(3) { border-top: 1px solid rgba(247,245,242,.15); }
+      .footer-inner { grid-template-columns: 1fr; gap: 40px; }
+      .footer-links { flex-wrap: wrap; gap: 32px; }
+    }
+    @media (max-width: 600px) {
+      .container { padding: 0 20px; }
+      .ba-grid { grid-template-columns: 1fr; }
+      .reviews-grid { grid-template-columns: 1fr; }
+      .sns-grid { grid-template-columns: repeat(2, 1fr); }
+      .hero-stats { gap: 32px; }
+      .cta-btns { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+<div id="cursor-follower"></div>
+<div id="cursor-ring"></div>
+
+<!-- HEADER -->
+<header id="header">
+  <div class="inner">
+    <a href="index.html" class="logo">RE<span>A</span>GE</a>
+    <nav>
+      <div class="nav-item">
+        <a href="brand-intro.html">브랜드 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="therapy.html">레아쥬테라피</a></div>
+      <div class="nav-item">
+        <a href="reage-device.html">제품소개 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="product-s1.html">S1크림</a>
+          <a href="product-m2.html">M2크림</a>
+          <a href="product-f3.html">F3크림</a>
+          <a href="product-new1.html">신제품1</a>
+          <a href="product-new2.html">신제품2</a>
+          <a href="product-new3.html">신제품3</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="academy.html">아카데미</a></div>
+      <div class="nav-item"><a href="review.html" class="active">후기</a></div>
+      <div class="nav-item">
+        <a href="gallery.html">갤러리 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="gallery.html">갤러리</a>
+          <a href="magazine.html">매거진</a>
+        </div>
+      </div>
+    </nav>
+    <div class="header-cta">
+      <a href="contact.html" class="btn-primary">체험 예약</a>
+      <a href="contact.html" class="btn-outline">도입 상담</a>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  </div>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="brand-intro.html">브랜드소개</a>
+  <a href="brand-story.html">브랜드스토리</a>
+  <a href="therapy.html">레아쥬테라피</a>
+  <a href="reage-device.html">레아쥬기기</a>
+  <a href="academy.html">아카데미</a>
+  <a href="review.html">후기</a>
+  <a href="gallery.html">갤러리</a>
+  <a href="magazine.html">매거진</a>
+  <a href="contact.html">체험 예약</a>
+</div>
+
+<div class="breadcrumb">
+  <div class="inner">
+    <a href="index.html">홈</a>
+    <span class="sep">›</span>
+    <span class="current">고객 후기</span>
+  </div>
+</div>
+
+<!-- HERO -->
+<section id="review-hero">
+  <div class="container">
+    <div class="hero-inner fade-in">
+      <div class="eyebrow">REAL RESULTS · 실제 고객 후기</div>
+      <div class="gold-line"></div>
+      <h1 class="hero-title">
+        숫자가 아닌,<br/><em>얼굴이 말합니다.</em>
+      </h1>
+      <p class="hero-sub">
+        레아쥬 테라피를 경험한 실제 고객들의 이야기입니다.<br/>과장 없이, 있는 그대로의 변화를 담았습니다.
+      </p>
+      <div class="hero-stats">
+        <div>
+          <div class="hero-stat-val" data-count="98">0</div>
+          <div class="hero-stat-label">% 재방문율</div>
+        </div>
+        <div>
+          <div class="hero-stat-val" data-count="400">0</div>
+          <div class="hero-stat-label">+ 도입 살롱</div>
+        </div>
+        <div>
+          <div class="hero-stat-val" data-count="4.9">0</div>
+          <div class="hero-stat-label">/ 5.0 평균 만족도</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FILTER TABS -->
+<div class="filter-tabs">
+  <div class="filter-tabs-inner">
+    <div class="filter-tab active" onclick="filterReviews('all', this)">전체 후기</div>
+    <div class="filter-tab" onclick="filterReviews('lifting', this)">리프팅·탄력</div>
+    <div class="filter-tab" onclick="filterReviews('line', this)">라인·윤곽</div>
+    <div class="filter-tab" onclick="filterReviews('skin', this)">피부결·광채</div>
+    <div class="filter-tab" onclick="filterReviews('pore', this)">모공·트러블</div>
+    <div class="filter-tab" onclick="filterReviews('medical', this)">메디컬 에스테틱</div>
+  </div>
+</div>
+
+<!-- BEFORE / AFTER -->
+<section id="before-after">
+  <div class="container">
+    <div class="section-header fade-in">
+      <div class="eyebrow" style="color:var(--wine)">BEFORE & AFTER</div>
+      <div class="gold-line"></div>
+      <h2>시술 전후 비교</h2>
+      <p>실제 고객의 시술 전후 사진입니다. 모든 사진은 동일 조건에서 촬영되었습니다.</p>
+    </div>
+    <div class="ba-grid">
+      <div class="ba-card stagger-card" data-category="lifting">
+        <div class="ba-images">
+          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
+          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
+        </div>
+        <div class="ba-info">
+          <div class="ba-tag">LIFTING · 리프팅</div>
+          <div class="ba-concern">볼살 처짐 · 팔자 주름</div>
+          <div class="ba-sessions">시술 횟수: 8회 (4주)</div>
+          <div class="ba-result">→ 볼 라인 리프팅, 팔자 주름 완화</div>
+        </div>
+      </div>
+      <div class="ba-card stagger-card" data-category="line" style="transition-delay:.1s">
+        <div class="ba-images">
+          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
+          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
+        </div>
+        <div class="ba-info">
+          <div class="ba-tag">LINE · 윤곽</div>
+          <div class="ba-concern">이중턱 · 턱선 불명확</div>
+          <div class="ba-sessions">시술 횟수: 10회 (5주)</div>
+          <div class="ba-result">→ 턱선 선명화, 이중턱 감소</div>
+        </div>
+      </div>
+      <div class="ba-card stagger-card" data-category="skin" style="transition-delay:.2s">
+        <div class="ba-images">
+          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
+          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
+        </div>
+        <div class="ba-info">
+          <div class="ba-tag">SKIN · 피부결</div>
+          <div class="ba-concern">칙칙한 피부톤 · 거친 피부결</div>
+          <div class="ba-sessions">시술 횟수: 6회 (3주)</div>
+          <div class="ba-result">→ 피부 광채 개선, 결 정돈</div>
+        </div>
+      </div>
+      <div class="ba-card stagger-card" data-category="lifting" style="transition-delay:.3s">
+        <div class="ba-images">
+          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
+          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
+        </div>
+        <div class="ba-info">
+          <div class="ba-tag">LIFTING · 리프팅</div>
+          <div class="ba-concern">눈가 처짐 · 눈 밑 부기</div>
+          <div class="ba-sessions">시술 횟수: 12회 (6주)</div>
+          <div class="ba-result">→ 눈가 리프팅, 부기 완화</div>
+        </div>
+      </div>
+      <div class="ba-card stagger-card" data-category="pore" style="transition-delay:.4s">
+        <div class="ba-images">
+          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
+          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
+        </div>
+        <div class="ba-info">
+          <div class="ba-tag">PORE · 모공</div>
+          <div class="ba-concern">넓은 모공 · 피지 과다</div>
+          <div class="ba-sessions">시술 횟수: 8회 (4주)</div>
+          <div class="ba-result">→ 모공 축소, 피지 밸런스 개선</div>
+        </div>
+      </div>
+      <div class="ba-card stagger-card" data-category="medical" style="transition-delay:.5s">
+        <div class="ba-images">
+          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
+          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
+        </div>
+        <div class="ba-info">
+          <div class="ba-tag">MEDICAL · 메디컬</div>
+          <div class="ba-concern">시술 후 부기 · 회복 관리</div>
+          <div class="ba-sessions">시술 횟수: 5회 (시술 후 관리)</div>
+          <div class="ba-result">→ 부기 빠른 회복, 피부 진정</div>
+        </div>
+      </div>
+    </div>
+    <p style="text-align:center; font-size:12px; color:var(--gray); margin-top:32px;">※ 개인차가 있을 수 있으며, 모든 사진은 실제 고객의 동의 하에 게재되었습니다.</p>
+  </div>
+</section>
+
+<!-- TEXT REVIEWS -->
+<section id="reviews">
+  <div class="container">
+    <div class="section-header fade-in">
+      <div class="eyebrow" style="color:var(--wine)">CUSTOMER REVIEWS</div>
+      <div class="gold-line"></div>
+      <h2>고객 리뷰</h2>
+      <p>레아쥬 테라피를 경험한 고객들의 솔직한 이야기입니다.</p>
+    </div>
+    <div class="reviews-grid" id="reviewsGrid">
+      <div class="review-card stagger-card" data-category="lifting">
+        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
+        <p class="review-text">"처음에는 반신반의했는데, 5회 받고 나서 남편이 먼저 알아봤어요. 볼살이 올라가고 턱선이 선명해졌다고. 기계가 직접 닿지 않는데 이런 효과가 나온다는 게 신기했습니다."</p>
+        <div class="review-author">
+          <div class="review-avatar">👩</div>
+          <div>
+            <div class="review-name">김○○ 님</div>
+            <div class="review-meta">서울 강남 · 40대</div>
+            <span class="review-badge">리프팅·탄력</span>
+          </div>
+        </div>
+      </div>
+      <div class="review-card stagger-card" data-category="line" style="transition-delay:.1s">
+        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
+        <p class="review-text">"이중턱 때문에 고민이 많았는데, 레아쥬 10회 코스 끝내고 나서 확실히 달라졌어요. 통증도 없고 시술 중에 오히려 편안했습니다. 원장님 손이 따뜻해서 힐링 받는 느낌."</p>
+        <div class="review-author">
+          <div class="review-avatar">👩</div>
+          <div>
+            <div class="review-name">이○○ 님</div>
+            <div class="review-meta">경기 분당 · 30대</div>
+            <span class="review-badge">라인·윤곽</span>
+          </div>
+        </div>
+      </div>
+      <div class="review-card stagger-card" data-category="skin" style="transition-delay:.2s">
+        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
+        <p class="review-text">"피부가 원래 칙칙하고 결이 거칠었는데, 3주 만에 주변에서 피부 좋아졌다는 말을 들었어요. 화장도 더 잘 받고, 아침에 거울 보는 게 즐거워졌습니다."</p>
+        <div class="review-author">
+          <div class="review-avatar">👩</div>
+          <div>
+            <div class="review-name">박○○ 님</div>
+            <div class="review-meta">서울 마포 · 30대</div>
+            <span class="review-badge">피부결·광채</span>
+          </div>
+        </div>
+      </div>
+      <div class="review-card stagger-card" data-category="medical" style="transition-delay:.3s">
+        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
+        <p class="review-text">"리프팅 시술 후 부기가 심했는데 레아쥬 관리 받고 훨씬 빨리 회복됐어요. 클리닉 원장님이 직접 추천해주셔서 받았는데, 이제 정기 관리로 계속 받고 있습니다."</p>
+        <div class="review-author">
+          <div class="review-avatar">👩</div>
+          <div>
+            <div class="review-name">최○○ 님</div>
+            <div class="review-meta">서울 청담 · 40대</div>
+            <span class="review-badge">메디컬 에스테틱</span>
+          </div>
+        </div>
+      </div>
+      <div class="review-card stagger-card" data-category="lifting" style="transition-delay:.4s">
+        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
+        <p class="review-text">"50대인데 이렇게 효과가 좋을 줄 몰랐어요. 눈가가 처지고 눈 밑이 부어있었는데, 꾸준히 받으니까 눈이 커보인다는 말을 듣게 됐습니다. 계속 다닐 것 같아요."</p>
+        <div class="review-author">
+          <div class="review-avatar">👩</div>
+          <div>
+            <div class="review-name">정○○ 님</div>
+            <div class="review-meta">서울 서초 · 50대</div>
+            <span class="review-badge">리프팅·탄력</span>
+          </div>
+        </div>
+      </div>
+      <div class="review-card stagger-card" data-category="pore" style="transition-delay:.5s">
+        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
+        <p class="review-text">"모공이 넓어서 항상 고민이었는데 레아쥬 받고 나서 피부 결이 매끄러워졌어요. 피지도 줄고 화장이 훨씬 잘 받아요. 원장님이 꼼꼼하게 관리해주셔서 믿음이 갑니다."</p>
+        <div class="review-author">
+          <div class="review-avatar">👩</div>
+          <div>
+            <div class="review-name">한○○ 님</div>
+            <div class="review-meta">경기 수원 · 20대</div>
+            <span class="review-badge">모공·트러블</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SNS REVIEWS -->
+<section id="sns-reviews">
+  <div class="container">
+    <div class="sns-header fade-in">
+      <div class="eyebrow">SNS REVIEWS</div>
+      <div class="gold-line"></div>
+      <h2>SNS 실시간 후기</h2>
+      <p>인스타그램·블로그에서 고객들이 직접 공유한 레아쥬 후기입니다.</p>
+    </div>
+    <div class="sns-grid">
+      <div class="sns-card stagger-card">
+        <div class="sns-img">📱</div>
+        <div class="sns-info">
+          <div class="sns-platform">INSTAGRAM</div>
+          <p class="sns-text">레아쥬 10회 완료✨ 확실히 달라진 느낌! 볼살이 올라가고 턱선이 선명해졌어요 #레아쥬 #미세전류 #리프팅</p>
+          <div class="sns-likes">❤️ 248 likes</div>
+        </div>
+      </div>
+      <div class="sns-card stagger-card" style="transition-delay:.1s">
+        <div class="sns-img">📝</div>
+        <div class="sns-info">
+          <div class="sns-platform">NAVER BLOG</div>
+          <p class="sns-text">강남 레아쥬 리뷰 — 올핸드 미세전류 테라피 솔직 후기. 3개월 다닌 결과를 공유합니다...</p>
+          <div class="sns-likes">👁 1,240 views</div>
+        </div>
+      </div>
+      <div class="sns-card stagger-card" style="transition-delay:.2s">
+        <div class="sns-img">📱</div>
+        <div class="sns-info">
+          <div class="sns-platform">INSTAGRAM</div>
+          <p class="sns-text">이중턱 고민이었는데 레아쥬 받고 나서 확실히 라인이 생겼어요 🥺 통증 없이 이런 효과라니 #레아쥬기기</p>
+          <div class="sns-likes">❤️ 312 likes</div>
+        </div>
+      </div>
+      <div class="sns-card stagger-card" style="transition-delay:.3s">
+        <div class="sns-img">📝</div>
+        <div class="sns-info">
+          <div class="sns-platform">KAKAO</div>
+          <p class="sns-text">레아쥬 원장님 너무 친절하시고 효과도 좋아요. 피부가 촉촉해지고 탄력이 생긴 것 같아서 계속 다닐 예정입니다.</p>
+          <div class="sns-likes">⭐ 5.0 / 5.0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NUMBERS -->
+<section id="review-numbers">
+  <div class="container">
+    <div class="numbers-grid">
+      <div class="number-item fade-in">
+        <div class="number-val" data-count="98">0</div>
+        <div class="number-label">% 고객 재방문율</div>
+      </div>
+      <div class="number-item fade-in" style="transition-delay:.1s">
+        <div class="number-val" data-count="4.9">0</div>
+        <div class="number-label">/ 5.0 평균 만족도</div>
+      </div>
+      <div class="number-item fade-in" style="transition-delay:.2s">
+        <div class="number-val" data-count="400">0</div>
+        <div class="number-label">+ 도입 살롱 수</div>
+      </div>
+      <div class="number-item fade-in" style="transition-delay:.3s">
+        <div class="number-val" data-count="20">0</div>
+        <div class="number-label">년+ 일본 검증 기간</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="review-cta">
+  <div class="container">
+    <div class="fade-in" style="text-align:center; max-width:640px; margin:0 auto;">
+      <div class="eyebrow" style="color:var(--wine)">EXPERIENCE</div>
+      <div class="gold-line"></div>
+      <h2 class="cta-title">직접 경험해보세요.</h2>
+      <p class="cta-sub">수백 명의 고객이 경험한 변화를 당신도 느낄 수 있습니다. 가까운 레아쥬 살롱에서 체험 예약을 시작하세요.</p>
+      <div class="cta-btns">
+        <a href="contact.html" class="btn-wine" style="padding:16px 40px; font-size:16px;">체험 예약하기</a>
+        <a href="contact.html" class="btn-outline" style="padding:15px 38px; font-size:16px;">도입 상담 신청</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="logo">RE<span style="color:var(--gold)">A</span>GE</div>
+        <p>올핸드 미세전류 테라피 — 일본 원천 기술, 아시아 총판<br/>(주)리플런스 | 대표: 조예나 | 010-9679-9498</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h5>브랜드</h5>
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+          <a href="therapy.html">레아쥬테라피</a>
+        </div>
+        <div class="footer-col">
+          <h5>제품·교육</h5>
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="academy.html">아카데미</a>
+          <a href="review.html">후기</a>
+        </div>
+        <div class="footer-col">
+          <h5>문의</h5>
+          <a href="contact.html">체험 예약</a>
+          <a href="contact.html">도입 상담</a>
+          <a href="contact.html">교육 문의</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2024 REAGE. All rights reserved.</span>
+      <span>본 페이지의 모든 내용은 테라피 관리 목적이며, 의료행위·치료 목적이 아닙니다.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+
+  const progressBar = document.getElementById('scroll-progress');
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    progressBar.style.width = (window.scrollY / total * 100) + '%';
+  });
+
+  const follower = document.getElementById('cursor-follower');
+  const ring = document.getElementById('cursor-ring');
+  let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
+  document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; follower.style.left = mouseX + 'px'; follower.style.top = mouseY + 'px'; });
+  function animateRing() { ringX += (mouseX - ringX) * 0.12; ringY += (mouseY - ringY) * 0.12; ring.style.left = ringX + 'px'; ring.style.top = ringY + 'px'; requestAnimationFrame(animateRing); }
+  animateRing();
+
+  const motionSelector = '.fade-in, .slide-in-left, .slide-in-right';
+  const scrollObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll(motionSelector).forEach(el => scrollObserver.observe(el));
+
+  const lineObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.gold-line').forEach(el => lineObserver.observe(el));
+
+  const staggerObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const parent = e.target;
+        parent.querySelectorAll('.stagger-card').forEach((card, i) => {
+          setTimeout(() => card.classList.add('visible'), i * 100);
+        });
+        staggerObserver.unobserve(parent);
+      }
+    });
+  }, { threshold: 0.05 });
+  document.querySelectorAll('.ba-grid, .reviews-grid, .sns-grid').forEach(el => staggerObserver.observe(el));
+
+  // Count-up
+  function countUp(el) {
+    const target = parseFloat(el.dataset.count);
+    const isDecimal = target % 1 !== 0;
+    const duration = 1800;
+    const start = performance.now();
+    function update(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const val = target * eased;
+      el.textContent = isDecimal ? val.toFixed(1) : Math.round(val);
+      if (progress < 1) requestAnimationFrame(update);
+    }
+    requestAnimationFrame(update);
+  }
+  const counterObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { countUp(e.target); counterObserver.unobserve(e.target); }
+    });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('[data-count]').forEach(el => counterObserver.observe(el));
+
+  // Filter
+  function filterReviews(category, tab) {
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.ba-card, .review-card').forEach(card => {
+      if (category === 'all' || card.dataset.category === category) {
+        card.style.display = '';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  window.addEventListener('scroll', () => {
+    document.getElementById('header').style.boxShadow = window.scrollY > 40 ? '0 4px 24px rgba(26,20,18,.1)' : 'none';
+  });
+</script>
+</body>
+</html>

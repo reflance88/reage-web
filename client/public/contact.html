@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>문의하기 — REAGE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --wine: #6B0F1A; --wine-light: #8B1525;
+      --offwhite: #F7F5F2; --charcoal: #1A1412; --gold: #C8A26A;
+      --gold-light: #D4B07A; --gray: #6B6B6B; --light-gray: #E8E6E3;
+      --radius: 14px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--offwhite); color: var(--charcoal); font-size: 16px; line-height: 1.7; overflow-x: hidden; }
+    a { text-decoration: none; color: inherit; }
+    .container { max-width: 1160px; margin: 0 auto; padding: 0 32px; }
+
+    #scroll-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--wine), var(--gold)); z-index: 9999; }
+    #cursor-follower { position: fixed; pointer-events: none; z-index: 9998; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); transform: translate(-50%, -50%); }
+    #cursor-ring { position: fixed; pointer-events: none; z-index: 9998; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(200,162,106,0.4); transform: translate(-50%, -50%); }
+
+    .fade-in { opacity: 0; transform: translateY(28px); transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1), transform 0.75s cubic-bezier(0.22,1,0.36,1); }
+    .fade-in.visible { opacity: 1; transform: none; }
+    .gold-line { width: 0; height: 2px; background: var(--gold); margin: 0 auto 20px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s; }
+    .gold-line.visible { width: 48px; }
+
+    /* HEADER */
+    #header { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: rgba(247,245,242,.96); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(200,162,106,.2); }
+    #header .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 72px; }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: .18em; color: var(--wine); }
+    .logo span { color: var(--gold); }
+    nav { display: flex; align-items: stretch; }
+    .nav-item { position: relative; display: flex; align-items: center; }
+    .nav-item > a { display: flex; align-items: center; gap: 4px; padding: 0 16px; font-size: 13.5px; font-weight: 500; color: var(--charcoal); height: 72px; letter-spacing: .04em; transition: color .2s; }
+    .nav-item > a:hover, .nav-item > a.active { color: var(--wine); }
+    .arrow { display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid currentColor; margin-top: 2px; }
+    .nav-dropdown { display: none; position: absolute; top: 100%; left: 0; min-width: 160px; background: #fff; border-top: 2px solid var(--wine); border-radius: 0 0 10px 10px; box-shadow: 0 8px 32px rgba(26,20,18,.12); padding: 8px 0; z-index: 100; }
+    .nav-item:hover .nav-dropdown { display: block; }
+    .nav-dropdown a { display: block; padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--charcoal); border-bottom: 1px solid rgba(200,162,106,.12); transition: background .15s, color .15s; }
+    .nav-dropdown a:last-child { border-bottom: none; }
+    .nav-dropdown a:hover { background: var(--offwhite); color: var(--wine); }
+    .header-cta { display: flex; gap: 10px; }
+    .btn-primary { display: inline-flex; align-items: center; background: var(--wine); color: #fff; padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
+    .btn-primary:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .btn-outline { display: inline-flex; align-items: center; background: transparent; color: var(--wine); padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--wine); cursor: pointer; transition: background .25s, color .25s, transform .2s; }
+    .btn-outline:hover { background: var(--wine); color: #fff; transform: translateY(-2px); }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 8px; }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--charcoal); border-radius: 2px; }
+    .mobile-menu { display: none; position: fixed; top: 72px; left: 0; right: 0; background: #fff; border-top: 1px solid var(--light-gray); padding: 20px 32px; z-index: 999; }
+    .mobile-menu.open { display: block; }
+    .mobile-menu a { display: block; padding: 12px 0; font-size: 15px; font-weight: 500; border-bottom: 1px solid var(--light-gray); }
+
+    /* BREADCRUMB */
+    .breadcrumb { background: var(--charcoal); padding: 12px 0; margin-top: 72px; }
+    .breadcrumb .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(247,245,242,.5); }
+    .breadcrumb a { color: rgba(247,245,242,.5); transition: color .2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb .sep { color: rgba(247,245,242,.3); }
+    .breadcrumb .current { color: var(--gold); }
+
+    /* HERO */
+    #contact-hero { background: var(--charcoal); padding: 80px 0 60px; text-align: center; position: relative; overflow: hidden; }
+    #contact-hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(107,15,26,.4) 0%, transparent 70%); }
+    .hero-inner { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; }
+    .eyebrow { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 12px; }
+    .hero-title { font-family: 'Noto Serif KR', serif; font-size: clamp(28px, 4vw, 48px); font-weight: 700; line-height: 1.25; color: var(--offwhite); margin-bottom: 20px; }
+    .hero-title em { color: var(--gold); font-style: normal; }
+    .hero-sub { font-size: 16px; color: rgba(247,245,242,.75); line-height: 1.85; }
+
+    /* QUICK ACTIONS */
+    #quick-actions { padding: 60px 0; background: #fff; }
+    .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .quick-card { background: var(--offwhite); border: 2px solid transparent; border-radius: var(--radius); padding: 32px 24px; text-align: center; cursor: pointer; transition: border-color .25s, background .25s, transform .25s; }
+    .quick-card:hover, .quick-card.active { border-color: var(--wine); background: #fff; transform: translateY(-4px); }
+    .quick-card.active { background: var(--wine); }
+    .quick-card.active .quick-icon, .quick-card.active .quick-title, .quick-card.active .quick-desc { color: #fff !important; }
+    .quick-icon { font-size: 36px; margin-bottom: 12px; }
+    .quick-title { font-size: 16px; font-weight: 700; color: var(--charcoal); margin-bottom: 8px; }
+    .quick-desc { font-size: 13px; color: var(--gray); line-height: 1.6; }
+
+    /* FORM SECTION */
+    #form-section { padding: 80px 0; background: var(--offwhite); }
+    .form-layout { display: grid; grid-template-columns: 1fr 1.6fr; gap: 60px; align-items: start; }
+    .form-info h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(22px, 3vw, 32px); font-weight: 700; line-height: 1.4; margin-bottom: 20px; }
+    .form-info p { font-size: 15px; color: var(--gray); line-height: 1.85; margin-bottom: 32px; }
+    .info-items { display: flex; flex-direction: column; gap: 20px; }
+    .info-item { display: flex; gap: 16px; align-items: flex-start; }
+    .info-icon { width: 44px; height: 44px; border-radius: 10px; background: rgba(107,15,26,.08); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .info-text h4 { font-size: 14px; font-weight: 700; color: var(--charcoal); margin-bottom: 4px; }
+    .info-text p { font-size: 13px; color: var(--gray); }
+    .info-text a { color: var(--wine); font-weight: 600; }
+
+    /* FORM PANEL */
+    .form-panel { background: #fff; border-radius: 20px; padding: 48px; box-shadow: 0 4px 32px rgba(26,20,18,.08); }
+    .form-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--light-gray); margin-bottom: 36px; overflow-x: auto; }
+    .form-tab { padding: 14px 20px; font-size: 13.5px; font-weight: 600; color: var(--gray); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: color .2s, border-color .2s; }
+    .form-tab:hover { color: var(--charcoal); }
+    .form-tab.active { color: var(--wine); border-bottom-color: var(--wine); }
+    .form-body { display: none; }
+    .form-body.active { display: block; }
+    .form-title { font-size: 20px; font-weight: 700; color: var(--charcoal); margin-bottom: 8px; }
+    .form-subtitle { font-size: 14px; color: var(--gray); margin-bottom: 28px; }
+    .form-group { margin-bottom: 20px; }
+    .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--charcoal); margin-bottom: 8px; }
+    .form-label .required { color: var(--wine); margin-left: 2px; }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 13px 16px; border: 1.5px solid var(--light-gray); border-radius: 10px; font-size: 14px; font-family: inherit; color: var(--charcoal); background: var(--offwhite); outline: none; transition: border-color .2s, background .2s; }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--wine); background: #fff; }
+    .form-input::placeholder, .form-textarea::placeholder { color: #aaa; }
+    .form-textarea { resize: vertical; min-height: 120px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-note { font-size: 12px; color: var(--gray); margin-top: 6px; }
+    .form-submit { width: 100%; padding: 16px; background: var(--wine); color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background .25s, transform .2s; margin-top: 8px; }
+    .form-submit:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .form-privacy { font-size: 12px; color: var(--gray); text-align: center; margin-top: 16px; line-height: 1.6; }
+    .success-msg { display: none; text-align: center; padding: 40px 20px; }
+    .success-msg.show { display: block; }
+    .success-icon { font-size: 56px; margin-bottom: 16px; }
+    .success-title { font-size: 22px; font-weight: 700; color: var(--charcoal); margin-bottom: 12px; }
+    .success-desc { font-size: 15px; color: var(--gray); line-height: 1.7; }
+
+    /* CATALOG SECTION */
+    #catalog { padding: 80px 0; background: var(--charcoal); }
+    .catalog-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+    .catalog-text .eyebrow { color: var(--gold); }
+    .catalog-text h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(24px, 3.5vw, 36px); font-weight: 700; color: var(--offwhite); line-height: 1.35; margin-bottom: 16px; }
+    .catalog-text p { font-size: 15px; color: rgba(247,245,242,.75); line-height: 1.85; margin-bottom: 32px; }
+    .catalog-features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px; }
+    .catalog-feature { display: flex; align-items: center; gap: 12px; font-size: 14px; color: rgba(247,245,242,.85); }
+    .catalog-feature::before { content: '✓'; color: var(--gold); font-weight: 700; font-size: 16px; }
+    .btn-download { display: inline-flex; align-items: center; gap: 10px; background: var(--gold); color: var(--charcoal); padding: 16px 36px; border-radius: 10px; font-size: 16px; font-weight: 700; border: none; cursor: pointer; transition: background .25s, transform .2s; text-decoration: none; }
+    .btn-download:hover { background: var(--gold-light); transform: translateY(-3px); }
+    .catalog-preview { background: rgba(247,245,242,.04); border: 1px solid rgba(200,162,106,.2); border-radius: 20px; aspect-ratio: 3/4; display: flex; align-items: center; justify-content: center; font-size: 80px; flex-direction: column; gap: 16px; }
+    .catalog-preview span { font-size: 16px; color: rgba(247,245,242,.6); font-weight: 500; }
+
+    /* FOOTER */
+    #footer { background: #0F0C0B; color: rgba(247,245,242,.6); padding: 60px 0 32px; }
+    .footer-inner { display: grid; grid-template-columns: 1fr auto; gap: 60px; margin-bottom: 40px; }
+    .footer-brand p { font-size: 13px; line-height: 1.8; }
+    .footer-links { display: flex; gap: 60px; }
+    .footer-col h5 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
+    .footer-col a { display: block; font-size: 13px; margin-bottom: 10px; color: rgba(247,245,242,.55); transition: color .2s; }
+    .footer-col a:hover { color: var(--gold); }
+    .footer-bottom { border-top: 1px solid rgba(247,245,242,.08); padding-top: 24px; display: flex; justify-content: space-between; font-size: 12px; flex-wrap: wrap; gap: 8px; }
+
+    @media (max-width: 900px) {
+      nav, .header-cta { display: none; }
+      .hamburger { display: flex; }
+      .quick-grid { grid-template-columns: repeat(2, 1fr); }
+      .form-layout { grid-template-columns: 1fr; }
+      .catalog-inner { grid-template-columns: 1fr; }
+      .footer-inner { grid-template-columns: 1fr; gap: 40px; }
+      .footer-links { flex-wrap: wrap; gap: 32px; }
+    }
+    @media (max-width: 600px) {
+      .container { padding: 0 20px; }
+      .form-panel { padding: 28px 20px; }
+      .form-row { grid-template-columns: 1fr; }
+      .quick-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+<div id="cursor-follower"></div>
+<div id="cursor-ring"></div>
+
+<!-- HEADER -->
+<header id="header">
+  <div class="inner">
+    <a href="index.html" class="logo">RE<span>A</span>GE</a>
+    <nav>
+      <div class="nav-item">
+        <a href="brand-intro.html">브랜드 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="therapy.html">레아쥬테라피</a></div>
+      <div class="nav-item">
+        <a href="reage-device.html">제품소개 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="product-s1.html">S1크림</a>
+          <a href="product-m2.html">M2크림</a>
+          <a href="product-f3.html">F3크림</a>
+          <a href="product-new1.html">신제품1</a>
+          <a href="product-new2.html">신제품2</a>
+          <a href="product-new3.html">신제품3</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="academy.html">아카데미</a></div>
+      <div class="nav-item"><a href="review.html">후기</a></div>
+      <div class="nav-item">
+        <a href="gallery.html">갤러리 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="gallery.html">갤러리</a>
+          <a href="magazine.html">매거진</a>
+        </div>
+      </div>
+    </nav>
+    <div class="header-cta">
+      <a href="contact.html" class="btn-primary active">체험 예약</a>
+      <a href="contact.html" class="btn-outline">도입 상담</a>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  </div>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="brand-intro.html">브랜드소개</a>
+  <a href="brand-story.html">브랜드스토리</a>
+  <a href="therapy.html">레아쥬테라피</a>
+  <a href="reage-device.html">레아쥬기기</a>
+  <a href="academy.html">아카데미</a>
+  <a href="review.html">후기</a>
+  <a href="gallery.html">갤러리</a>
+  <a href="magazine.html">매거진</a>
+  <a href="contact.html">체험 예약</a>
+</div>
+
+<div class="breadcrumb">
+  <div class="inner">
+    <a href="index.html">홈</a>
+    <span class="sep">›</span>
+    <span class="current">문의하기</span>
+  </div>
+</div>
+
+<!-- HERO -->
+<section id="contact-hero">
+  <div class="container">
+    <div class="hero-inner fade-in">
+      <div class="eyebrow">CONTACT · 문의하기</div>
+      <div class="gold-line"></div>
+      <h1 class="hero-title">레아쥬와 함께<br/><em>시작하세요</em></h1>
+      <p class="hero-sub">체험 예약, 도입 상담, 교육 문의, 전화 상담 — 어떤 형태로든 편하게 연락주세요.</p>
+    </div>
+  </div>
+</section>
+
+<!-- QUICK ACTIONS -->
+<section id="quick-actions">
+  <div class="container">
+    <div class="quick-grid">
+      <div class="quick-card active" onclick="selectForm('trial', this)">
+        <div class="quick-icon">💆</div>
+        <div class="quick-title">체험 예약</div>
+        <div class="quick-desc">레아쥬 테라피를 직접 체험해보세요</div>
+      </div>
+      <div class="quick-card" onclick="selectForm('intro', this)">
+        <div class="quick-icon">🏪</div>
+        <div class="quick-title">도입 상담</div>
+        <div class="quick-desc">살롱·샵 도입을 위한 전문 상담</div>
+      </div>
+      <div class="quick-card" onclick="selectForm('edu', this)">
+        <div class="quick-icon">🎓</div>
+        <div class="quick-title">교육 문의</div>
+        <div class="quick-desc">아카데미 교육 과정 문의</div>
+      </div>
+      <div class="quick-card" onclick="selectForm('phone', this)">
+        <div class="quick-icon">📞</div>
+        <div class="quick-title">전화 상담</div>
+        <div class="quick-desc">전화 상담 예약 신청</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FORM SECTION -->
+<section id="form-section">
+  <div class="container">
+    <div class="form-layout">
+      <!-- INFO -->
+      <div class="form-info fade-in">
+        <div class="eyebrow" style="color:var(--wine)">CONTACT INFO</div>
+        <div class="gold-line" style="margin:0 0 20px"></div>
+        <h2>언제든지<br/>연락주세요</h2>
+        <p>레아쥬 전문 상담사가 빠르게 답변드리겠습니다. 평일 10:00~18:00 운영합니다.</p>
+        <div class="info-items">
+          <div class="info-item">
+            <div class="info-icon">📞</div>
+            <div class="info-text">
+              <h4>전화 문의</h4>
+              <p><a href="tel:01096799498">010-9679-9498</a></p>
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="info-icon">📍</div>
+            <div class="info-text">
+              <h4>아카데미 주소</h4>
+              <p>서울 강남구 학동로20길 19-3, 3층</p>
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="info-icon">🏫</div>
+            <div class="info-text">
+              <h4>현장 교육장</h4>
+              <p>서울 강남구 학동로20길 19, 1층</p>
+            </div>
+          </div>
+          <div class="info-item">
+            <div class="info-icon">🕐</div>
+            <div class="info-text">
+              <h4>운영 시간</h4>
+              <p>평일 10:00 ~ 18:00<br/>주말·공휴일 휴무</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORM PANEL -->
+      <div class="form-panel fade-in" style="transition-delay:.15s">
+        <div class="form-tabs">
+          <div class="form-tab active" id="tab-trial" onclick="switchTab('trial')">체험 예약</div>
+          <div class="form-tab" id="tab-intro" onclick="switchTab('intro')">도입 상담</div>
+          <div class="form-tab" id="tab-edu" onclick="switchTab('edu')">교육 문의</div>
+          <div class="form-tab" id="tab-phone" onclick="switchTab('phone')">전화 상담</div>
+        </div>
+
+        <!-- 체험 예약 -->
+        <div class="form-body active" id="form-trial">
+          <div class="form-title">체험 예약 신청</div>
+          <div class="form-subtitle">레아쥬 미세전류 테라피를 직접 체험해보세요. 전문 테라피스트가 안내해드립니다.</div>
+          <form onsubmit="submitForm(event, '체험 예약')">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">고객 성함 <span class="required">*</span></label>
+                <input type="text" class="form-input" placeholder="홍길동" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">연락처 <span class="required">*</span></label>
+                <input type="tel" class="form-input" placeholder="010-0000-0000" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">샵명 / 소속</label>
+              <input type="text" class="form-input" placeholder="소속 샵명 또는 개인" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">희망 체험 일자</label>
+              <input type="date" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">문의 내용</label>
+              <textarea class="form-textarea" placeholder="체험 관련 문의 사항이 있으시면 자유롭게 작성해주세요."></textarea>
+            </div>
+            <button type="submit" class="form-submit">체험 예약 신청하기</button>
+            <p class="form-privacy">입력하신 정보는 예약 확인 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
+          </form>
+        </div>
+
+        <!-- 도입 상담 -->
+        <div class="form-body" id="form-intro">
+          <div class="form-title">도입 상담 신청</div>
+          <div class="form-subtitle">살롱·에스테틱 샵에 레아쥬를 도입하고 싶으신 분들을 위한 전문 상담입니다.</div>
+          <form onsubmit="submitForm(event, '도입 상담')">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">원장님 성함 <span class="required">*</span></label>
+                <input type="text" class="form-input" placeholder="홍길동" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">연락처 <span class="required">*</span></label>
+                <input type="tel" class="form-input" placeholder="010-0000-0000" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">샵명 <span class="required">*</span></label>
+              <input type="text" class="form-input" placeholder="샵 이름을 입력해주세요" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">샵 위치 (지역)</label>
+              <input type="text" class="form-input" placeholder="예: 서울 강남구" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">현재 운영 현황</label>
+              <select class="form-select">
+                <option value="">선택해주세요</option>
+                <option>신규 창업 예정</option>
+                <option>기존 샵 운영 중 (1년 미만)</option>
+                <option>기존 샵 운영 중 (1~3년)</option>
+                <option>기존 샵 운영 중 (3년 이상)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">문의 내용</label>
+              <textarea class="form-textarea" placeholder="도입 관련 궁금하신 점을 자유롭게 작성해주세요."></textarea>
+            </div>
+            <button type="submit" class="form-submit">도입 상담 신청하기</button>
+            <p class="form-privacy">입력하신 정보는 상담 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
+          </form>
+        </div>
+
+        <!-- 교육 문의 -->
+        <div class="form-body" id="form-edu">
+          <div class="form-title">교육 문의</div>
+          <div class="form-subtitle">레아쥬 인증강사 라이센스, 메디컬 라이센스, 창업 현장 학습 교육 관련 문의입니다.</div>
+          <form onsubmit="submitForm(event, '교육 문의')">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">성함 <span class="required">*</span></label>
+                <input type="text" class="form-input" placeholder="홍길동" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">연락처 <span class="required">*</span></label>
+                <input type="tel" class="form-input" placeholder="010-0000-0000" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">샵명 / 소속</label>
+              <input type="text" class="form-input" placeholder="소속 샵명 또는 개인" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">관심 교육 과정 <span class="required">*</span></label>
+              <select class="form-select" required>
+                <option value="">선택해주세요</option>
+                <option>레아쥬 인증강사 라이센스 교육 (매주 목요일 11:00~15:00)</option>
+                <option>레아쥬 메디컬 라이센스 교육</option>
+                <option>창업 현장 학습 교육 (창업 예정자)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">현재 레아쥬 경험</label>
+              <select class="form-select">
+                <option value="">선택해주세요</option>
+                <option>처음 접하는 분</option>
+                <option>체험만 해본 분</option>
+                <option>기기 보유 중</option>
+                <option>이미 시술 중</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">문의 내용</label>
+              <textarea class="form-textarea" placeholder="교육 관련 궁금하신 점을 자유롭게 작성해주세요."></textarea>
+            </div>
+            <button type="submit" class="form-submit">교육 문의 신청하기</button>
+            <p class="form-privacy">입력하신 정보는 교육 안내 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
+          </form>
+        </div>
+
+        <!-- 전화 상담 -->
+        <div class="form-body" id="form-phone">
+          <div class="form-title">전화 상담 예약</div>
+          <div class="form-subtitle">원하시는 시간에 전화 상담을 예약해드립니다. 전문 상담사가 직접 연락드립니다.</div>
+          <form onsubmit="submitForm(event, '전화 상담')">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">성함 <span class="required">*</span></label>
+                <input type="text" class="form-input" placeholder="홍길동" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">연락처 <span class="required">*</span></label>
+                <input type="tel" class="form-input" placeholder="010-0000-0000" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">샵명 / 소속</label>
+              <input type="text" class="form-input" placeholder="소속 샵명 또는 개인" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">희망 상담 시간</label>
+              <select class="form-select">
+                <option value="">선택해주세요</option>
+                <option>오전 10:00 ~ 12:00</option>
+                <option>오후 13:00 ~ 15:00</option>
+                <option>오후 15:00 ~ 17:00</option>
+                <option>오후 17:00 ~ 18:00</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">상담 주제</label>
+              <select class="form-select">
+                <option value="">선택해주세요</option>
+                <option>체험 예약 관련</option>
+                <option>도입·창업 상담</option>
+                <option>교육 과정 문의</option>
+                <option>제품 구매 문의</option>
+                <option>기타</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">추가 메모</label>
+              <textarea class="form-textarea" placeholder="상담 시 미리 알려주실 내용이 있으시면 작성해주세요." style="min-height:80px;"></textarea>
+            </div>
+            <button type="submit" class="form-submit">전화 상담 예약하기</button>
+            <p class="form-privacy">입력하신 정보는 상담 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
+          </form>
+        </div>
+
+        <!-- 성공 메시지 -->
+        <div class="success-msg" id="successMsg">
+          <div class="success-icon">✅</div>
+          <div class="success-title">신청이 완료되었습니다!</div>
+          <div class="success-desc">빠른 시일 내에 담당자가 연락드리겠습니다.<br/>문의: <a href="tel:01096799498" style="color:var(--wine); font-weight:600;">010-9679-9498</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CATALOG DOWNLOAD -->
+<section id="catalog">
+  <div class="container">
+    <div class="catalog-inner">
+      <div class="catalog-text fade-in">
+        <div class="eyebrow">CATALOG DOWNLOAD</div>
+        <div class="gold-line" style="margin:0 0 20px"></div>
+        <h2>레아쥬 카탈로그<br/>다운로드</h2>
+        <p>레아쥬 브랜드, 기기, 제품 라인업, 교육 과정 등 모든 정보를 담은 공식 카탈로그를 다운로드하세요.</p>
+        <div class="catalog-features">
+          <div class="catalog-feature">레아쥬 브랜드 소개 및 철학</div>
+          <div class="catalog-feature">미세전류 기기 상세 스펙</div>
+          <div class="catalog-feature">S1·M2·F3 크림 제품 라인업</div>
+          <div class="catalog-feature">아카데미 교육 과정 안내</div>
+          <div class="catalog-feature">도입 절차 및 지원 프로그램</div>
+        </div>
+        <a href="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/EjctthPKBaLdvzKU.pdf" 
+           class="btn-download" 
+           download="REAGE_카탈로그.pdf"
+           target="_blank">
+          📄 카탈로그 다운로드 (PDF)
+        </a>
+      </div>
+      <div class="catalog-preview fade-in" style="transition-delay:.2s">
+        <span>📄</span>
+        <span>REAGE 공식 카탈로그</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="logo">RE<span style="color:var(--gold)">A</span>GE</div>
+        <p>올핸드 미세전류 테라피 — 일본 원천 기술, 아시아 총판<br/>(주)리플런스 | 대표: 조예나 | 010-9679-9498</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h5>브랜드</h5>
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+          <a href="therapy.html">레아쥬테라피</a>
+        </div>
+        <div class="footer-col">
+          <h5>제품·교육</h5>
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="academy.html">아카데미</a>
+          <a href="review.html">후기</a>
+        </div>
+        <div class="footer-col">
+          <h5>문의</h5>
+          <a href="contact.html">체험 예약</a>
+          <a href="contact.html">도입 상담</a>
+          <a href="contact.html">교육 문의</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2024 REAGE. All rights reserved.</span>
+      <span>본 페이지의 모든 내용은 테라피 관리 목적이며, 의료행위·치료 목적이 아닙니다.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+
+  const progressBar = document.getElementById('scroll-progress');
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    progressBar.style.width = (window.scrollY / total * 100) + '%';
+  });
+
+  const follower = document.getElementById('cursor-follower');
+  const ring = document.getElementById('cursor-ring');
+  let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
+  document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; follower.style.left = mouseX + 'px'; follower.style.top = mouseY + 'px'; });
+  function animateRing() { ringX += (mouseX - ringX) * 0.12; ringY += (mouseY - ringY) * 0.12; ring.style.left = ringX + 'px'; ring.style.top = ringY + 'px'; requestAnimationFrame(animateRing); }
+  animateRing();
+
+  const scrollObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-in').forEach(el => scrollObserver.observe(el));
+
+  const lineObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.gold-line').forEach(el => lineObserver.observe(el));
+
+  function selectForm(type, card) {
+    document.querySelectorAll('.quick-card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    switchTab(type);
+    document.getElementById('form-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function switchTab(type) {
+    document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.form-body').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + type).classList.add('active');
+    document.getElementById('form-' + type).classList.add('active');
+    document.getElementById('successMsg').classList.remove('show');
+  }
+
+  function submitForm(e, type) {
+    e.preventDefault();
+    document.querySelectorAll('.form-body').forEach(b => b.classList.remove('active'));
+    document.getElementById('successMsg').classList.add('show');
+  }
+
+  // URL 파라미터로 탭 자동 선택
+  const urlParams = new URLSearchParams(window.location.search);
+  const tab = urlParams.get('tab');
+  if (tab && ['trial', 'intro', 'edu', 'phone'].includes(tab)) {
+    switchTab(tab);
+    const cardMap = { trial: 0, intro: 1, edu: 2, phone: 3 };
+    const cards = document.querySelectorAll('.quick-card');
+    cards.forEach(c => c.classList.remove('active'));
+    cards[cardMap[tab]].classList.add('active');
+  }
+
+  window.addEventListener('scroll', () => {
+    document.getElementById('header').style.boxShadow = window.scrollY > 40 ? '0 4px 24px rgba(26,20,18,.1)' : 'none';
+  });
+</script>
+</body>
+</html>
