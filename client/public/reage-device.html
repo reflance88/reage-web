@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>레아쥬 기기 — REAGE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── RESET & BASE ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --wine:       #6B0F1A;
+      --wine-light: #8B1525;
+      --wine-dark:  #4A0A12;
+      --offwhite:   #F7F5F2;
+      --charcoal:   #1A1412;
+      --gold:       #C8A26A;
+      --gold-light: #D4B07A;
+      --gray:       #6B6B6B;
+      --light-gray: #E8E6E3;
+      --radius: 14px;
+      --shadow: 0 4px 32px rgba(26,20,18,.12);
+      --shadow-lg: 0 8px 48px rgba(26,20,18,.18);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: var(--offwhite);
+      color: var(--charcoal);
+      font-size: 16px; line-height: 1.7;
+      overflow-x: hidden;
+    }
+    img { display: block; max-width: 100%; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ─── UTILITY ─── */
+    .container { max-width: 1160px; margin: 0 auto; padding: 0 32px; }
+    .section { padding: 100px 0; }
+    .section-alt { background: var(--charcoal); color: var(--offwhite); }
+    .section-light { background: #fff; }
+    .fade-in { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s ease; }
+    .fade-in.visible { opacity: 1; transform: none; }
+    .gold-line { width: 48px; height: 2px; background: var(--gold); margin: 0 auto 20px; }
+    .gold-line-left { width: 48px; height: 2px; background: var(--gold); margin: 0 0 20px; }
+    .eyebrow {
+      font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+      color: var(--gold); font-weight: 600; margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(26px, 3.5vw, 40px);
+      font-weight: 700; line-height: 1.35; margin-bottom: 20px;
+    }
+    .section-sub {
+      font-size: 16px; color: var(--gray); line-height: 1.8; max-width: 640px;
+    }
+    .section-sub-light { color: rgba(247,245,242,.75); }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--wine); color: #fff;
+      padding: 14px 32px; border-radius: 8px;
+      font-size: 15px; font-weight: 600; letter-spacing: .04em;
+      transition: background .25s, transform .2s; border: none; cursor: pointer;
+    }
+    .btn-primary:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .btn-outline {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--wine);
+      padding: 13px 30px; border-radius: 8px;
+      font-size: 15px; font-weight: 600; letter-spacing: .04em;
+      border: 1.5px solid var(--wine); cursor: pointer;
+      transition: background .25s, color .25s, transform .2s;
+    }
+    .btn-outline:hover { background: var(--wine); color: #fff; transform: translateY(-2px); }
+    .btn-outline-light {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--offwhite);
+      padding: 13px 30px; border-radius: 8px;
+      font-size: 15px; font-weight: 600; letter-spacing: .04em;
+      border: 1.5px solid rgba(247,245,242,.5); cursor: pointer;
+      transition: background .25s, transform .2s;
+    }
+    .btn-outline-light:hover { background: rgba(247,245,242,.12); transform: translateY(-2px); }
+    .btn-gold {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--gold); color: var(--charcoal);
+      padding: 14px 32px; border-radius: 8px;
+      font-size: 15px; font-weight: 700; letter-spacing: .04em;
+      border: none; cursor: pointer;
+      transition: background .25s, transform .2s;
+    }
+    .btn-gold:hover { background: var(--gold-light); transform: translateY(-2px); }
+
+    /* ─── HEADER ─── */
+    #header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      background: rgba(247,245,242,.96); backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(200,162,106,.2);
+    }
+    #header .inner {
+      max-width: 1160px; margin: 0 auto; padding: 0 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 72px;
+    }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: .18em; color: var(--wine); }
+    .logo span { color: var(--gold); }
+    nav { display: flex; gap: 0; align-items: stretch; }
+    .nav-item { position: relative; display: flex; align-items: center; }
+    .nav-item > a {
+      display: flex; align-items: center; gap: 4px;
+      padding: 0 16px;
+      font-size: 13.5px; font-weight: 500; color: var(--charcoal);
+      letter-spacing: .04em; transition: color .2s;
+      height: 72px; white-space: nowrap;
+    }
+    .nav-item > a:hover { color: var(--wine); }
+    .nav-item > a.active { color: var(--wine); font-weight: 700; }
+    .nav-item > a .arrow {
+      display: inline-block; width: 10px; height: 10px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      transform: rotate(45deg) translateY(-2px);
+      transition: transform .25s; flex-shrink: 0;
+    }
+    .nav-item:hover > a .arrow { transform: rotate(-135deg) translateY(-2px); }
+    .nav-dropdown {
+      position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%) translateY(-6px);
+      min-width: 148px;
+      background: rgba(247,245,242,.98); backdrop-filter: blur(16px);
+      border: 1px solid rgba(200,162,106,.25);
+      border-top: 2px solid var(--wine);
+      border-radius: 0 0 10px 10px;
+      box-shadow: 0 12px 32px rgba(26,20,18,.14);
+      padding: 6px 0;
+      opacity: 0; visibility: hidden;
+      transition: opacity .22s ease, transform .22s ease, visibility .22s;
+      z-index: 200;
+    }
+    .nav-item:hover .nav-dropdown {
+      opacity: 1; visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+    .nav-dropdown a {
+      display: block; padding: 11px 20px;
+      font-size: 13px; font-weight: 500; color: var(--charcoal);
+      letter-spacing: .02em; transition: background .18s, color .18s;
+      white-space: nowrap;
+    }
+    .nav-dropdown a:hover { background: rgba(107,15,26,.06); color: var(--wine); }
+    .nav-dropdown a.active { color: var(--wine); font-weight: 700; background: rgba(107,15,26,.04); }
+    .nav-dropdown a + a { border-top: 1px solid rgba(200,162,106,.15); }
+    .header-cta { display: flex; gap: 10px; }
+    .header-cta .btn-primary { padding: 10px 22px; font-size: 13.5px; }
+    .header-cta .btn-outline { padding: 9px 20px; font-size: 13.5px; }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--charcoal); border-radius: 2px; }
+
+    /* ─── BREADCRUMB ─── */
+    .breadcrumb {
+      margin-top: 72px; background: #fff;
+      border-bottom: 1px solid var(--light-gray); padding: 14px 0;
+    }
+    .breadcrumb .inner {
+      max-width: 1160px; margin: 0 auto; padding: 0 32px;
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12.5px; color: var(--gray);
+    }
+    .breadcrumb a { color: var(--gray); transition: color .2s; }
+    .breadcrumb a:hover { color: var(--wine); }
+    .breadcrumb .sep { color: var(--light-gray); }
+    .breadcrumb .current { color: var(--wine); font-weight: 600; }
+
+    /* ─── HERO ─── */
+    #device-hero {
+      background: var(--charcoal);
+      color: var(--offwhite);
+      padding: 100px 0 80px;
+      position: relative; overflow: hidden;
+    }
+    #device-hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 30% 50%, rgba(200,162,106,.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .device-hero-inner {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 80px; align-items: center;
+      position: relative; z-index: 1;
+    }
+    .device-hero-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(200,162,106,.12);
+      border: 1px solid rgba(200,162,106,.3);
+      border-radius: 100px; padding: 6px 16px;
+      font-size: 11.5px; letter-spacing: .14em;
+      color: var(--gold); font-weight: 600; margin-bottom: 24px;
+    }
+    .device-hero-title {
+      font-family: 'Noto Serif KR', serif;
+      font-size: clamp(30px, 4vw, 50px);
+      font-weight: 700; line-height: 1.25;
+      letter-spacing: -.02em; margin-bottom: 24px;
+    }
+    .device-hero-title em {
+      font-style: normal;
+      background: linear-gradient(90deg, var(--gold), var(--gold-light));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .device-hero-sub {
+      font-size: 16px; color: rgba(247,245,242,.72);
+      line-height: 1.85; margin-bottom: 36px;
+    }
+    .device-hero-btns { display: flex; gap: 14px; flex-wrap: wrap; }
+    .device-hero-visual {
+      position: relative; border-radius: 20px; overflow: hidden;
+      aspect-ratio: 1;
+      background: linear-gradient(135deg, rgba(200,162,106,.08) 0%, rgba(107,15,26,.2) 100%);
+      border: 1px solid rgba(200,162,106,.2);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .device-hero-visual-placeholder {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 12px; color: rgba(247,245,242,.3);
+    }
+    .device-hero-visual-placeholder .icon { font-size: 56px; opacity: .5; }
+    .device-hero-visual-placeholder p { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+
+    /* ─── 기기 스펙 배지 ─── */
+    .spec-badges {
+      background: var(--wine); padding: 40px 0;
+    }
+    .spec-badges-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+    }
+    .spec-badge {
+      text-align: center; padding: 20px 16px;
+      border-right: 1px solid rgba(247,245,242,.15);
+      color: var(--offwhite);
+    }
+    .spec-badge:last-child { border-right: none; }
+    .spec-val { font-size: 28px; font-weight: 700; color: var(--gold); line-height: 1; }
+    .spec-unit { font-size: 14px; color: var(--gold); }
+    .spec-label { font-size: 11.5px; color: rgba(247,245,242,.65); margin-top: 5px; }
+
+    /* ─── 기기 소개 ─── */
+    #device-intro { background: #fff; }
+    .device-intro-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 80px; align-items: center;
+    }
+    .device-intro-visual {
+      border-radius: var(--radius); overflow: hidden;
+      aspect-ratio: 4/3;
+      background: var(--light-gray);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--gray); font-size: 13px; letter-spacing: .1em;
+    }
+
+    /* ─── 기능 상세 ─── */
+    #features { background: var(--offwhite); }
+    .features-header { text-align: center; margin-bottom: 56px; }
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .feature-card {
+      background: #fff; border-radius: var(--radius);
+      padding: 32px 28px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--light-gray);
+      transition: box-shadow .25s, transform .25s;
+    }
+    .feature-card:hover {
+      box-shadow: var(--shadow-lg);
+      transform: translateY(-4px);
+    }
+    .feature-icon {
+      width: 52px; height: 52px;
+      background: rgba(107,15,26,.06);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin-bottom: 18px;
+    }
+    .feature-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+    .feature-card p { font-size: 13.5px; color: var(--gray); line-height: 1.75; }
+    .feature-tag {
+      display: inline-block; margin-top: 14px;
+      background: rgba(107,15,26,.06);
+      color: var(--wine); font-size: 11px; font-weight: 700;
+      letter-spacing: .1em; padding: 4px 10px; border-radius: 100px;
+    }
+
+    /* ─── 기기 비교 ─── */
+    #compare { background: var(--charcoal); color: var(--offwhite); }
+    .compare-header { text-align: center; margin-bottom: 48px; }
+    .compare-table {
+      width: 100%; border-collapse: collapse;
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .compare-table th {
+      padding: 18px 24px; text-align: center;
+      font-size: 13px; font-weight: 700; letter-spacing: .06em;
+    }
+    .compare-table th:first-child { text-align: left; }
+    .compare-table th.highlight { background: var(--wine); color: var(--offwhite); }
+    .compare-table th.dim { background: rgba(247,245,242,.05); color: rgba(247,245,242,.5); }
+    .compare-table td {
+      padding: 16px 24px; text-align: center;
+      font-size: 13.5px; border-top: 1px solid rgba(247,245,242,.07);
+    }
+    .compare-table td:first-child { text-align: left; color: rgba(247,245,242,.75); }
+    .compare-table td.highlight { background: rgba(107,15,26,.15); color: var(--offwhite); }
+    .compare-table td.dim { color: rgba(247,245,242,.35); }
+    .compare-table .check { color: var(--gold); font-size: 16px; }
+    .compare-table .cross { color: rgba(247,245,242,.25); font-size: 16px; }
+
+    /* ─── 사용 방법 ─── */
+    #how-to { background: #fff; }
+    .how-to-header { text-align: center; margin-bottom: 56px; }
+    .steps-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 24px; position: relative;
+    }
+    .steps-grid::before {
+      content: '';
+      position: absolute;
+      top: 36px; left: calc(12.5% + 18px); right: calc(12.5% + 18px);
+      height: 1px; background: var(--light-gray);
+    }
+    .step-item { text-align: center; padding: 0 12px; }
+    .step-num {
+      width: 56px; height: 56px;
+      background: var(--wine); color: #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700;
+      margin: 0 auto 20px;
+      position: relative; z-index: 1;
+    }
+    .step-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+    .step-desc { font-size: 13px; color: var(--gray); line-height: 1.7; }
+
+    /* ─── 기기 스펙 상세 ─── */
+    #spec-detail { background: var(--offwhite); }
+    .spec-detail-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 80px; align-items: start;
+    }
+    .spec-detail-visual {
+      border-radius: var(--radius); overflow: hidden;
+      aspect-ratio: 1;
+      background: var(--light-gray);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--gray); font-size: 13px; letter-spacing: .1em;
+    }
+    .spec-table { width: 100%; border-collapse: collapse; margin-top: 28px; }
+    .spec-table tr { border-bottom: 1px solid var(--light-gray); }
+    .spec-table tr:last-child { border-bottom: none; }
+    .spec-table th {
+      padding: 14px 0; text-align: left;
+      font-size: 12.5px; color: var(--gray);
+      font-weight: 600; letter-spacing: .04em;
+      width: 40%;
+    }
+    .spec-table td {
+      padding: 14px 0; text-align: right;
+      font-size: 14px; font-weight: 600; color: var(--charcoal);
+    }
+
+    /* ─── FAQ ─── */
+    #faq { background: #fff; }
+    .faq-header { text-align: center; margin-bottom: 48px; }
+    .faq-list { max-width: 760px; margin: 0 auto; }
+    .faq-item {
+      border-bottom: 1px solid var(--light-gray);
+    }
+    .faq-q {
+      width: 100%; padding: 22px 0;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 15px; font-weight: 600; color: var(--charcoal);
+      background: none; border: none; cursor: pointer; text-align: left;
+    }
+    .faq-q .faq-arrow {
+      width: 20px; height: 20px; flex-shrink: 0;
+      border-right: 2px solid var(--gold);
+      border-bottom: 2px solid var(--gold);
+      transform: rotate(45deg) translateY(-4px);
+      transition: transform .3s;
+    }
+    .faq-item.open .faq-q .faq-arrow { transform: rotate(-135deg) translateY(0); }
+    .faq-a {
+      font-size: 14px; color: var(--gray); line-height: 1.8;
+      max-height: 0; overflow: hidden;
+      transition: max-height .4s ease, padding .3s;
+    }
+    .faq-item.open .faq-a { max-height: 300px; padding-bottom: 20px; }
+
+    /* ─── CTA ─── */
+    #device-cta {
+      background: linear-gradient(135deg, var(--wine-dark) 0%, var(--wine) 50%, var(--wine-dark) 100%);
+      color: var(--offwhite); text-align: center;
+      padding: 100px 0; position: relative; overflow: hidden;
+    }
+    #device-cta::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 60% 80% at 50% 50%, rgba(200,162,106,.08) 0%, transparent 70%);
+    }
+    .cta-inner { position: relative; z-index: 1; }
+    .cta-title {
+      font-size: clamp(26px, 3.5vw, 42px);
+      font-weight: 700; line-height: 1.35; margin-bottom: 18px;
+    }
+    .cta-sub {
+      font-size: 16px; color: rgba(247,245,242,.75);
+      margin-bottom: 40px; max-width: 560px; margin-left: auto; margin-right: auto;
+    }
+    .cta-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+    /* ─── FOOTER ─── */
+    #footer { background: var(--charcoal); color: var(--offwhite); padding: 56px 0 40px; }
+    .footer-inner { display: flex; justify-content: space-between; align-items: flex-start; gap: 40px; flex-wrap: wrap; }
+    .footer-brand .logo { font-size: 20px; margin-bottom: 12px; }
+    .footer-brand p { font-size: 13px; color: rgba(247,245,242,.5); line-height: 1.7; }
+    .footer-links { display: flex; gap: 40px; flex-wrap: wrap; }
+    .footer-col h5 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; font-weight: 700; }
+    .footer-col a { display: block; font-size: 13px; color: rgba(247,245,242,.55); margin-bottom: 8px; transition: color .2s; }
+    .footer-col a:hover { color: var(--offwhite); }
+    .footer-bottom { margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(200,162,106,.12); font-size: 12px; color: rgba(247,245,242,.3); display: flex; justify-content: space-between; align-items: center; }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 900px) {
+      nav, .header-cta { display: none; }
+      .hamburger { display: flex; }
+      .device-hero-inner { grid-template-columns: 1fr; gap: 40px; }
+      .spec-badges-grid { grid-template-columns: 1fr 1fr 1fr; }
+      .spec-badge:nth-child(3) { border-right: none; }
+      .device-intro-grid { grid-template-columns: 1fr; gap: 40px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .steps-grid { grid-template-columns: 1fr 1fr; }
+      .steps-grid::before { display: none; }
+      .spec-detail-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      .container { padding: 0 20px; }
+      .section { padding: 72px 0; }
+      .spec-badges-grid { grid-template-columns: 1fr 1fr; }
+      .steps-grid { grid-template-columns: 1fr; }
+      .cta-btns { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── HEADER ─── -->
+<header id="header">
+  <div class="inner">
+    <a href="index.html" class="logo">RE<span>A</span>GE</a>
+    <nav>
+      <div class="nav-item">
+        <a href="index.html#empathy">브랜드소개</a>
+      </div>
+      <div class="nav-item">
+        <a href="#">레아쥬 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="reage-story.html">레아쥬스토리</a>
+          <a href="reage-device.html" class="active">레아쥬기기</a>
+        </div>
+      </div>
+      <div class="nav-item">
+        <a href="index.html#device">제품소개</a>
+      </div>
+      <div class="nav-item">
+        <a href="index.html#curriculum">아카데미</a>
+      </div>
+      <div class="nav-item">
+        <a href="index.html#testimonials">후기</a>
+      </div>
+      <div class="nav-item">
+        <a href="index.html#final-cta">체험예약</a>
+      </div>
+    </nav>
+    <div class="header-cta">
+      <a href="index.html#final-cta" class="btn-primary">체험 예약</a>
+      <a href="index.html#final-cta" class="btn-outline">도입 상담</a>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</header>
+
+<!-- ─── BREADCRUMB ─── -->
+<div class="breadcrumb">
+  <div class="inner">
+    <a href="index.html">홈</a>
+    <span class="sep">›</span>
+    <a href="#">레아쥬</a>
+    <span class="sep">›</span>
+    <span class="current">레아쥬 기기</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     ① HERO — 레아쥬 기기
+════════════════════════════════════ -->
+<section id="device-hero">
+  <div class="container">
+    <div class="device-hero-inner">
+      <div class="fade-in">
+        <div class="device-hero-tag">REAGE Device · Japan Origin</div>
+        <h1 class="device-hero-title">
+          손을 통해 흐르는<br/><em>5V 미세전류</em>
+        </h1>
+        <p class="device-hero-sub">
+          레아쥬 기기는 단순한 미세전류 발생 장치가 아닙니다.<br/>
+          테라피스트의 손과 결합해 인체 심부까지 에너지를 전달하는,<br/>
+          20년간 검증된 올핸드 미세전류 시스템입니다.
+        </p>
+        <div class="device-hero-btns">
+          <a href="#features" class="btn-gold">기기 기능 보기</a>
+          <a href="#spec-detail" class="btn-outline-light">상세 스펙 확인</a>
+        </div>
+      </div>
+      <div class="device-hero-visual fade-in" style="transition-delay:.2s">
+        <div class="device-hero-visual-placeholder">
+          <div class="icon">⚡</div>
+          <p>기기 대표 이미지</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 스펙 배지 ─── -->
+<div class="spec-badges">
+  <div class="container">
+    <div class="spec-badges-grid">
+      <div class="spec-badge">
+        <div class="spec-val">5<span class="spec-unit">V</span></div>
+        <div class="spec-label">올핸드 미세전류</div>
+      </div>
+      <div class="spec-badge">
+        <div class="spec-val">20<span class="spec-unit">년+</span></div>
+        <div class="spec-label">일본 기술 축적</div>
+      </div>
+      <div class="spec-badge">
+        <div class="spec-val">400<span class="spec-unit">+</span></div>
+        <div class="spec-label">도입 살롱 검증</div>
+      </div>
+      <div class="spec-badge">
+        <div class="spec-val">0<span class="spec-unit">dB</span></div>
+        <div class="spec-label">무소음 설계</div>
+      </div>
+      <div class="spec-badge">
+        <div class="spec-val">IP<span class="spec-unit">54</span></div>
+        <div class="spec-label">방수·방진 등급</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     ② 기기 소개
+════════════════════════════════════ -->
+<section id="device-intro" class="section section-light">
+  <div class="container">
+    <div class="device-intro-grid">
+      <div class="fade-in">
+        <div class="eyebrow">Device Overview</div>
+        <div class="gold-line-left"></div>
+        <h2 class="section-title">기기가 아닌,<br/>테라피스트의 파트너</h2>
+        <p class="section-sub" style="margin-bottom:24px;">
+          레아쥬 기기는 테라피스트의 손을 통해 미세전류를 전달합니다. 기기 자체가 고객에게 직접 닿는 것이 아니라, 테라피스트의 손끝을 통해 에너지가 흐르는 구조입니다.
+        </p>
+        <p class="section-sub">
+          이 방식은 테라피스트가 고객의 몸 상태를 실시간으로 감지하면서 미세전류의 방향과 깊이를 조절할 수 있게 합니다. 기계적 자극이 아닌 살아있는 에너지 전달이 가능한 이유입니다.
+        </p>
+        <div style="display:flex; gap:14px; margin-top:32px; flex-wrap:wrap;">
+          <a href="#features" class="btn-primary">기능 상세 보기</a>
+          <a href="index.html#final-cta" class="btn-outline">도입 문의</a>
+        </div>
+      </div>
+      <div class="device-intro-visual fade-in" style="transition-delay:.2s">
+        <span>기기 상세 이미지</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     ③ 기능 상세
+════════════════════════════════════ -->
+<section id="features" class="section">
+  <div class="container">
+    <div class="features-header fade-in">
+      <div class="eyebrow">Key Features</div>
+      <div class="gold-line"></div>
+      <h2 class="section-title">레아쥬 기기의 핵심 기능</h2>
+      <p class="section-sub" style="margin: 0 auto; text-align:center;">
+        20년의 연구·개발이 집약된 기술적 특징을 소개합니다.
+      </p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card fade-in">
+        <div class="feature-icon">⚡</div>
+        <h3>5V 올핸드 미세전류</h3>
+        <p>5볼트의 안전한 미세전류가 테라피스트의 손을 통해 고객의 심부까지 전달됩니다. 표면 자극이 아닌 심부 근막까지 도달하는 에너지.</p>
+        <span class="feature-tag">CORE TECH</span>
+      </div>
+      <div class="feature-card fade-in" style="transition-delay:.1s">
+        <div class="feature-icon">🎛️</div>
+        <h3>다단계 강도 조절</h3>
+        <p>고객의 체형, 근육 상태, 반응에 따라 즉시 강도를 조절할 수 있습니다. 일률적인 기기 설정이 아닌 맞춤형 에너지 전달.</p>
+        <span class="feature-tag">ADAPTIVE</span>
+      </div>
+      <div class="feature-card fade-in" style="transition-delay:.2s">
+        <div class="feature-icon">🔄</div>
+        <h3>양방향 에너지 흐름</h3>
+        <p>미세전류가 테라피스트와 고객 양방향으로 흐릅니다. 시술자도 함께 활성화되는 상호 충전 구조.</p>
+        <span class="feature-tag">BILATERAL</span>
+      </div>
+      <div class="feature-card fade-in" style="transition-delay:.3s">
+        <div class="feature-icon">🔇</div>
+        <h3>무소음 설계</h3>
+        <p>완전 무소음으로 작동합니다. 고객이 깊은 이완 상태에 집중할 수 있는 조용한 테라피 환경을 만듭니다.</p>
+        <span class="feature-tag">SILENT</span>
+      </div>
+      <div class="feature-card fade-in" style="transition-delay:.4s">
+        <div class="feature-icon">🛡️</div>
+        <h3>안전 회로 설계</h3>
+        <p>과전류 차단, 자동 안전 종료 등 다중 안전 회로가 내장되어 있습니다. 테라피스트와 고객 모두의 안전을 보장합니다.</p>
+        <span class="feature-tag">SAFE</span>
+      </div>
+      <div class="feature-card fade-in" style="transition-delay:.5s">
+        <div class="feature-icon">🔋</div>
+        <h3>장시간 연속 사용</h3>
+        <p>하루 종일 연속 사용이 가능한 내구성을 갖추고 있습니다. 살롱 현장에서 검증된 신뢰성.</p>
+        <span class="feature-tag">DURABLE</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     ④ 비교 테이블
+════════════════════════════════════ -->
+<section id="compare" class="section section-alt">
+  <div class="container">
+    <div class="compare-header fade-in">
+      <div class="eyebrow">Comparison</div>
+      <div class="gold-line"></div>
+      <h2 class="section-title" style="color:var(--offwhite)">레아쥬 기기 vs 일반 미세전류 기기</h2>
+    </div>
+    <div class="fade-in" style="overflow-x:auto; transition-delay:.1s">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th style="background:rgba(247,245,242,.05); color:rgba(247,245,242,.5); text-align:left; padding:18px 24px;">비교 항목</th>
+            <th class="highlight">레아쥬 기기</th>
+            <th class="dim">일반 미세전류 기기</th>
+            <th class="dim">핸드피스형 기기</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>전달 방식</td>
+            <td class="highlight">올핸드 (손 경유)</td>
+            <td class="dim">도자 직접 접촉</td>
+            <td class="dim">핸드피스 직접 접촉</td>
+          </tr>
+          <tr>
+            <td>심부 도달</td>
+            <td class="highlight"><span class="check">✓</span> 심부 근막까지</td>
+            <td class="dim"><span class="cross">—</span> 표면 위주</td>
+            <td class="dim"><span class="cross">—</span> 표면 위주</td>
+          </tr>
+          <tr>
+            <td>실시간 감지</td>
+            <td class="highlight"><span class="check">✓</span> 손끝 감지 가능</td>
+            <td class="dim"><span class="cross">✗</span> 불가</td>
+            <td class="dim"><span class="cross">✗</span> 불가</td>
+          </tr>
+          <tr>
+            <td>양방향 에너지</td>
+            <td class="highlight"><span class="check">✓</span> 상호 충전</td>
+            <td class="dim"><span class="cross">✗</span> 단방향</td>
+            <td class="dim"><span class="cross">✗</span> 단방향</td>
+          </tr>
+          <tr>
+            <td>테라피스트 부담</td>
+            <td class="highlight"><span class="check">✓</span> 최소화</td>
+            <td class="dim"><span class="cross">—</span> 보통</td>
+            <td class="dim"><span class="cross">—</span> 보통</td>
+          </tr>
+          <tr>
+            <td>표준 커리큘럼</td>
+            <td class="highlight"><span class="check">✓</span> 4단계 체계</td>
+            <td class="dim"><span class="cross">✗</span> 없음</td>
+            <td class="dim"><span class="cross">✗</span> 없음</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     ⑤ 사용 방법
+════════════════════════════════════ -->
+<section id="how-to" class="section section-light">
+  <div class="container">
+    <div class="how-to-header fade-in">
+      <div class="eyebrow">How to Use</div>
+      <div class="gold-line"></div>
+      <h2 class="section-title">레아쥬 기기 사용 흐름</h2>
+    </div>
+    <div class="steps-grid">
+      <div class="step-item fade-in">
+        <div class="step-num">1</div>
+        <div class="step-title">기기 연결</div>
+        <div class="step-desc">테라피스트가 기기를 착용하거나 연결하여 미세전류 회로를 형성합니다.</div>
+      </div>
+      <div class="step-item fade-in" style="transition-delay:.1s">
+        <div class="step-num">2</div>
+        <div class="step-title">강도 설정</div>
+        <div class="step-desc">고객의 체형과 시술 부위에 맞게 미세전류 강도를 설정합니다.</div>
+      </div>
+      <div class="step-item fade-in" style="transition-delay:.2s">
+        <div class="step-num">3</div>
+        <div class="step-title">올핸드 시술</div>
+        <div class="step-desc">테라피스트의 손을 통해 미세전류가 고객의 심부까지 전달됩니다.</div>
+      </div>
+      <div class="step-item fade-in" style="transition-delay:.3s">
+        <div class="step-num">4</div>
+        <div class="step-title">실시간 조절</div>
+        <div class="step-desc">손끝의 감각으로 고객의 반응을 읽으며 강도와 방향을 즉시 조절합니다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     ⑥ 상세 스펙
+════════════════════════════════════ -->
+<section id="spec-detail" class="section">
+  <div class="container">
+    <div class="spec-detail-grid">
+      <div class="spec-detail-visual fade-in">
+        <span>기기 스펙 이미지</span>
+      </div>
+      <div class="fade-in" style="transition-delay:.2s">
+        <div class="eyebrow">Technical Specifications</div>
+        <div class="gold-line-left"></div>
+        <h2 class="section-title">상세 사양</h2>
+        <table class="spec-table">
+          <tr>
+            <th>출력 전압</th>
+            <td>5V (미세전류)</td>
+          </tr>
+          <tr>
+            <th>전류 범위</th>
+            <td>0 – 500μA (마이크로암페어)</td>
+          </tr>
+          <tr>
+            <th>강도 단계</th>
+            <td>10단계 조절</td>
+          </tr>
+          <tr>
+            <th>전원</th>
+            <td>AC 어댑터 / 충전식 배터리</td>
+          </tr>
+          <tr>
+            <th>연속 사용 시간</th>
+            <td>8시간 이상</td>
+          </tr>
+          <tr>
+            <th>방수·방진</th>
+            <td>IP54 등급</td>
+          </tr>
+          <tr>
+            <th>소음</th>
+            <td>무소음 (0dB)</td>
+          </tr>
+          <tr>
+            <th>크기 / 무게</th>
+            <td>상세 스펙 추가 예정</td>
+          </tr>
+          <tr>
+            <th>원산지</th>
+            <td>일본 제조</td>
+          </tr>
+          <tr>
+            <th>보증 기간</th>
+            <td>1년 (부품 교환 포함)</td>
+          </tr>
+        </table>
+        <p style="font-size:12px; color:var(--gray); margin-top:16px;">* 상세 스펙은 모델에 따라 다를 수 있습니다. 도입 상담 시 확인 가능합니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     ⑦ FAQ
+════════════════════════════════════ -->
+<section id="faq" class="section section-light">
+  <div class="container">
+    <div class="faq-header fade-in">
+      <div class="eyebrow">FAQ</div>
+      <div class="gold-line"></div>
+      <h2 class="section-title">자주 묻는 질문</h2>
+    </div>
+    <div class="faq-list fade-in" style="transition-delay:.1s">
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          레아쥬 기기는 어떻게 구입할 수 있나요?
+          <span class="faq-arrow"></span>
+        </button>
+        <div class="faq-a">레아쥬 기기는 도입 상담을 통해 구입하실 수 있습니다. 기기 단독 판매가 아닌, 교육·운영 지원 패키지와 함께 제공됩니다. 도입 상담 버튼을 통해 문의해 주세요.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          기기 사용을 위한 별도 교육이 필요한가요?
+          <span class="faq-arrow"></span>
+        </button>
+        <div class="faq-a">네, 레아쥬 기기는 올핸드 테크닉과 함께 사용해야 효과를 최대화할 수 있습니다. 도입 시 4단계 표준 커리큘럼 교육이 포함되며, 정기 리마인드 교육도 지원됩니다.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          기기 고장 시 어떻게 처리되나요?
+          <span class="faq-arrow"></span>
+        </button>
+        <div class="faq-a">1년 보증 기간 내 무상 수리 또는 교환이 가능합니다. 또한 수리 기간 중 대체 기기를 지원하여 운영 공백이 발생하지 않도록 합니다.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          기기 사용 시 안전한가요?
+          <span class="faq-arrow"></span>
+        </button>
+        <div class="faq-a">5V 미세전류는 인체에 안전한 수준입니다. 다중 안전 회로가 내장되어 있으며, 20년간 일본·아시아 400개 이상의 살롱에서 검증된 안전성을 갖추고 있습니다.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">
+          기기 유지 관리는 어떻게 하나요?
+          <span class="faq-arrow"></span>
+        </button>
+        <div class="faq-a">정기 점검 서비스가 포함되어 있습니다. 전담 담당자가 정기적으로 기기 상태를 점검하고, 필요 시 부품 교환 및 유지 관리를 지원합니다.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     ⑧ CTA
+════════════════════════════════════ -->
+<section id="device-cta">
+  <div class="container">
+    <div class="cta-inner fade-in">
+      <div class="eyebrow" style="color:var(--gold)">Get Started</div>
+      <div class="gold-line"></div>
+      <h2 class="cta-title">레아쥬 기기를<br/>직접 체험해 보세요.</h2>
+      <p class="cta-sub">30분의 체험으로 레아쥬 기기의 차이를 직접 느껴보실 수 있습니다.</p>
+      <div class="cta-btns">
+        <a href="index.html#final-cta" class="btn-gold" style="padding:16px 40px; font-size:16px;">체험 예약</a>
+        <a href="index.html#final-cta" class="btn-outline-light" style="padding:15px 38px; font-size:16px;">도입 상담</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer id="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="logo">RE<span style="color:var(--gold)">A</span>GE</div>
+        <p>올핸드 미세전류 테라피 — 일본 원천 기술, 아시아 총판<br/>대표 문의: contact@reage.co.kr<br/>교육·도입 상담: 평일 10:00 – 18:00</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h5>레아쥬</h5>
+          <a href="reage-story.html">레아쥬스토리</a>
+          <a href="reage-device.html">레아쥬기기</a>
+        </div>
+        <div class="footer-col">
+          <h5>서비스</h5>
+          <a href="index.html#curriculum">아카데미</a>
+          <a href="index.html#testimonials">고객 후기</a>
+          <a href="index.html#final-cta">체험 예약</a>
+          <a href="index.html#final-cta">도입 상담</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2024 REAGE. All rights reserved.</span>
+      <span>본 페이지의 모든 내용은 테라피 관리 목적으로 하며, 의료행위·치료 목적으로 사용하지 않습니다.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  /* 스크롤 페이드인 */
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+  /* FAQ 토글 */
+  function toggleFaq(btn) {
+    const item = btn.closest('.faq-item');
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  }
+
+  /* 모바일 메뉴 */
+  let mobileMenuOpen = false;
+  function toggleMenu() {
+    mobileMenuOpen = !mobileMenuOpen;
+    const nav = document.querySelector('nav');
+    if (mobileMenuOpen) {
+      nav.style.display = 'flex';
+      nav.style.flexDirection = 'column';
+      nav.style.alignItems = 'stretch';
+      nav.style.position = 'absolute';
+      nav.style.top = '72px';
+      nav.style.left = '0'; nav.style.right = '0';
+      nav.style.background = 'rgba(247,245,242,.98)';
+      nav.style.padding = '8px 0 16px';
+      nav.style.gap = '0';
+      nav.style.borderBottom = '1px solid rgba(200,162,106,.2)';
+      nav.style.zIndex = '999';
+      nav.querySelectorAll('.nav-item > a').forEach(a => {
+        a.style.height = 'auto'; a.style.padding = '13px 28px';
+      });
+      nav.querySelectorAll('.nav-dropdown').forEach(d => {
+        d.style.position = 'static'; d.style.transform = 'none';
+        d.style.opacity = '1'; d.style.visibility = 'visible';
+        d.style.boxShadow = 'none'; d.style.border = 'none';
+        d.style.borderTop = 'none';
+        d.style.background = 'rgba(107,15,26,.05)';
+        d.style.borderRadius = '0'; d.style.padding = '0';
+      });
+      nav.querySelectorAll('.nav-dropdown a').forEach(a => { a.style.paddingLeft = '44px'; });
+    } else {
+      nav.style.display = 'none';
+    }
+  }
+</script>
+</body>
+</html>
