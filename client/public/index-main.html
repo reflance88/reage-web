@@ -714,12 +714,21 @@
       font-size: 12.5px;
     }
     .footer-inner {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      flex-wrap: wrap; gap: 32px;
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      gap: 40px;
+      align-items: flex-start;
     }
-    .footer-logo { font-size: 18px; font-weight: 700; color: var(--offwhite); letter-spacing: .18em; margin-bottom: 8px; }
+    @media(max-width:900px){ .footer-inner { grid-template-columns: 1fr 1fr; } }
+    @media(max-width:560px){ .footer-inner { grid-template-columns: 1fr; } }
+    .footer-logo { font-size: 18px; font-weight: 700; color: var(--offwhite); letter-spacing: .18em; margin-bottom: 10px; }
     .footer-logo span { color: var(--gold); }
-    .footer-info { line-height: 1.8; }
+    .footer-info { line-height: 1.9; font-size: 12px; color: rgba(247,245,242,.5); }
+    .footer-info strong { color: rgba(247,245,242,.8); font-size: 11px; letter-spacing: .1em; display: block; margin-bottom: 6px; }
+    .footer-col h5 { font-size: 11px; letter-spacing: .12em; color: var(--gold); margin-bottom: 12px; font-weight: 600; }
+    .footer-col a { display: block; color: rgba(247,245,242,.45); font-size: 12px; margin-bottom: 7px; transition: color .2s; text-decoration: none; }
+    .footer-col a:hover { color: var(--gold); }
+    .footer-col p { font-size: 12px; color: rgba(247,245,242,.45); line-height: 1.8; margin: 0; }
     .footer-nav { display: flex; flex-direction: column; gap: 8px; }
     .footer-nav a { color: rgba(247,245,242,.45); transition: color .2s; }
     .footer-nav a:hover { color: var(--gold); }
@@ -1213,8 +1222,8 @@
           고객은 편안하고, 원장님은 오래 일할 수 있는 구조를 설계합니다.
         </p>
         <div class="hero-cta">
-          <a href="#final-cta" class="btn-gold">체험 예약하기</a>
-          <a href="#final-cta" class="btn-outline-light">브로슈어 받기</a>
+          <a href="contact.html" class="btn-gold">도입 상담 신청하기</a>
+          <a href="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/EjctthPKBaLdvzKU.pdf" class="btn-outline-light" download="REAGE_카탈로그.pdf" target="_blank">카탈로그 다운로드</a>
         </div>
         <div class="hero-cards">
           <div class="hero-card">
@@ -1710,10 +1719,10 @@
     <div class="final-inner fade-in">
       <div class="eyebrow" style="color:var(--gold)">Experience REAGE</div>
       <div class="gold-line"></div>
-      <h2 class="final-title">글과 이미지로는 전할 수 없는 차이가 있습니다.<br/>30분이면 충분합니다.</h2>
-      <p class="final-sub">체험 → 교육 → 도입 → 안정화까지, 레아쥬가 모든 과정을 함께 설계합니다. 400개 이상의 살롱이 먼저 경험한 차이를, 원장님도 직접 확인해 보세요.</p>
+      <h2 class="final-title">원장님의 살롱에<br/>레아쥬가 함께합니다.</h2>
+      <p class="final-sub">교육 → 도입 → 안정화까지, 레아쥬가 모든 과정을 함께 설계합니다. 400개 이상의 살롱이 먼저 선택한 이유를, 원장님도 직접 확인해 보세요.</p>
       <div class="final-cta-btns">
-        <a href="contact.html" class="btn-gold" style="padding:16px 40px;font-size:16px;">체험 예약</a>
+        <a href="contact.html" class="btn-gold" style="padding:16px 40px;font-size:16px;">체험 예약 (원장님 전용)</a>
         <a href="contact.html?tab=intro" class="btn-outline-light" style="padding:15px 38px;font-size:16px;">도입 상담</a>
       </div>
       <div class="final-links">
@@ -1730,15 +1739,36 @@
 <footer>
   <div class="container">
     <div class="footer-inner">
+      <!-- COMPANY -->
       <div>
         <div class="footer-logo">RE<span>A</span>GE</div>
         <div class="footer-info">
-          올핸드 미세전류 테라피 — 일본 원천 기술, 아시아 총판<br/>
-          대표 문의: contact@reage.co.kr<br/>
-          교육·도입 상담: 평일 10:00 – 18:00
+          <strong>COMPANY</strong>
+          (주)리플런스<br/>
+          대표자 │ 조예나<br/>
+          주소 │ 06112 서울 강남구 학동로20길 19-3, 3층<br/>
+          대표 전화 │ <a href="tel:01096799498" style="color:rgba(247,245,242,.5);">📞 010-9679-9498</a><br/>
+          사업자등록번호 │ 872-86-01179<br/>
+          개인정보보호책임자 │ 조예나
         </div>
       </div>
-      <div class="footer-nav">
+      <!-- CUSTOMER CENTER -->
+      <div class="footer-col">
+        <h5>CUSTOMER CENTER</h5>
+        <p>📞 <a href="tel:01096799498" style="color:rgba(247,245,242,.7);font-size:15px;font-weight:600;">010-9679-9498</a><br/>
+        운영시간 │ 10:00 - 18:00<br/>
+        (토·일·공휴일 휴무)<br/><br/>
+        계좌정보 │ 100-033-276522<br/>
+        예금주 │ 주식회사리플런스</p>
+      </div>
+      <!-- SNS -->
+      <div class="footer-col">
+        <h5>SNS</h5>
+        <a href="https://www.instagram.com/reage_official" target="_blank" rel="noopener">INSTAGRAM<br/>@reage_official</a>
+      </div>
+      <!-- SITE MAP -->
+      <div class="footer-col">
+        <h5>SITE MAP</h5>
         <a href="brand-intro.html">브랜드소개</a>
         <a href="brand-story.html">브랜드스토리</a>
         <a href="therapy.html">레아쥬테라피</a>

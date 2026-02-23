@@ -161,7 +161,12 @@
 
     /* FOOTER */
     #footer { background: #0F0C0B; color: rgba(247,245,242,.6); padding: 60px 0 32px; }
-    .footer-inner { display: grid; grid-template-columns: 1fr auto; gap: 60px; margin-bottom: 40px; }
+    .footer-inner {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      gap: 40px;
+      align-items: flex-start;
+    }
     .footer-brand p { font-size: 13px; line-height: 1.8; }
     .footer-links { display: flex; gap: 60px; }
     .footer-col h5 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
@@ -178,7 +183,12 @@
       .numbers-grid { grid-template-columns: repeat(2, 1fr); }
       .number-item:nth-child(2) { border-right: none; }
       .number-item:nth-child(3) { border-top: 1px solid rgba(247,245,242,.15); }
-      .footer-inner { grid-template-columns: 1fr; gap: 40px; }
+      .footer-inner {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      gap: 40px;
+      align-items: flex-start;
+    }
       .footer-links { flex-wrap: wrap; gap: 32px; }
     }
     @media (max-width: 600px) {
@@ -565,34 +575,49 @@
 <footer id="footer">
   <div class="container">
     <div class="footer-inner">
-      <div class="footer-brand">
-        <div class="logo">RE<span style="color:var(--gold)">A</span>GE</div>
-        <p>올핸드 미세전류 테라피 — 일본 원천 기술, 아시아 총판<br/>(주)리플런스 | 대표: 조예나 | 010-9679-9498</p>
+      <div>
+        <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-info">
+          <strong>COMPANY</strong>
+          (주)리플런스<br/>
+          대표자 &#124; 조예나<br/>
+          주소 &#124; 06112 서울 강남구 학동로20길 19-3, 3층<br/>
+          대표 전화 &#124; <a href="tel:01096799498" style="color:rgba(247,245,242,.5);">010-9679-9498</a><br/>
+          사업자등록번호 &#124; 872-86-01179<br/>
+          개인정보보호책임자 &#124; 조예나
+        </div>
       </div>
-      <div class="footer-links">
-        <div class="footer-col">
-          <h5>브랜드</h5>
-          <a href="brand-intro.html">브랜드소개</a>
-          <a href="brand-story.html">브랜드스토리</a>
-          <a href="therapy.html">레아쥬테라피</a>
-        </div>
-        <div class="footer-col">
-          <h5>제품·교육</h5>
-          <a href="reage-device.html">레아쥬기기</a>
-          <a href="academy.html">아카데미</a>
-          <a href="review.html">후기</a>
-        </div>
-        <div class="footer-col">
-          <h5>문의</h5>
-          <a href="contact.html">체험 예약</a>
-          <a href="contact.html">도입 상담</a>
-          <a href="contact.html">교육 문의</a>
-        </div>
+      <div class="footer-col">
+        <h5>CUSTOMER CENTER</h5>
+        <p><a href="tel:01096799498" style="color:rgba(247,245,242,.7);font-size:15px;font-weight:600;">010-9679-9498</a><br/>
+        운영시간 &#124; 10:00 - 18:00<br/>
+        (토·일·공휴일 휴무)<br/><br/>
+        계좌정보 &#124; 100-033-276522<br/>
+        예금주 &#124; 주식회사리플런스</p>
+      </div>
+      <div class="footer-col">
+        <h5>SNS</h5>
+        <a href="https://www.instagram.com/reage_official" target="_blank" rel="noopener">INSTAGRAM<br/>@reage_official</a>
+      </div>
+      <div class="footer-col">
+        <h5>SITE MAP</h5>
+        <a href="brand-intro.html">브랜드소개</a>
+        <a href="brand-story.html">브랜드스토리</a>
+        <a href="therapy.html">레아쥬테라피</a>
+        <a href="reage-device.html">레아쥬기기</a>
+        <a href="academy.html">아카데미</a>
+        <a href="review.html">후기</a>
+        <a href="gallery.html">갤러리</a>
+        <a href="magazine.html">매거진</a>
+        <a href="contact.html">체험 예약</a>
+        <a href="contact.html?tab=intro">도입 상담</a>
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© 2024 REAGE. All rights reserved.</span>
-      <span>본 페이지의 모든 내용은 테라피 관리 목적이며, 의료행위·치료 목적이 아닙니다.</span>
+      <div class="footer-disclaimer">
+        본 홈페이지의 모든 내용은 테라피·관리 정보를 목적으로 하며, 의료행위·질병 치료·의학적 효능을 주장하지 않습니다. 개인에 따라 체감 효과는 다를 수 있습니다.
+      </div>
+      <div>© 2025 REAGE. All rights reserved.</div>
     </div>
   </div>
 </footer>

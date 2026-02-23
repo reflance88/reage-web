@@ -139,7 +139,12 @@
 
     /* FOOTER */
     #footer { background: #0F0C0B; color: rgba(247,245,242,.6); padding: 60px 0 32px; }
-    .footer-inner { display: grid; grid-template-columns: 1fr auto; gap: 60px; margin-bottom: 40px; }
+    .footer-inner {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      gap: 40px;
+      align-items: flex-start;
+    }
     .footer-brand p { font-size: 13px; line-height: 1.8; }
     .footer-links { display: flex; gap: 60px; }
     .footer-col h5 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
@@ -153,7 +158,12 @@
       .quick-grid { grid-template-columns: repeat(2, 1fr); }
       .form-layout { grid-template-columns: 1fr; }
       .catalog-inner { grid-template-columns: 1fr; }
-      .footer-inner { grid-template-columns: 1fr; gap: 40px; }
+      .footer-inner {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      gap: 40px;
+      align-items: flex-start;
+    }
       .footer-links { flex-wrap: wrap; gap: 32px; }
     }
     @media (max-width: 600px) {
@@ -240,7 +250,7 @@
       <div class="eyebrow">CONTACT · 문의하기</div>
       <div class="gold-line"></div>
       <h1 class="hero-title">레아쥬와 함께<br/><em>시작하세요</em></h1>
-      <p class="hero-sub">체험 예약, 도입 상담, 교육 문의, 전화 상담 — 어떤 형태로든 편하게 연락주세요.</p>
+      <p class="hero-sub">체험 예약, 도입 상담, 교육 문의 — 원장님의 문의를 기다리고 있습니다.</p>
     </div>
   </div>
 </section>
@@ -264,11 +274,7 @@
         <div class="quick-title">교육 문의</div>
         <div class="quick-desc">아카데미 교육 과정 문의</div>
       </div>
-      <div class="quick-card" onclick="selectForm('phone', this)">
-        <div class="quick-icon">📞</div>
-        <div class="quick-title">전화 상담</div>
-        <div class="quick-desc">전화 상담 예약 신청</div>
-      </div>
+
     </div>
   </div>
 </section>
@@ -321,35 +327,35 @@
           <div class="form-tab active" id="tab-trial" onclick="switchTab('trial')">체험 예약</div>
           <div class="form-tab" id="tab-intro" onclick="switchTab('intro')">도입 상담</div>
           <div class="form-tab" id="tab-edu" onclick="switchTab('edu')">교육 문의</div>
-          <div class="form-tab" id="tab-phone" onclick="switchTab('phone')">전화 상담</div>
+
         </div>
 
-        <!-- 체험 예약 -->
+        <!-- 체험 예약 (원장님 전용) -->
         <div class="form-body active" id="form-trial">
           <div class="form-title">체험 예약 신청</div>
-          <div class="form-subtitle">레아쥬 미세전류 테라피를 직접 체험해보세요. 전문 테라피스트가 안내해드립니다.</div>
+          <div class="form-subtitle">레아쥬 미세전류 테라피를 직접 체험해보세요. 원장님을 위한 전문 체험 프로그램입니다.</div>
           <form onsubmit="submitForm(event, '체험 예약')">
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">고객 성함 <span class="required">*</span></label>
-                <input type="text" class="form-input" placeholder="홍길동" required />
+                <label class="form-label">성함 <span class="required">*</span></label>
+                <input type="text" class="form-input" name="name" placeholder="홍길동" required />
               </div>
               <div class="form-group">
                 <label class="form-label">연락처 <span class="required">*</span></label>
-                <input type="tel" class="form-input" placeholder="010-0000-0000" required />
+                <input type="tel" class="form-input" name="phone" placeholder="010-0000-0000" required />
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">샵명 / 소속</label>
-              <input type="text" class="form-input" placeholder="소속 샵명 또는 개인" />
+              <label class="form-label">샵명 <span class="required">*</span></label>
+              <input type="text" class="form-input" name="shop" placeholder="샵 이름을 입력해주세요" required />
             </div>
             <div class="form-group">
               <label class="form-label">희망 체험 일자</label>
-              <input type="date" class="form-input" />
+              <input type="date" class="form-input" name="date" />
             </div>
             <div class="form-group">
               <label class="form-label">문의 내용</label>
-              <textarea class="form-textarea" placeholder="체험 관련 문의 사항이 있으시면 자유롭게 작성해주세요."></textarea>
+              <textarea class="form-textarea" name="message" placeholder="체험 관련 문의 사항이 있으시면 자유롭게 작성해주세요."></textarea>
             </div>
             <button type="submit" class="form-submit">체험 예약 신청하기</button>
             <p class="form-privacy">입력하신 정보는 예약 확인 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
@@ -363,17 +369,17 @@
           <form onsubmit="submitForm(event, '도입 상담')">
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">원장님 성함 <span class="required">*</span></label>
-                <input type="text" class="form-input" placeholder="홍길동" required />
+                <label class="form-label">성함 <span class="required">*</span></label>
+                <input type="text" class="form-input" name="name" placeholder="홍길동" required />
               </div>
               <div class="form-group">
                 <label class="form-label">연락처 <span class="required">*</span></label>
-                <input type="tel" class="form-input" placeholder="010-0000-0000" required />
+                <input type="tel" class="form-input" name="phone" placeholder="010-0000-0000" required />
               </div>
             </div>
             <div class="form-group">
               <label class="form-label">샵명 <span class="required">*</span></label>
-              <input type="text" class="form-input" placeholder="샵 이름을 입력해주세요" required />
+              <input type="text" class="form-input" name="shop" placeholder="샵 이름을 입력해주세요" required />
             </div>
             <div class="form-group">
               <label class="form-label">샵 위치 (지역)</label>
@@ -406,16 +412,16 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">성함 <span class="required">*</span></label>
-                <input type="text" class="form-input" placeholder="홍길동" required />
+                <input type="text" class="form-input" name="name" placeholder="홍길동" required />
               </div>
               <div class="form-group">
                 <label class="form-label">연락처 <span class="required">*</span></label>
-                <input type="tel" class="form-input" placeholder="010-0000-0000" required />
+                <input type="tel" class="form-input" name="phone" placeholder="010-0000-0000" required />
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">샵명 / 소속</label>
-              <input type="text" class="form-input" placeholder="소속 샵명 또는 개인" />
+              <label class="form-label">샵명 <span class="required">*</span></label>
+              <input type="text" class="form-input" name="shop" placeholder="샵 이름을 입력해주세요" required />
             </div>
             <div class="form-group">
               <label class="form-label">관심 교육 과정 <span class="required">*</span></label>
@@ -445,54 +451,7 @@
           </form>
         </div>
 
-        <!-- 전화 상담 -->
-        <div class="form-body" id="form-phone">
-          <div class="form-title">전화 상담 예약</div>
-          <div class="form-subtitle">원하시는 시간에 전화 상담을 예약해드립니다. 전문 상담사가 직접 연락드립니다.</div>
-          <form onsubmit="submitForm(event, '전화 상담')">
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">성함 <span class="required">*</span></label>
-                <input type="text" class="form-input" placeholder="홍길동" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label">연락처 <span class="required">*</span></label>
-                <input type="tel" class="form-input" placeholder="010-0000-0000" required />
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">샵명 / 소속</label>
-              <input type="text" class="form-input" placeholder="소속 샵명 또는 개인" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">희망 상담 시간</label>
-              <select class="form-select">
-                <option value="">선택해주세요</option>
-                <option>오전 10:00 ~ 12:00</option>
-                <option>오후 13:00 ~ 15:00</option>
-                <option>오후 15:00 ~ 17:00</option>
-                <option>오후 17:00 ~ 18:00</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">상담 주제</label>
-              <select class="form-select">
-                <option value="">선택해주세요</option>
-                <option>체험 예약 관련</option>
-                <option>도입·창업 상담</option>
-                <option>교육 과정 문의</option>
-                <option>제품 구매 문의</option>
-                <option>기타</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">추가 메모</label>
-              <textarea class="form-textarea" placeholder="상담 시 미리 알려주실 내용이 있으시면 작성해주세요." style="min-height:80px;"></textarea>
-            </div>
-            <button type="submit" class="form-submit">전화 상담 예약하기</button>
-            <p class="form-privacy">입력하신 정보는 상담 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
-          </form>
-        </div>
+
 
         <!-- 성공 메시지 -->
         <div class="success-msg" id="successMsg">
@@ -540,34 +499,49 @@
 <footer id="footer">
   <div class="container">
     <div class="footer-inner">
-      <div class="footer-brand">
-        <div class="logo">RE<span style="color:var(--gold)">A</span>GE</div>
-        <p>올핸드 미세전류 테라피 — 일본 원천 기술, 아시아 총판<br/>(주)리플런스 | 대표: 조예나 | 010-9679-9498</p>
+      <div>
+        <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-info">
+          <strong>COMPANY</strong>
+          (주)리플런스<br/>
+          대표자 &#124; 조예나<br/>
+          주소 &#124; 06112 서울 강남구 학동로20길 19-3, 3층<br/>
+          대표 전화 &#124; <a href="tel:01096799498" style="color:rgba(247,245,242,.5);">010-9679-9498</a><br/>
+          사업자등록번호 &#124; 872-86-01179<br/>
+          개인정보보호책임자 &#124; 조예나
+        </div>
       </div>
-      <div class="footer-links">
-        <div class="footer-col">
-          <h5>브랜드</h5>
-          <a href="brand-intro.html">브랜드소개</a>
-          <a href="brand-story.html">브랜드스토리</a>
-          <a href="therapy.html">레아쥬테라피</a>
-        </div>
-        <div class="footer-col">
-          <h5>제품·교육</h5>
-          <a href="reage-device.html">레아쥬기기</a>
-          <a href="academy.html">아카데미</a>
-          <a href="review.html">후기</a>
-        </div>
-        <div class="footer-col">
-          <h5>문의</h5>
-          <a href="contact.html">체험 예약</a>
-          <a href="contact.html">도입 상담</a>
-          <a href="contact.html">교육 문의</a>
-        </div>
+      <div class="footer-col">
+        <h5>CUSTOMER CENTER</h5>
+        <p><a href="tel:01096799498" style="color:rgba(247,245,242,.7);font-size:15px;font-weight:600;">010-9679-9498</a><br/>
+        운영시간 &#124; 10:00 - 18:00<br/>
+        (토·일·공휴일 휴무)<br/><br/>
+        계좌정보 &#124; 100-033-276522<br/>
+        예금주 &#124; 주식회사리플런스</p>
+      </div>
+      <div class="footer-col">
+        <h5>SNS</h5>
+        <a href="https://www.instagram.com/reage_official" target="_blank" rel="noopener">INSTAGRAM<br/>@reage_official</a>
+      </div>
+      <div class="footer-col">
+        <h5>SITE MAP</h5>
+        <a href="brand-intro.html">브랜드소개</a>
+        <a href="brand-story.html">브랜드스토리</a>
+        <a href="therapy.html">레아쥬테라피</a>
+        <a href="reage-device.html">레아쥬기기</a>
+        <a href="academy.html">아카데미</a>
+        <a href="review.html">후기</a>
+        <a href="gallery.html">갤러리</a>
+        <a href="magazine.html">매거진</a>
+        <a href="contact.html">체험 예약</a>
+        <a href="contact.html?tab=intro">도입 상담</a>
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© 2024 REAGE. All rights reserved.</span>
-      <span>본 페이지의 모든 내용은 테라피 관리 목적이며, 의료행위·치료 목적이 아닙니다.</span>
+      <div class="footer-disclaimer">
+        본 홈페이지의 모든 내용은 테라피·관리 정보를 목적으로 하며, 의료행위·질병 치료·의학적 효능을 주장하지 않습니다. 개인에 따라 체감 효과는 다를 수 있습니다.
+      </div>
+      <div>© 2025 REAGE. All rights reserved.</div>
     </div>
   </div>
 </footer>
@@ -622,12 +596,12 @@
   // URL 파라미터로 탭 자동 선택
   const urlParams = new URLSearchParams(window.location.search);
   const tab = urlParams.get('tab');
-  if (tab && ['trial', 'intro', 'edu', 'phone'].includes(tab)) {
+  if (tab && ['trial', 'intro', 'edu'].includes(tab)) {
     switchTab(tab);
-    const cardMap = { trial: 0, intro: 1, edu: 2, phone: 3 };
+    const cardMap = { trial: 0, intro: 1, edu: 2 };
     const cards = document.querySelectorAll('.quick-card');
     cards.forEach(c => c.classList.remove('active'));
-    cards[cardMap[tab]].classList.add('active');
+    if (cardMap[tab] !== undefined) cards[cardMap[tab]].classList.add('active');
   }
 
   window.addEventListener('scroll', () => {

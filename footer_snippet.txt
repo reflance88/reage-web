@@ -1,0 +1,68 @@
+FOOTER_CSS:
+    .footer-inner {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      gap: 40px;
+      align-items: flex-start;
+    }
+    @media(max-width:900px){ .footer-inner { grid-template-columns: 1fr 1fr; } }
+    @media(max-width:560px){ .footer-inner { grid-template-columns: 1fr; } }
+    .footer-logo { font-size: 18px; font-weight: 700; color: var(--offwhite); letter-spacing: .18em; margin-bottom: 10px; }
+    .footer-logo span { color: var(--gold); }
+    .footer-info { line-height: 1.9; font-size: 12px; color: rgba(247,245,242,.5); }
+    .footer-info strong { color: rgba(247,245,242,.8); font-size: 11px; letter-spacing: .1em; display: block; margin-bottom: 6px; }
+    .footer-col h5 { font-size: 11px; letter-spacing: .12em; color: var(--gold); margin-bottom: 12px; font-weight: 600; }
+    .footer-col a { display: block; color: rgba(247,245,242,.45); font-size: 12px; margin-bottom: 7px; transition: color .2s; text-decoration: none; }
+    .footer-col a:hover { color: var(--gold); }
+    .footer-col p { font-size: 12px; color: rgba(247,245,242,.45); line-height: 1.8; margin: 0; }
+
+FOOTER_HTML:
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-info">
+          <strong>COMPANY</strong>
+          (주)리플런스<br/>
+          대표자 │ 조예나<br/>
+          주소 │ 06112 서울 강남구 학동로20길 19-3, 3층<br/>
+          대표 전화 │ <a href="tel:01096799498" style="color:rgba(247,245,242,.5);">010-9679-9498</a><br/>
+          사업자등록번호 │ 872-86-01179<br/>
+          개인정보보호책임자 │ 조예나
+        </div>
+      </div>
+      <div class="footer-col">
+        <h5>CUSTOMER CENTER</h5>
+        <p><a href="tel:01096799498" style="color:rgba(247,245,242,.7);font-size:15px;font-weight:600;">010-9679-9498</a><br/>
+        운영시간 │ 10:00 - 18:00<br/>
+        (토·일·공휴일 휴무)<br/><br/>
+        계좌정보 │ 100-033-276522<br/>
+        예금주 │ 주식회사리플런스</p>
+      </div>
+      <div class="footer-col">
+        <h5>SNS</h5>
+        <a href="https://www.instagram.com/reage_official" target="_blank" rel="noopener">INSTAGRAM<br/>@reage_official</a>
+      </div>
+      <div class="footer-col">
+        <h5>SITE MAP</h5>
+        <a href="brand-intro.html">브랜드소개</a>
+        <a href="brand-story.html">브랜드스토리</a>
+        <a href="therapy.html">레아쥬테라피</a>
+        <a href="reage-device.html">레아쥬기기</a>
+        <a href="academy.html">아카데미</a>
+        <a href="review.html">후기</a>
+        <a href="gallery.html">갤러리</a>
+        <a href="magazine.html">매거진</a>
+        <a href="contact.html">체험 예약</a>
+        <a href="contact.html?tab=intro">도입 상담</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-disclaimer">
+        본 홈페이지의 모든 내용은 테라피·관리 정보를 목적으로 하며, 의료행위·질병 치료·의학적 효능을 주장하지 않습니다. 개인에 따라 체감 효과는 다를 수 있습니다.
+      </div>
+      <div>© 2025 REAGE. All rights reserved.</div>
+    </div>
+  </div>
+</footer>
