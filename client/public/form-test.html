@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>폼 신청 테스트 — REAGE 관리자용</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --wine: #6B0F1A; --wine-light: #8B1525;
+      --offwhite: #F7F5F2; --charcoal: #1A1412; --gold: #C8A26A;
+      --gray: #6B6B6B; --light-gray: #E8E6E3;
+      --green: #2D7D46; --green-light: #E8F5ED;
+      --blue: #1A5276; --blue-light: #EAF2FB;
+      --orange: #B7570A; --orange-light: #FEF3E8;
+    }
+    body { font-family: 'Noto Sans KR', sans-serif; background: #F0EDE8; color: var(--charcoal); font-size: 15px; line-height: 1.7; }
+    a { text-decoration: none; color: inherit; }
+
+    /* TOP ADMIN BAR */
+    .admin-bar {
+      background: var(--charcoal);
+      color: rgba(247,245,242,.8);
+      padding: 10px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; letter-spacing: .05em;
+    }
+    .admin-bar strong { color: var(--gold); }
+    .admin-badge {
+      background: var(--wine); color: #fff;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    }
+
+    /* HEADER */
+    .page-header {
+      background: #fff;
+      border-bottom: 3px solid var(--gold);
+      padding: 24px 32px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: .18em; color: var(--wine); }
+    .logo span { color: var(--gold); }
+    .page-title { font-size: 14px; color: var(--gray); border-left: 2px solid var(--light-gray); padding-left: 20px; }
+    .page-title strong { display: block; font-size: 18px; color: var(--charcoal); font-weight: 700; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 32px; }
+
+    /* INTRO SECTION */
+    .intro-section {
+      background: linear-gradient(135deg, var(--charcoal) 0%, #2A1F1C 100%);
+      padding: 48px 32px;
+      color: var(--offwhite);
+    }
+    .intro-inner { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+    .intro-text h1 { font-family: 'Noto Serif KR', serif; font-size: 28px; font-weight: 700; line-height: 1.4; margin-bottom: 16px; }
+    .intro-text h1 em { color: var(--gold); font-style: normal; }
+    .intro-text p { font-size: 14px; color: rgba(247,245,242,.7); line-height: 1.9; }
+    .flow-steps { display: flex; flex-direction: column; gap: 0; }
+    .flow-step {
+      display: flex; align-items: flex-start; gap: 16px;
+      padding: 16px 0;
+      border-bottom: 1px solid rgba(247,245,242,.08);
+    }
+    .flow-step:last-child { border-bottom: none; }
+    .step-num {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--wine); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
+    }
+    .step-content h4 { font-size: 14px; font-weight: 600; color: var(--offwhite); margin-bottom: 4px; }
+    .step-content p { font-size: 12px; color: rgba(247,245,242,.55); line-height: 1.6; }
+    .step-arrow { color: var(--gold); font-size: 18px; margin: 0 auto; text-align: center; padding: 4px 0 4px 48px; }
+
+    /* STATUS DASHBOARD */
+    .status-section { padding: 40px 0; }
+    .section-title { font-size: 13px; letter-spacing: .15em; color: var(--gold); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
+    .section-heading { font-family: 'Noto Serif KR', serif; font-size: 22px; font-weight: 700; margin-bottom: 24px; }
+    .status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }
+    .status-card {
+      background: #fff; border-radius: 16px;
+      padding: 28px 24px;
+      border-left: 4px solid transparent;
+      box-shadow: 0 2px 16px rgba(26,20,18,.06);
+    }
+    .status-card.done { border-left-color: var(--green); }
+    .status-card.partial { border-left-color: var(--orange); }
+    .status-card.todo { border-left-color: #ccc; }
+    .status-label {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 700; letter-spacing: .08em;
+      padding: 3px 10px; border-radius: 20px; margin-bottom: 12px;
+    }
+    .status-label.done { background: var(--green-light); color: var(--green); }
+    .status-label.partial { background: var(--orange-light); color: var(--orange); }
+    .status-label.todo { background: #f0f0f0; color: #888; }
+    .status-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .status-card p { font-size: 13px; color: var(--gray); line-height: 1.7; }
+
+    /* JOURNEY MAP */
+    .journey-section { padding: 0 0 48px; }
+    .journey-map {
+      background: #fff; border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 4px 24px rgba(26,20,18,.07);
+    }
+    .journey-title { font-size: 16px; font-weight: 700; margin-bottom: 32px; display: flex; align-items: center; gap: 10px; }
+    .journey-title::before { content: ''; display: block; width: 4px; height: 20px; background: var(--wine); border-radius: 2px; }
+    .journey-steps { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 8px; }
+    .journey-step {
+      flex: 1; min-width: 160px;
+      display: flex; flex-direction: column; align-items: center;
+      position: relative;
+    }
+    .journey-step:not(:last-child)::after {
+      content: '→';
+      position: absolute; right: -12px; top: 28px;
+      font-size: 20px; color: var(--light-gray); z-index: 1;
+    }
+    .j-icon {
+      width: 56px; height: 56px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin-bottom: 12px;
+      border: 2px solid transparent;
+    }
+    .j-icon.active { background: var(--wine); border-color: var(--wine); }
+    .j-icon.done { background: var(--green-light); border-color: var(--green); }
+    .j-icon.pending { background: #f5f5f5; border-color: #ddd; }
+    .j-label { font-size: 13px; font-weight: 600; text-align: center; margin-bottom: 6px; }
+    .j-desc { font-size: 11px; color: var(--gray); text-align: center; line-height: 1.5; max-width: 120px; }
+    .j-status {
+      margin-top: 8px; padding: 3px 10px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; letter-spacing: .06em;
+    }
+    .j-status.active { background: var(--wine); color: #fff; }
+    .j-status.done { background: var(--green-light); color: var(--green); }
+    .j-status.pending { background: #f0f0f0; color: #999; }
+
+    /* LIVE TEST SECTION */
+    .test-section { padding: 0 0 60px; }
+    .test-wrapper {
+      background: #fff; border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 4px 32px rgba(26,20,18,.08);
+    }
+    .test-header {
+      background: var(--charcoal); padding: 20px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .test-header-title { font-size: 14px; font-weight: 600; color: var(--offwhite); display: flex; align-items: center; gap: 10px; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #4CAF50; animation: blink 1.5s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .test-note { font-size: 12px; color: rgba(247,245,242,.5); }
+
+    .test-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .test-left { padding: 40px; border-right: 1px solid var(--light-gray); }
+    .test-right { padding: 40px; background: #FAFAF8; }
+
+    .test-left h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .test-left .sub { font-size: 13px; color: var(--gray); margin-bottom: 28px; }
+
+    /* FORM TABS */
+    .form-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--light-gray); margin-bottom: 28px; }
+    .form-tab {
+      padding: 12px 20px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border-bottom: 2px solid transparent;
+      color: var(--gray); transition: all .2s;
+    }
+    .form-tab.active { color: var(--wine); border-bottom-color: var(--wine); }
+    .form-body { display: none; }
+    .form-body.active { display: block; }
+
+    .form-group { margin-bottom: 18px; }
+    .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--charcoal); margin-bottom: 7px; }
+    .required { color: var(--wine); }
+    .form-input, .form-textarea, .form-select {
+      width: 100%; padding: 12px 16px;
+      border: 1.5px solid var(--light-gray); border-radius: 10px;
+      font-family: inherit; font-size: 14px; color: var(--charcoal);
+      background: #fff; transition: border-color .2s;
+      outline: none;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--wine); }
+    .form-textarea { min-height: 90px; resize: vertical; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-submit {
+      width: 100%; padding: 15px;
+      background: var(--wine); color: #fff;
+      border: none; border-radius: 10px;
+      font-family: inherit; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: background .2s, transform .15s;
+      margin-top: 4px;
+    }
+    .form-submit:hover { background: var(--wine-light); transform: translateY(-2px); }
+    .form-privacy { font-size: 11px; color: var(--gray); margin-top: 10px; text-align: center; }
+
+    /* RIGHT PANEL - RESULT */
+    .result-panel h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .result-panel .sub { font-size: 13px; color: var(--gray); margin-bottom: 24px; }
+
+    .result-empty {
+      border: 2px dashed var(--light-gray); border-radius: 14px;
+      padding: 48px 24px; text-align: center; color: #bbb;
+    }
+    .result-empty .icon { font-size: 40px; margin-bottom: 12px; }
+    .result-empty p { font-size: 13px; line-height: 1.7; }
+
+    .result-data { display: none; }
+    .result-data.show { display: block; }
+    .result-sheet {
+      border: 1px solid var(--light-gray); border-radius: 14px; overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .sheet-header {
+      background: #1A7340; color: #fff;
+      padding: 12px 20px; font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .sheet-icon { font-size: 16px; }
+    .sheet-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .sheet-table th {
+      background: #E8F5E9; color: #1A7340;
+      padding: 10px 14px; text-align: left; font-weight: 700;
+      border-bottom: 1px solid #C8E6C9;
+    }
+    .sheet-table td {
+      padding: 10px 14px; border-bottom: 1px solid #f0f0f0;
+      color: var(--charcoal);
+    }
+    .sheet-table tr:last-child td { border-bottom: none; }
+    .sheet-table tr.new-row td { background: #FFFDE7; }
+    .row-num { color: #888; font-weight: 600; }
+
+    .result-status {
+      background: var(--green-light); border: 1px solid #A5D6A7;
+      border-radius: 12px; padding: 16px 20px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .result-status .check { font-size: 28px; }
+    .result-status h4 { font-size: 14px; font-weight: 700; color: var(--green); margin-bottom: 4px; }
+    .result-status p { font-size: 12px; color: #4CAF50; }
+
+    .result-pending {
+      background: var(--orange-light); border: 1px solid #FFCC80;
+      border-radius: 12px; padding: 16px 20px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .result-pending .icon { font-size: 28px; }
+    .result-pending h4 { font-size: 14px; font-weight: 700; color: var(--orange); margin-bottom: 4px; }
+    .result-pending p { font-size: 12px; color: var(--orange); }
+
+    /* WHAT HAPPENS SECTION */
+    .what-section { padding: 0 0 60px; }
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .compare-card {
+      background: #fff; border-radius: 16px; padding: 32px;
+      box-shadow: 0 2px 16px rgba(26,20,18,.06);
+    }
+    .compare-card.current { border-top: 4px solid var(--orange); }
+    .compare-card.after { border-top: 4px solid var(--green); }
+    .compare-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 700; letter-spacing: .08em;
+      padding: 4px 12px; border-radius: 20px; margin-bottom: 16px;
+    }
+    .compare-badge.current { background: var(--orange-light); color: var(--orange); }
+    .compare-badge.after { background: var(--green-light); color: var(--green); }
+    .compare-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+    .compare-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+    .compare-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.6; }
+    .compare-list li .bullet { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; margin-top: 1px; }
+    .compare-list li .bullet.x { background: #FFEBEE; color: #E53935; }
+    .compare-list li .bullet.o { background: var(--green-light); color: var(--green); }
+
+    /* SETUP GUIDE */
+    .setup-section { padding: 0 0 80px; }
+    .setup-card {
+      background: linear-gradient(135deg, var(--charcoal) 0%, #2A1F1C 100%);
+      border-radius: 20px; padding: 48px;
+      color: var(--offwhite);
+    }
+    .setup-card h2 { font-family: 'Noto Serif KR', serif; font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    .setup-card .sub { font-size: 14px; color: rgba(247,245,242,.6); margin-bottom: 40px; }
+    .setup-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    .setup-step { text-align: center; }
+    .setup-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--wine); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; margin: 0 auto 14px;
+    }
+    .setup-step h4 { font-size: 14px; font-weight: 700; color: var(--offwhite); margin-bottom: 8px; }
+    .setup-step p { font-size: 12px; color: rgba(247,245,242,.55); line-height: 1.7; }
+    .setup-step .who {
+      display: inline-block; margin-top: 10px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; letter-spacing: .06em;
+    }
+    .setup-step .who.me { background: var(--wine); color: #fff; }
+    .setup-step .who.you { background: var(--gold); color: var(--charcoal); }
+    .setup-step .who.google { background: #4285F4; color: #fff; }
+    .setup-divider { display: flex; align-items: center; justify-content: center; color: rgba(247,245,242,.3); font-size: 20px; margin-top: 24px; }
+
+    @media(max-width:900px){
+      .intro-inner, .test-body, .compare-grid { grid-template-columns: 1fr; }
+      .status-grid { grid-template-columns: 1fr; }
+      .setup-steps { grid-template-columns: 1fr 1fr; }
+      .journey-steps { flex-direction: column; }
+      .journey-step::after { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ADMIN BAR -->
+<div class="admin-bar">
+  <span>🔒 <strong>관리자 전용</strong> — 레아쥬 홈페이지 폼 테스트 페이지</span>
+  <span class="admin-badge">TEST MODE</span>
+</div>
+
+<!-- HEADER -->
+<div class="page-header">
+  <div class="logo">RE<span>A</span>GE</div>
+  <div class="page-title">
+    <span>폼 신청 테스트 &amp; 시각화</span>
+    <strong>원장님 입장에서 직접 체험해보기</strong>
+  </div>
+</div>
+
+<!-- INTRO -->
+<div class="intro-section">
+  <div class="intro-inner">
+    <div class="intro-text">
+      <h1>원장님이 신청 버튼을 누르면<br/><em>지금 무슨 일이 일어나나요?</em></h1>
+      <p>
+        이 페이지는 원장님 입장에서 폼 신청 과정을 직접 체험하고,<br/>
+        현재 데이터가 어디로 가는지(또는 안 가는지) 시각적으로 확인하기 위한 테스트 페이지입니다.<br/><br/>
+        아래에서 직접 폼을 작성하고 제출해보세요.
+      </p>
+    </div>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>원장님이 홈페이지 방문</h4>
+          <p>레아쥬 홈페이지에서 체험예약 / 도입상담 / 교육문의 버튼 클릭</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>폼 작성 (성함·연락처·샵명)</h4>
+          <p>3개 필드만 입력 — 30초면 완료</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>제출 버튼 클릭</h4>
+          <p>"접수되었습니다" 메시지 표시</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>⚠️ 현재: 데이터가 사라짐</h4>
+          <p>구글 시트 연동 전까지는 아무 곳에도 저장되지 않음</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- STATUS DASHBOARD -->
+  <div class="status-section">
+    <div class="section-title">CURRENT STATUS</div>
+    <div class="section-heading">현재 폼 연동 상태</div>
+    <div class="status-grid">
+      <div class="status-card done">
+        <div class="status-label done">✓ 완료</div>
+        <h3>폼 UI 디자인</h3>
+        <p>체험예약·도입상담·교육문의 3개 탭 폼이 완성된 상태입니다. 성함·연락처·샵명 입력 필드 포함.</p>
+      </div>
+      <div class="status-card done">
+        <div class="status-label done">✓ 완료</div>
+        <h3>원장님 전용 폼</h3>
+        <p>전화상담 삭제, 일반 소비자 내용 제거, 원장님(샵명 필수) 전용으로 수정 완료.</p>
+      </div>
+      <div class="status-card partial">
+        <div class="status-label partial">⚠ 미연동</div>
+        <h3>구글 시트 저장</h3>
+        <p>현재 제출 버튼을 눌러도 데이터가 구글 시트에 저장되지 않습니다. 연동 작업이 필요합니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- USER JOURNEY MAP -->
+  <div class="journey-section">
+    <div class="journey-map">
+      <div class="journey-title">원장님 신청 여정 (User Journey)</div>
+      <div class="journey-steps">
+        <div class="journey-step">
+          <div class="j-icon done">🏠</div>
+          <div class="j-label">홈페이지 방문</div>
+          <div class="j-desc">메인 페이지 또는 SNS 링크 통해 접속</div>
+          <div class="j-status done">완료</div>
+        </div>
+        <div class="journey-step">
+          <div class="j-icon done">📋</div>
+          <div class="j-label">문의 버튼 클릭</div>
+          <div class="j-desc">체험예약 / 도입상담 / 교육문의 선택</div>
+          <div class="j-status done">완료</div>
+        </div>
+        <div class="journey-step">
+          <div class="j-icon done">✏️</div>
+          <div class="j-label">폼 작성</div>
+          <div class="j-desc">성함·연락처·샵명 입력 (30초)</div>
+          <div class="j-status done">완료</div>
+        </div>
+        <div class="journey-step">
+          <div class="j-icon active">📤</div>
+          <div class="j-label">제출</div>
+          <div class="j-desc">버튼 클릭 → 접수 완료 메시지</div>
+          <div class="j-status active">현재 위치</div>
+        </div>
+        <div class="journey-step">
+          <div class="j-icon pending">📊</div>
+          <div class="j-label">구글 시트 저장</div>
+          <div class="j-desc">레아쥬 DB에 자동 기록</div>
+          <div class="j-status pending">미연동</div>
+        </div>
+        <div class="journey-step">
+          <div class="j-icon pending">📞</div>
+          <div class="j-label">담당자 확인·연락</div>
+          <div class="j-desc">시트에서 확인 후 원장님께 연락</div>
+          <div class="j-status pending">미연동</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE TEST -->
+  <div class="test-section">
+    <div class="section-title">LIVE TEST</div>
+    <div class="section-heading">직접 신청해보기 — 원장님 시점 체험</div>
+    <div class="test-wrapper">
+      <div class="test-header">
+        <div class="test-header-title">
+          <div class="live-dot"></div>
+          실시간 테스트 — 폼 제출 시 어떤 일이 일어나는지 확인
+        </div>
+        <div class="test-note">⚠ 현재 구글 시트 미연동 상태 — 우측 패널에서 결과 확인</div>
+      </div>
+      <div class="test-body">
+        <!-- LEFT: FORM -->
+        <div class="test-left">
+          <h3>원장님 입장 — 폼 작성</h3>
+          <p class="sub">실제 홈페이지와 동일한 폼입니다. 직접 작성하고 제출해보세요.</p>
+
+          <div class="form-tabs">
+            <div class="form-tab active" id="tab-trial" onclick="switchTab('trial')">체험 예약</div>
+            <div class="form-tab" id="tab-intro" onclick="switchTab('intro')">도입 상담</div>
+            <div class="form-tab" id="tab-edu" onclick="switchTab('edu')">교육 문의</div>
+          </div>
+
+          <!-- 체험 예약 -->
+          <div class="form-body active" id="form-trial">
+            <form onsubmit="submitTest(event, '체험 예약')">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">성함 <span class="required">*</span></label>
+                  <input type="text" class="form-input" id="trial-name" placeholder="홍길동" required />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">연락처 <span class="required">*</span></label>
+                  <input type="tel" class="form-input" id="trial-phone" placeholder="010-0000-0000" required />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">샵명 <span class="required">*</span></label>
+                <input type="text" class="form-input" id="trial-shop" placeholder="샵 이름을 입력해주세요" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">희망 체험 일자</label>
+                <input type="date" class="form-input" id="trial-date" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">문의 내용</label>
+                <textarea class="form-textarea" id="trial-msg" placeholder="체험 관련 문의 사항이 있으시면 자유롭게 작성해주세요."></textarea>
+              </div>
+              <button type="submit" class="form-submit">체험 예약 신청하기</button>
+              <p class="form-privacy">입력하신 정보는 예약 확인 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
+            </form>
+          </div>
+
+          <!-- 도입 상담 -->
+          <div class="form-body" id="form-intro">
+            <form onsubmit="submitTest(event, '도입 상담')">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">성함 <span class="required">*</span></label>
+                  <input type="text" class="form-input" id="intro-name" placeholder="홍길동" required />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">연락처 <span class="required">*</span></label>
+                  <input type="tel" class="form-input" id="intro-phone" placeholder="010-0000-0000" required />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">샵명 <span class="required">*</span></label>
+                <input type="text" class="form-input" id="intro-shop" placeholder="샵 이름을 입력해주세요" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">샵 위치 (지역)</label>
+                <input type="text" class="form-input" id="intro-region" placeholder="예: 서울 강남구" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">문의 내용</label>
+                <textarea class="form-textarea" id="intro-msg" placeholder="도입 관련 문의 사항을 자유롭게 작성해주세요."></textarea>
+              </div>
+              <button type="submit" class="form-submit">도입 상담 신청하기</button>
+              <p class="form-privacy">입력하신 정보는 상담 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
+            </form>
+          </div>
+
+          <!-- 교육 문의 -->
+          <div class="form-body" id="form-edu">
+            <form onsubmit="submitTest(event, '교육 문의')">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">성함 <span class="required">*</span></label>
+                  <input type="text" class="form-input" id="edu-name" placeholder="홍길동" required />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">연락처 <span class="required">*</span></label>
+                  <input type="tel" class="form-input" id="edu-phone" placeholder="010-0000-0000" required />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">샵명 <span class="required">*</span></label>
+                <input type="text" class="form-input" id="edu-shop" placeholder="샵 이름을 입력해주세요" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">관심 교육 과정 <span class="required">*</span></label>
+                <select class="form-select" id="edu-course" required>
+                  <option value="">선택해주세요</option>
+                  <option>레아쥬 인증강사 라이센스 교육 (매주 목요일 11:00~15:00)</option>
+                  <option>레아쥬 메디컬 라이센스 교육</option>
+                  <option>창업 현장 학습 교육</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">문의 내용</label>
+                <textarea class="form-textarea" id="edu-msg" placeholder="교육 관련 문의 사항을 자유롭게 작성해주세요."></textarea>
+              </div>
+              <button type="submit" class="form-submit">교육 문의 신청하기</button>
+              <p class="form-privacy">입력하신 정보는 교육 안내 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
+            </form>
+          </div>
+        </div>
+
+        <!-- RIGHT: RESULT -->
+        <div class="test-right">
+          <div class="result-panel">
+            <h3>제출 결과 — 구글 시트에 저장되나요?</h3>
+            <p class="sub">폼을 제출하면 아래에서 실시간으로 결과를 확인할 수 있습니다.</p>
+
+            <div class="result-empty" id="result-empty">
+              <div class="icon">📋</div>
+              <p>아직 폼을 제출하지 않았습니다.<br/>왼쪽에서 폼을 작성하고 제출 버튼을 눌러보세요.</p>
+            </div>
+
+            <div class="result-data" id="result-data">
+              <!-- 제출 후 표시 -->
+              <div class="result-pending" id="result-pending" style="margin-bottom:20px;">
+                <div class="icon">⚠️</div>
+                <div>
+                  <h4>구글 시트에 저장되지 않았습니다</h4>
+                  <p>현재 미연동 상태입니다. 아래 데이터는 어디에도 저장되지 않았습니다.</p>
+                </div>
+              </div>
+
+              <div class="result-sheet">
+                <div class="sheet-header">
+                  <span class="sheet-icon">📊</span>
+                  레아쥬 구글 시트 — <span id="sheet-name">체험 예약</span> 시트
+                  <span style="margin-left:auto;font-size:11px;opacity:.7;">연동 후 이렇게 저장됩니다</span>
+                </div>
+                <table class="sheet-table">
+                  <thead>
+                    <tr>
+                      <th>번호</th>
+                      <th>제출일시</th>
+                      <th>성함</th>
+                      <th>연락처</th>
+                      <th>샵명</th>
+                      <th>기타</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="row-num">1</td>
+                      <td style="color:#888">예시 데이터</td>
+                      <td>김원장</td>
+                      <td>010-1234-5678</td>
+                      <td>뷰티살롱A</td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td class="row-num">2</td>
+                      <td style="color:#888">예시 데이터</td>
+                      <td>이원장</td>
+                      <td>010-9876-5432</td>
+                      <td>스킨케어B</td>
+                      <td>—</td>
+                    </tr>
+                    <tr class="new-row" id="new-row">
+                      <td class="row-num" id="new-num">3</td>
+                      <td id="new-date" style="color:#B7570A;font-weight:600;">—</td>
+                      <td id="new-name" style="color:#B7570A;font-weight:600;">—</td>
+                      <td id="new-phone" style="color:#B7570A;font-weight:600;">—</td>
+                      <td id="new-shop" style="color:#B7570A;font-weight:600;">—</td>
+                      <td id="new-extra" style="color:#B7570A;font-weight:600;">—</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div style="background:#FFF9E6;border:1px solid #FFE082;border-radius:10px;padding:14px 18px;font-size:12px;color:#7B5800;line-height:1.7;">
+                💡 <strong>연동 후에는</strong> 노란 행이 실제로 구글 시트에 저장됩니다.<br/>
+                지금은 시각화 목적으로만 표시되며, 실제 저장은 되지 않습니다.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BEFORE / AFTER COMPARE -->
+  <div class="what-section">
+    <div class="section-title">BEFORE · AFTER</div>
+    <div class="section-heading">연동 전 vs 연동 후 비교</div>
+    <div class="compare-grid">
+      <div class="compare-card current">
+        <div class="compare-badge current">⚠ 현재 상태</div>
+        <h3>구글 시트 연동 전</h3>
+        <ul class="compare-list">
+          <li><span class="bullet x">✕</span> 원장님이 폼 제출해도 데이터가 어디에도 저장되지 않음</li>
+          <li><span class="bullet x">✕</span> 담당자가 신청 사실을 알 수 없음</li>
+          <li><span class="bullet x">✕</span> 원장님은 "접수되었습니다" 메시지만 보고 끝</li>
+          <li><span class="bullet x">✕</span> 후속 연락 불가능</li>
+        </ul>
+      </div>
+      <div class="compare-card after">
+        <div class="compare-badge after">✓ 연동 후</div>
+        <h3>구글 시트 연동 후</h3>
+        <ul class="compare-list">
+          <li><span class="bullet o">✓</span> 폼 제출 즉시 구글 시트에 자동 저장</li>
+          <li><span class="bullet o">✓</span> 체험예약·도입상담·교육문의 시트 분리 저장</li>
+          <li><span class="bullet o">✓</span> 번호 자동 증가, 제출 일시 자동 기록</li>
+          <li><span class="bullet o">✓</span> 담당자가 즉시 확인하고 연락 가능</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETUP GUIDE -->
+  <div class="setup-section">
+    <div class="setup-card">
+      <h2>구글 시트 연동 — 4단계 설정 가이드</h2>
+      <p class="sub">원장님(고객)은 아무것도 할 필요 없습니다. 설정은 딱 한 번만 하면 됩니다.</p>
+      <div class="setup-steps">
+        <div class="setup-step">
+          <div class="setup-num">1</div>
+          <h4>Apps Script 코드 작성</h4>
+          <p>AI가 구글 시트에 데이터를 저장하는 코드를 작성합니다.</p>
+          <span class="who me">AI가 합니다</span>
+        </div>
+        <div class="setup-step">
+          <div class="setup-num">2</div>
+          <h4>구글 시트에 붙여넣기</h4>
+          <p>구글 시트 → 확장 프로그램 → Apps Script → 코드 붙여넣기</p>
+          <span class="who you">원장님이 합니다</span>
+        </div>
+        <div class="setup-step">
+          <div class="setup-num">3</div>
+          <h4>배포 버튼 클릭</h4>
+          <p>구글이 전용 URL을 발급합니다. 이 URL이 "데이터 수신 주소"입니다.</p>
+          <span class="who google">구글이 합니다</span>
+        </div>
+        <div class="setup-step">
+          <div class="setup-num">4</div>
+          <h4>URL 전달 → 연결 완료</h4>
+          <p>발급된 URL을 AI에게 전달하면 홈페이지 폼에 연결 완료.</p>
+          <span class="who you">원장님이 합니다</span>
+        </div>
+      </div>
+      <div style="margin-top:32px;padding:20px 24px;background:rgba(247,245,242,.06);border-radius:12px;font-size:13px;color:rgba(247,245,242,.7);line-height:1.8;">
+        ⏱ <strong style="color:var(--gold);">예상 소요 시간: 약 5~10분</strong> — 코드 붙여넣기 + 배포 버튼 클릭 2단계만 직접 하시면 됩니다.<br/>
+        이후 원장님(고객)이 폼을 제출할 때마다 구글 시트에 자동으로 쌓입니다.
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+  let submitCount = 2;
+
+  function switchTab(type) {
+    document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.form-body').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + type).classList.add('active');
+    document.getElementById('form-' + type).classList.add('active');
+    // 결과 패널 초기화
+    document.getElementById('result-empty').style.display = 'block';
+    document.getElementById('result-data').classList.remove('show');
+  }
+
+  function submitTest(e, type) {
+    e.preventDefault();
+    submitCount++;
+
+    let name = '', phone = '', shop = '', extra = '';
+    const now = new Date();
+    const dateStr = now.getFullYear() + '.' + String(now.getMonth()+1).padStart(2,'0') + '.' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+    if (type === '체험 예약') {
+      name = document.getElementById('trial-name').value;
+      phone = document.getElementById('trial-phone').value;
+      shop = document.getElementById('trial-shop').value;
+      const date = document.getElementById('trial-date').value;
+      extra = date ? '희망일: ' + date : '—';
+    } else if (type === '도입 상담') {
+      name = document.getElementById('intro-name').value;
+      phone = document.getElementById('intro-phone').value;
+      shop = document.getElementById('intro-shop').value;
+      const region = document.getElementById('intro-region').value;
+      extra = region || '—';
+    } else {
+      name = document.getElementById('edu-name').value;
+      phone = document.getElementById('edu-phone').value;
+      shop = document.getElementById('edu-shop').value;
+      const course = document.getElementById('edu-course').value;
+      extra = course || '—';
+    }
+
+    // 결과 표시
+    document.getElementById('result-empty').style.display = 'none';
+    document.getElementById('result-data').classList.add('show');
+    document.getElementById('sheet-name').textContent = type;
+    document.getElementById('new-num').textContent = submitCount;
+    document.getElementById('new-date').textContent = dateStr;
+    document.getElementById('new-name').textContent = name;
+    document.getElementById('new-phone').textContent = phone;
+    document.getElementById('new-shop').textContent = shop;
+    document.getElementById('new-extra').textContent = extra.length > 20 ? extra.substring(0,20)+'...' : extra;
+
+    // 스크롤
+    document.getElementById('result-data').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+</script>
+</body>
+</html>
