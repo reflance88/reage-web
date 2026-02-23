@@ -9,6 +9,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
     /* ─── RESET & BASE ─── */
+    /* ─── 글씨 밀림 방지 ─── */
+    * { word-break: keep-all; overflow-wrap: break-word; }
+    html, body { overflow-x: hidden; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --wine:       #6B0F1A;
@@ -640,7 +644,7 @@
       </div>
       <div class="spec-badge">
         <div class="spec-val">400<span class="spec-unit">+</span></div>
-        <div class="spec-label">도입 살롱 검증</div>
+        <div class="spec-label">도입 에스테틱 검증</div>
       </div>
       <div class="spec-badge">
         <div class="spec-val">0<span class="spec-unit">dB</span></div>
@@ -729,7 +733,7 @@
       <div class="feature-card fade-in" style="transition-delay:.5s">
         <div class="feature-icon">🔋</div>
         <h3>장시간 연속 사용</h3>
-        <p>하루 종일 연속 사용이 가능한 내구성을 갖추고 있습니다. 살롱 현장에서 검증된 신뢰성.</p>
+        <p>하루 종일 연속 사용이 가능한 내구성을 갖추고 있습니다. 에스테틱 현장에서 검증된 신뢰성.</p>
         <span class="feature-tag">DURABLE</span>
       </div>
     </div>
@@ -932,7 +936,7 @@
           기기 사용 시 안전한가요?
           <span class="faq-arrow"></span>
         </button>
-        <div class="faq-a">5V 미세전류는 인체에 안전한 수준입니다. 다중 안전 회로가 내장되어 있으며, 20년간 일본·아시아 400개 이상의 살롱에서 검증된 안전성을 갖추고 있습니다.</div>
+        <div class="faq-a">5V 미세전류는 인체에 안전한 수준입니다. 다중 안전 회로가 내장되어 있으며, 20년간 일본·아시아 400개 이상의 에스테틱에서 검증된 안전성을 갖추고 있습니다.</div>
       </div>
       <div class="faq-item">
         <button class="faq-q" onclick="toggleFaq(this)">
@@ -969,6 +973,7 @@
     <div class="footer-inner">
       <div>
         <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-company-h">COMPANY</div>
         <div class="footer-info">
           <strong>COMPANY</strong>
           (주)리플런스<br/>

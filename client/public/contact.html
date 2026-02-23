@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
+    /* ─── 글씨 밀림 방지 ─── */
+    * { word-break: keep-all; overflow-wrap: break-word; }
+    html, body { overflow-x: hidden; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --wine: #6B0F1A; --wine-light: #8B1525;
@@ -267,7 +271,7 @@
       <div class="quick-card" onclick="selectForm('intro', this)">
         <div class="quick-icon">🏪</div>
         <div class="quick-title">도입 상담</div>
-        <div class="quick-desc">살롱·샵 도입을 위한 전문 상담</div>
+        <div class="quick-desc">에스테틱·샵 도입을 위한 전문 상담</div>
       </div>
       <div class="quick-card" onclick="selectForm('edu', this)">
         <div class="quick-icon">🎓</div>
@@ -365,7 +369,7 @@
         <!-- 도입 상담 -->
         <div class="form-body" id="form-intro">
           <div class="form-title">도입 상담 신청</div>
-          <div class="form-subtitle">살롱·에스테틱 샵에 레아쥬를 도입하고 싶으신 분들을 위한 전문 상담입니다.</div>
+          <div class="form-subtitle">에스테틱·에스테틱 샵에 레아쥬를 도입하고 싶으신 분들을 위한 전문 상담입니다.</div>
           <form onsubmit="submitForm(event, '도입 상담')">
             <div class="form-row">
               <div class="form-group">
@@ -501,6 +505,7 @@
     <div class="footer-inner">
       <div>
         <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-company-h">COMPANY</div>
         <div class="footer-info">
           <strong>COMPANY</strong>
           (주)리플런스<br/>

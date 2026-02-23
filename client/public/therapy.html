@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
+    /* ─── 글씨 밀림 방지 ─── */
+    * { word-break: keep-all; overflow-wrap: break-word; }
+    html, body { overflow-x: hidden; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --wine: #6B0F1A; --wine-light: #8B1525; --wine-dark: #4A0A12;
@@ -744,6 +748,7 @@
     <div class="footer-inner">
       <div>
         <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-company-h">COMPANY</div>
         <div class="footer-info">
           <strong>COMPANY</strong>
           (주)리플런스<br/>

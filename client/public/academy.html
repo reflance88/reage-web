@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
+    /* ─── 글씨 밀림 방지 ─── */
+    * { word-break: keep-all; overflow-wrap: break-word; }
+    html, body { overflow-x: hidden; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --wine: #6B0F1A; --wine-light: #8B1525;
@@ -509,7 +513,7 @@
           <span class="location-info-icon">🏪</span>
           <div class="location-info-text">
             <strong>특징</strong>
-            실제 운영 중인 레아쥬 살롱에서 현장 실습 진행
+            실제 운영 중인 레아쥬 에스테틱에서 현장 실습 진행
           </div>
         </div>
         <div class="location-info-row">
@@ -598,6 +602,7 @@
     <div class="footer-inner">
       <div>
         <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-company-h">COMPANY</div>
         <div class="footer-info">
           <strong>COMPANY</strong>
           (주)리플런스<br/>

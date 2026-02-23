@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
+    /* ─── 글씨 밀림 방지 ─── */
+    * { word-break: keep-all; overflow-wrap: break-word; }
+    html, body { overflow-x: hidden; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --wine: #6B0F1A; --wine-light: #8B1525;
@@ -289,7 +293,7 @@
         </div>
         <div>
           <div class="hero-stat-val" data-count="400">0</div>
-          <div class="hero-stat-label">+ 도입 살롱</div>
+          <div class="hero-stat-label">+ 도입 에스테틱</div>
         </div>
         <div>
           <div class="hero-stat-val" data-count="4.9">0</div>
@@ -545,7 +549,7 @@
       </div>
       <div class="number-item fade-in" style="transition-delay:.2s">
         <div class="number-val" data-count="400">0</div>
-        <div class="number-label">+ 도입 살롱 수</div>
+        <div class="number-label">+ 도입 에스테틱 수</div>
       </div>
       <div class="number-item fade-in" style="transition-delay:.3s">
         <div class="number-val" data-count="20">0</div>
@@ -562,7 +566,7 @@
       <div class="eyebrow" style="color:var(--wine)">EXPERIENCE</div>
       <div class="gold-line"></div>
       <h2 class="cta-title">직접 경험해보세요.</h2>
-      <p class="cta-sub">수백 명의 고객이 경험한 변화를 당신도 느낄 수 있습니다. 가까운 레아쥬 살롱에서 체험 예약을 시작하세요.</p>
+      <p class="cta-sub">수백 명의 고객이 경험한 변화를 당신도 느낄 수 있습니다. 가까운 레아쥬 에스테틱에서 체험 예약을 시작하세요.</p>
       <div class="cta-btns">
         <a href="contact.html" class="btn-wine" style="padding:16px 40px; font-size:16px;">체험 예약하기</a>
         <a href="contact.html" class="btn-outline" style="padding:15px 38px; font-size:16px;">도입 상담 신청</a>
@@ -577,6 +581,7 @@
     <div class="footer-inner">
       <div>
         <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-company-h">COMPANY</div>
         <div class="footer-info">
           <strong>COMPANY</strong>
           (주)리플런스<br/>

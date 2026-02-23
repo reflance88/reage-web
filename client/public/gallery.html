@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
+    /* ─── 글씨 밀림 방지 ─── */
+    * { word-break: keep-all; overflow-wrap: break-word; }
+    html, body { overflow-x: hidden; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --wine: #6B0F1A; --wine-light: #8B1525;
@@ -238,7 +242,7 @@
       <div class="eyebrow">GALLERY · 레아쥬 현장 기록</div>
       <div class="gold-line"></div>
       <h1 class="hero-title">현장에서 만나는<br/><em>레아쥬의 순간들</em></h1>
-      <p class="hero-sub">전국 살롱, 교육 현장, 박람회, 일본 연수 — 레아쥬가 만들어온 모든 순간을 담았습니다.</p>
+      <p class="hero-sub">전국 에스테틱, 교육 현장, 박람회, 일본 연수 — 레아쥬가 만들어온 모든 순간을 담았습니다.</p>
     </div>
   </div>
 </section>
@@ -247,7 +251,7 @@
 <div class="gallery-filter">
   <div class="gallery-filter-inner">
     <div class="filter-tab active" onclick="filterGallery('all', this)">전체</div>
-    <div class="filter-tab" onclick="filterGallery('salon', this)">살롱 현장</div>
+    <div class="filter-tab" onclick="filterGallery('salon', this)">에스테틱 현장</div>
     <div class="filter-tab" onclick="filterGallery('education', this)">교육 현장</div>
     <div class="filter-tab" onclick="filterGallery('expo', this)">박람회</div>
     <div class="filter-tab" onclick="filterGallery('japan', this)">일본 연수</div>
@@ -265,7 +269,7 @@
         <div class="gallery-overlay">
           <div class="gallery-overlay-text">
             <div class="gallery-overlay-tag">SALON</div>
-            <div class="gallery-overlay-title">강남 레아쥬 살롱 — 시술 현장</div>
+            <div class="gallery-overlay-title">강남 레아쥬 에스테틱 — 시술 현장</div>
           </div>
         </div>
       </div>
@@ -355,7 +359,7 @@
         <div class="gallery-overlay">
           <div class="gallery-overlay-text">
             <div class="gallery-overlay-tag">SALON</div>
-            <div class="gallery-overlay-title">레아쥬 살롱 인테리어</div>
+            <div class="gallery-overlay-title">레아쥬 에스테틱 인테리어</div>
           </div>
         </div>
       </div>
@@ -423,7 +427,7 @@
     <div class="fade-in" style="max-width:640px; margin:0 auto;">
       <div class="eyebrow" style="color:var(--wine)">JOIN US</div>
       <div class="gold-line"></div>
-      <h2 class="cta-title">가장 가까운 레아쥬 살롱에서 만나세요.</h2>
+      <h2 class="cta-title">가장 가까운 레아쥬 에스테틱에서 만나세요.</h2>
       <p class="cta-sub">전국 체험센터에서 레아쥬 테라피를 직접 경험해보세요.</p>
       <div class="cta-btns">
         <a href="contact.html" class="btn-wine" style="padding:16px 40px; font-size:16px;">체험 예약하기</a>
@@ -452,6 +456,7 @@
     <div class="footer-inner">
       <div>
         <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-company-h">COMPANY</div>
         <div class="footer-info">
           <strong>COMPANY</strong>
           (주)리플런스<br/>

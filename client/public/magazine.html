@@ -8,6 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
+    /* ─── 글씨 밀림 방지 ─── */
+    * { word-break: keep-all; overflow-wrap: break-word; }
+    html, body { overflow-x: hidden; }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --wine: #6B0F1A; --wine-light: #8B1525;
@@ -303,7 +307,7 @@
         <div class="article-body">
           <span class="article-category cat-japan">🇯🇵 일본 소식</span>
           <h3 class="article-title">일본 에스테틱 업계의 올핸드 테라피 확산 현황</h3>
-          <p class="article-excerpt">도쿄·오사카 중심으로 올핸드 미세전류 테라피가 급속도로 확산되고 있습니다. 현지 살롱 원장들의 생생한 인터뷰를 담았습니다.</p>
+          <p class="article-excerpt">도쿄·오사카 중심으로 올핸드 미세전류 테라피가 급속도로 확산되고 있습니다. 현지 에스테틱 원장들의 생생한 인터뷰를 담았습니다.</p>
           <div class="article-meta"><span class="article-date">2024.10.28</span><span class="article-read">읽기 →</span></div>
         </div>
       </div>
@@ -345,7 +349,7 @@
         <div class="article-body">
           <span class="article-category cat-ai">🤖 AI·기술</span>
           <h3 class="article-title">에스테틱 원장을 위한 AI 활용 가이드 — SNS 마케팅부터 고객 관리까지</h3>
-          <p class="article-excerpt">AI 도구를 활용해 살롱 운영 효율을 높이는 실용적인 방법을 소개합니다. ChatGPT, Canva AI, 예약 자동화 툴 활용법.</p>
+          <p class="article-excerpt">AI 도구를 활용해 에스테틱 운영 효율을 높이는 실용적인 방법을 소개합니다. ChatGPT, Canva AI, 예약 자동화 툴 활용법.</p>
           <div class="article-meta"><span class="article-date">2024.11.20</span><span class="article-read">읽기 →</span></div>
         </div>
       </div>
@@ -408,6 +412,7 @@
     <div class="footer-inner">
       <div>
         <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-company-h">COMPANY</div>
         <div class="footer-info">
           <strong>COMPANY</strong>
           (주)리플런스<br/>
