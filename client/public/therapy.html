@@ -182,6 +182,29 @@
     .brainwave-item { font-size: 13px; margin-bottom: 6px; }
     .brainwave-item span { font-weight: 700; }
     .data-disclaimer { text-align: center; margin-top: 40px; font-size: 12px; color: var(--gray); line-height: 1.7; padding: 20px; background: #fff; border-radius: 10px; border: 1px solid var(--light-gray); }
+    /* 측정데이터 이미지 영역 */
+    .data-img-area {
+      width: 100%; height: 200px;
+      background: var(--light-gray);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+      border: 1.5px dashed rgba(107,15,26,.2);
+    }
+    .data-img-area img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      border-radius: 10px;
+    }
+    .data-img-area img + .data-img-size { display: none; }
+    .data-img-size {
+      font-size: 11px; letter-spacing: .1em;
+      color: var(--gray); font-weight: 500;
+      background: rgba(255,255,255,.8);
+      padding: 4px 10px; border-radius: 4px;
+    }
 
     /* ─── FEATURES ─── */
     #features { background: var(--charcoal); padding: 100px 0; }
@@ -330,8 +353,8 @@
       </div>
     </nav>
     <div class="header-cta">
-      <a href="contact.html" class="btn-primary">체험 예약</a>
-      <a href="contact.html" class="btn-outline">도입 상담</a>
+      <a href="contact.html" class="btn-primary">도입 상담</a>
+      <a href="academy.html" class="btn-outline">아카데미</a>
     </div>
     <div class="hamburger" onclick="toggleMenu()">
       <span></span><span></span><span></span>
@@ -348,7 +371,7 @@
   <a href="review.html">후기</a>
   <a href="gallery.html">갤러리</a>
   <a href="magazine.html">매거진</a>
-  <a href="contact.html">체험 예약</a>
+  <a href="contact.html">도입 상담</a>
 </div>
 
 <div class="breadcrumb">
@@ -372,11 +395,11 @@
         </h1>
         <p class="therapy-hero-sub">
           소프트 터치만으로 심부 근막까지 —<br/>
-          일본 20년, 1,200개 현장이 선택한 올핸드 미세전류 테라피.
+          일본 20년, 1,450곳 이상이 선택한 올핸드 미세전류 테라피.
         </p>
         <div class="therapy-hero-btns">
           <a href="#data" class="btn-gold">측정 데이터 보기</a>
-          <a href="contact.html" class="btn-outline-light">체험 예약하기</a>
+          <a href="contact.html" class="btn-outline-light">도입 상담 신청</a>
         </div>
       </div>
       <div class="therapy-hero-visual blur-in" style="transition-delay:.2s">
@@ -402,8 +425,8 @@
         <div class="stat-label">20년간 안전 문제 보고</div>
       </div>
       <div class="stat-item scale-up" style="transition-delay:.2s">
-        <div class="stat-value"><span data-count="1200">0</span>+</div>
-        <div class="stat-label">일본·한국 도입 현장 수</div>
+        <div class="stat-value"><span data-count="1450">0</span>+</div>
+        <div class="stat-label">아시아 도입 현황</div>
       </div>
       <div class="stat-item scale-up" style="transition-delay:.3s">
         <div class="stat-value">500%</div>
@@ -518,6 +541,9 @@
       <div class="data-card stagger-card">
         <div class="data-card-num">① 피부 온도</div>
         <h3>관리 30분 후 +2.3℃ 상승</h3>
+        <div class="data-img-area">
+          <span class="data-img-size">560 × 320 px</span>
+        </div>
         <div class="data-bar-row">
           <div class="data-bar-label">관리 전</div>
           <div class="data-bar-track"><div class="data-bar-fill" data-width="70"></div></div>
@@ -530,10 +556,13 @@
         </div>
         <div class="data-note">체온 1℃ 상승 시 기초대사 약 13%, 면역력 약 5~6배 상승. 손발이 따뜻해지고 상열하한이 정돈되는 체감.</div>
       </div>
-      <!-- 혈류량 -->
+      <!-- 혁류량 -->
       <div class="data-card stagger-card" style="transition-delay:.1s">
-        <div class="data-card-num">② 혈류량</div>
+        <div class="data-card-num">② 혁류량</div>
         <h3>관리 30분 후 175% 증가</h3>
+        <div class="data-img-area">
+          <span class="data-img-size">560 × 320 px</span>
+        </div>
         <div class="data-bar-row">
           <div class="data-bar-label">관리 전</div>
           <div class="data-bar-track"><div class="data-bar-fill" data-width="36"></div></div>
@@ -550,6 +579,9 @@
       <div class="data-card stagger-card" style="transition-delay:.2s">
         <div class="data-card-num">③ 림프 순환</div>
         <h3>관리 30분 후 140% 개선</h3>
+        <div class="data-img-area">
+          <span class="data-img-size">560 × 320 px</span>
+        </div>
         <div class="data-bar-row">
           <div class="data-bar-label">관리 전</div>
           <div class="data-bar-track"><div class="data-bar-fill" data-width="42"></div></div>
@@ -566,6 +598,9 @@
       <div class="data-card stagger-card" style="transition-delay:.3s">
         <div class="data-card-num">④ 뇌파 변화</div>
         <h3>β파 감소 → α파 우세로 전환</h3>
+        <div class="data-img-area">
+          <span class="data-img-size">560 × 320 px</span>
+        </div>
         <div class="brainwave-grid">
           <div class="brainwave-box before">
             <div class="brainwave-label before">관리 전</div>
@@ -699,21 +734,20 @@
         </ul>
         <div class="checklist-btns">
           <a href="contact.html" class="btn-wine">도입 상담 신청</a>
-          <a href="contact.html" class="btn-outline">체험 예약</a>
         </div>
       </div>
       <div class="checklist-card slide-in-right" style="transition-delay:.1s">
-        <div class="checklist-card-title">FOR CUSTOMERS</div>
-        <h3>고객이라면 ✓</h3>
+        <div class="checklist-card-title">FOR THERAPISTS</div>
+        <h3>테라피스트라면 ✓</h3>
         <ul class="check-list">
-          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>만성 통증·뭉침이 있는데 강한 마사지는 부담스럽다</li>
-          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>받으면서 찌릿하거나 아픈 경험이 싫었다</li>
-          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>스트레스·불면으로 깊은 이완이 필요하다</li>
-          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>얼굴 리프팅·바디라인 정돈을 편안하게 받고 싶다</li>
-          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>받은 다음날까지 몸이 가벼워지는 관리를 원한다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>시술 후 손목이나 어깨가 힘들어서 지속적으로 일하기 어렵다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>나만의 차별화된 시술 스킬을 원한다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>고객에게 시술 후 매번 매력적인 변화를 보여주고 싶다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>일본에서 20년간 검증된 시스템을 배우고 싶다</li>
+          <li><div class="check-icon"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></div>전문성을 높이면서 에스테틱의 수입을 함께 늘리고 싶다</li>
         </ul>
         <div class="checklist-btns">
-          <a href="contact.html" class="btn-wine">체험 예약하기</a>
+          <a href="academy.html" class="btn-wine">아카데미 교육 보기</a>
         </div>
       </div>
     </div>
@@ -728,11 +762,11 @@
     <div class="cta-inner fade-in">
       <div class="eyebrow">EXPERIENCE REAGE</div>
       <div class="gold-line"></div>
-      <h2 class="cta-title">글로는 전할 수 없는 차이가 있습니다.<br/>30분이면 충분합니다.</h2>
-      <p class="cta-sub">직접 받아보시면, 왜 1,200개 현장이 선택했는지 몸이 먼저 답합니다.</p>
+      <h2 class="cta-title">글로는 전할 수 없는 차이가 있습니다.<br/>1,450곳이 선택한 이유를 확인하세요.</h2>
+      <p class="cta-sub">1,450곳 이상이 선택한 이유가 있습니다.<br/>레아쥬 도입 상담을 통해 에스테틱의 미래를 함께 설계하세요.</p>
       <div class="cta-btns">
-        <a href="contact.html" class="btn-gold" style="padding:16px 40px; font-size:16px;">체험 예약하기</a>
-        <a href="contact.html" class="btn-outline-light" style="padding:15px 38px; font-size:16px;">도입 상담 신청</a>
+        <a href="contact.html" class="btn-gold" style="padding:16px 40px; font-size:16px;">도입 상담 신청</a>
+        <a href="contact.html" class="btn-outline-light" style="padding:15px 38px; font-size:16px;">아카데미 교육 문의</a>
       </div>
       <div class="legal-note">
         본 페이지의 내용은 의료행위·치료 목적이 아닌 테라피·관리 정보입니다.<br/>
@@ -781,7 +815,6 @@
         <a href="review.html">후기</a>
         <a href="gallery.html">갤러리</a>
         <a href="magazine.html">매거진</a>
-        <a href="contact.html">체험 예약</a>
         <a href="contact.html?tab=intro">도입 상담</a>
       </div>
     </div>

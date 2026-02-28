@@ -208,7 +208,7 @@
       </div>
     </nav>
     <div class="header-cta">
-      <a href="contact.html" class="btn-primary">체험 예약</a>
+      <a href="contact.html" class="btn-primary">도입 상담</a>
       <a href="contact.html" class="btn-outline">도입 상담</a>
     </div>
     <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
@@ -224,7 +224,7 @@
   <a href="review.html">후기</a>
   <a href="gallery.html">갤러리</a>
   <a href="magazine.html">매거진</a>
-  <a href="contact.html">체험 예약</a>
+  <a href="contact.html">도입 상담</a>
 </div>
 
 <div class="breadcrumb">
@@ -248,16 +248,7 @@
 </section>
 
 <!-- FILTER -->
-<div class="gallery-filter">
-  <div class="gallery-filter-inner">
-    <div class="filter-tab active" onclick="filterGallery('all', this)">전체</div>
-    <div class="filter-tab" onclick="filterGallery('salon', this)">에스테틱 현장</div>
-    <div class="filter-tab" onclick="filterGallery('education', this)">교육 현장</div>
-    <div class="filter-tab" onclick="filterGallery('expo', this)">박람회</div>
-    <div class="filter-tab" onclick="filterGallery('japan', this)">일본 연수</div>
-    <div class="filter-tab" onclick="filterGallery('product', this)">제품</div>
-  </div>
-</div>
+
 
 <!-- GALLERY GRID -->
 <section id="gallery-main">
@@ -489,7 +480,7 @@
         <a href="review.html">후기</a>
         <a href="gallery.html">갤러리</a>
         <a href="magazine.html">매거진</a>
-        <a href="contact.html">체험 예약</a>
+        <a href="contact.html">도입 상담</a>
         <a href="contact.html?tab=intro">도입 상담</a>
       </div>
     </div>
@@ -541,13 +532,7 @@
   }, { threshold: 0.05 });
   document.querySelectorAll('#galleryGrid, .branches-grid').forEach(el => staggerObserver.observe(el));
 
-  function filterGallery(category, tab) {
-    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    document.querySelectorAll('.gallery-item').forEach(item => {
-      item.style.display = (category === 'all' || item.dataset.category === category) ? '' : 'none';
-    });
-  }
+  // 카테고리 필터 제거 — 모든 사진 전체 표시
 
   let currentItems = [];
   let currentIndex = 0;

@@ -208,7 +208,7 @@
       </div>
     </nav>
     <div class="header-cta">
-      <a href="contact.html" class="btn-primary">체험 예약</a>
+      <a href="contact.html" class="btn-primary">도입 상담</a>
       <a href="contact.html" class="btn-outline">도입 상담</a>
     </div>
     <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
@@ -224,7 +224,7 @@
   <a href="review.html">후기</a>
   <a href="gallery.html">갤러리</a>
   <a href="magazine.html">매거진</a>
-  <a href="contact.html">체험 예약</a>
+  <a href="contact.html">도입 상담</a>
 </div>
 
 <div class="breadcrumb">
@@ -250,15 +250,7 @@
 </section>
 
 <!-- CATEGORY TABS -->
-<div class="mag-tabs">
-  <div class="mag-tabs-inner">
-    <div class="mag-tab active" onclick="filterArticles('all', this)">전체</div>
-    <div class="mag-tab" onclick="filterArticles('japan', this)">🇯🇵 일본 소식</div>
-    <div class="mag-tab" onclick="filterArticles('korea', this)">🇰🇷 한국 소식</div>
-    <div class="mag-tab" onclick="filterArticles('ai', this)">🤖 AI·기술</div>
-    <div class="mag-tab" onclick="filterArticles('news', this)">📰 레아쥬 뉴스</div>
-  </div>
-</div>
+
 
 <!-- FEATURED -->
 <section id="featured">
@@ -289,7 +281,7 @@
       <h2>최신 아티클</h2>
       <p>레아쥬 매거진 편집팀이 엄선한 최신 정보를 전달합니다.</p>
     </div>
-    <div class="articles-grid" id="articlesGrid">
+    <div class="articles-grid" id="articlesGrid" style="position:relative;">
 
       <!-- 일본 소식 -->
       <div class="article-card stagger-card" data-category="japan">
@@ -386,6 +378,10 @@
       </div>
 
     </div>
+    <!-- 더보기 버튼 -->
+    <div id="loadMoreWrap" style="text-align:center; margin-top:48px;">
+      <button id="loadMoreBtn" onclick="loadMoreArticles()" style="display:inline-flex; align-items:center; gap:8px; background:transparent; color:var(--wine); padding:14px 36px; border-radius:8px; font-size:15px; font-weight:600; border:1.5px solid var(--wine); cursor:pointer; transition:background .25s, color .25s;" onmouseover="this.style.background='var(--wine)';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='var(--wine)'">더 보기 <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
   </div>
 </section>
 
@@ -445,7 +441,7 @@
         <a href="review.html">후기</a>
         <a href="gallery.html">갤러리</a>
         <a href="magazine.html">매거진</a>
-        <a href="contact.html">체험 예약</a>
+        <a href="contact.html">도입 상담</a>
         <a href="contact.html?tab=intro">도입 상담</a>
       </div>
     </div>
@@ -497,13 +493,54 @@
   }, { threshold: 0.05 });
   document.querySelectorAll('#articlesGrid').forEach(el => staggerObserver.observe(el));
 
-  function filterArticles(category, tab) {
-    document.querySelectorAll('.mag-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    document.querySelectorAll('.article-card').forEach(card => {
-      card.style.display = (category === 'all' || card.dataset.category === category) ? '' : 'none';
+  // 아티클 최신순 9개 제한 및 더보기
+  const ITEMS_PER_PAGE = 9;
+  let visibleCount = ITEMS_PER_PAGE;
+
+  function initArticles() {
+    const cards = Array.from(document.querySelectorAll('.article-card'));
+    // 날짜 역순으로 정렬 (data-date 없으면 담일에 삽입된 순서 유지)
+    const grid = document.getElementById('articlesGrid');
+    cards.forEach((card, i) => {
+      // 날짜를 article-date span에서 추출
+      const dateEl = card.querySelector('.article-date');
+      const dateStr = dateEl ? dateEl.textContent.replace(/\./g, '-') : '2024-01-01';
+      card.dataset.sortDate = dateStr;
     });
+    // 날짜 내림차순 정렬
+    cards.sort((a, b) => (b.dataset.sortDate || '').localeCompare(a.dataset.sortDate || ''));
+    cards.forEach(card => grid.appendChild(card));
+    updateVisibility();
   }
+
+  function updateVisibility() {
+    const cards = Array.from(document.querySelectorAll('.article-card'));
+    cards.forEach((card, i) => {
+      if (i < visibleCount) {
+        card.style.display = '';
+        if (!card.classList.contains('visible')) {
+          setTimeout(() => card.classList.add('visible'), (i % ITEMS_PER_PAGE) * 80);
+        }
+      } else {
+        card.style.display = 'none';
+      }
+    });
+    const btn = document.getElementById('loadMoreBtn');
+    const wrap = document.getElementById('loadMoreWrap');
+    if (visibleCount >= cards.length) {
+      wrap.style.display = 'none';
+    } else {
+      wrap.style.display = 'block';
+    }
+  }
+
+  function loadMoreArticles() {
+    visibleCount += ITEMS_PER_PAGE;
+    updateVisibility();
+  }
+
+  // 페이지 로드 시 초기화
+  document.addEventListener('DOMContentLoaded', initArticles);
 
   function subscribeNewsletter() {
     const input = document.querySelector('.newsletter-input');
