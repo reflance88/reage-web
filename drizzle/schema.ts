@@ -44,6 +44,13 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  /** 이메일/비밀번호 로그인 시 bcrypt 해시 */
+  passwordHash: varchar("passwordHash", { length: 255 }),
+  /** 이메일 인증 여부 */
+  emailVerified: boolean("emailVerified").default(false).notNull(),
+  /** 비밀번호 재설정 토큰 */
+  resetToken: varchar("resetToken", { length: 128 }),
+  resetTokenExpiresAt: timestamp("resetTokenExpiresAt"),
 });
 
 export type User = typeof users.$inferSelect;

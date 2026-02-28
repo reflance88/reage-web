@@ -10,6 +10,10 @@ const CartPage = lazy(() => import("./pages/CartPage"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"));
 const PaymentFailPage = lazy(() => import("./pages/PaymentFailPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const SignupPage = lazy(() => import("./pages/SignupPage"));
+const FindIdPage = lazy(() => import("./pages/FindIdPage"));
+const FindPasswordPage = lazy(() => import("./pages/FindPasswordPage"));
 
 function Home() {
   window.location.replace("/index-main.html");
@@ -29,6 +33,10 @@ function Router() {
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/login" component={LoginPage} />
+        <Route path="/signup" component={SignupPage} />
+        <Route path="/find-id" component={FindIdPage} />
+        <Route path="/find-password" component={FindPasswordPage} />
         <Route path="/mypage" component={MyPage} />
         <Route path="/cart" component={CartPage} />
         <Route path="/checkout" component={CheckoutPage} />

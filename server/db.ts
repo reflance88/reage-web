@@ -181,3 +181,55 @@ export async function getOrderItems(orderDbId: number) {
   if (!db) return [];
   return db.select().from(orderItems).where(eq(orderItems.orderId, orderDbId));
 }
+
+// ─── Email Auth Helpers ────────────────────────────────────────────────────────
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createEmailUser(data: {
+  email: string;
+  name: string;
+  passwordHash: string;
+  openId: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(users).values({
+    openId: data.openId,
+    email: data.email,
+    name: data.name,
+    passwordHash: data.passwordHash,
+    loginMethod: "email",
+    emailVerified: false,
+    lastSignedIn: new Date(),
+  });
+  const result = await db.select().from(users).where(eq(users.email, data.email)).limit(1);
+  return result[0];
+}
+
+export async function updateUserResetToken(
+  id: number,
+  token: string | null,
+  expiresAt: Date | null
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ resetToken: token, resetTokenExpiresAt: expiresAt }).where(eq(users.id, id));
+}
+
+export async function getUserByResetToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.resetToken, token)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateUserPassword(id: number, passwordHash: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ passwordHash, resetToken: null, resetTokenExpiresAt: null }).where(eq(users.id, id));
+}

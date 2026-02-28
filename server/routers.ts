@@ -6,6 +6,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
+  createEmailUser,
   createOrder,
   createVerification,
   getLatestVerification,
@@ -14,10 +15,14 @@ import {
   getProductById,
   getProductBySlug,
   getProducts,
+  getUserByEmail,
+  getUserByResetToken,
   getUserById,
   getUserOrders,
   updateOrderStatus,
+  updateUserPassword,
   updateUserProfile,
+  updateUserResetToken,
   updateVerification,
 } from "./db";
 import { storagePut } from "./storage";
@@ -49,6 +54,96 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+
+    // ─── 이메일 회원가입 ───────────────────────────────────────────────────────
+    emailSignup: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string().min(8),
+        name: z.string().min(1).max(50),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const bcrypt = await import("bcryptjs");
+        const existing = await getUserByEmail(input.email);
+        if (existing) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 이메일입니다." });
+        const passwordHash = await bcrypt.hash(input.password, 12);
+        const openId = `email:${nanoid(16)}`;
+        const user = await createEmailUser({ email: input.email, name: input.name, passwordHash, openId });
+        if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        // 세션 쿠키 발급
+        const { SignJWT } = await import("jose");
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "secret");
+        const token = await new SignJWT({ id: user.id, openId: user.openId, role: user.role })
+          .setProtectedHeader({ alg: "HS256" }).setExpirationTime("30d").sign(secret);
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 });
+        return { success: true };
+      }),
+
+    // ─── 이메일 로그인 ────────────────────────────────────────────────────────
+    emailLogin: publicProcedure
+      .input(z.object({ email: z.string().email(), password: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const bcrypt = await import("bcryptjs");
+        const user = await getUserByEmail(input.email);
+        if (!user || !user.passwordHash) throw new TRPCError({ code: "UNAUTHORIZED", message: "이메일 또는 비밀번호가 올바르지 않습니다." });
+        const valid = await bcrypt.compare(input.password, user.passwordHash);
+        if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "이메일 또는 비밀번호가 올바르지 않습니다." });
+        const { SignJWT } = await import("jose");
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "secret");
+        const token = await new SignJWT({ id: user.id, openId: user.openId, role: user.role })
+          .setProtectedHeader({ alg: "HS256" }).setExpirationTime("30d").sign(secret);
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 });
+        return { success: true };
+      }),
+
+    // ─── 아이디(이메일) 찾기 ──────────────────────────────────────────────────
+    findEmail: publicProcedure
+      .input(z.object({ name: z.string(), phone: z.string() }))
+      .mutation(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const { users: usersTable } = await import("../drizzle/schema");
+        const { and, eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const result = await db.select({ email: usersTable.email })
+          .from(usersTable)
+          .where(and(eq(usersTable.name, input.name), eq(usersTable.phone, input.phone)))
+          .limit(1);
+        if (!result.length || !result[0].email) throw new TRPCError({ code: "NOT_FOUND", message: "일치하는 계정을 찾을 수 없습니다." });
+        const email = result[0].email;
+        const masked = email.replace(/(?<=.{2}).(?=[^@]*@)/, "*");
+        return { maskedEmail: masked };
+      }),
+
+    // ─── 비밀번호 재설정 요청 ─────────────────────────────────────────────────
+    requestPasswordReset: publicProcedure
+      .input(z.object({ email: z.string().email() }))
+      .mutation(async ({ input }) => {
+        const user = await getUserByEmail(input.email);
+        // 보안상 존재 여부 노출 안 함
+        if (!user) return { success: true };
+        const token = nanoid(32);
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1시간
+        await updateUserResetToken(user.id, token, expiresAt);
+        // TODO: 실제 이메일 발송 (현재는 토큰을 응답에 포함 - 개발용)
+        return { success: true, devToken: process.env.NODE_ENV === "development" ? token : undefined };
+      }),
+
+    // ─── 비밀번호 재설정 실행 ─────────────────────────────────────────────────
+    resetPassword: publicProcedure
+      .input(z.object({ token: z.string(), newPassword: z.string().min(8) }))
+      .mutation(async ({ input }) => {
+        const bcrypt = await import("bcryptjs");
+        const user = await getUserByResetToken(input.token);
+        if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "유효하지 않거나 만료된 링크입니다." });
+        }
+        const passwordHash = await bcrypt.hash(input.newPassword, 12);
+        await updateUserPassword(user.id, passwordHash);
+        return { success: true };
+      }),
   }),
 
   user: router({
