@@ -6,9 +6,13 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
+  approveVerification,
   createEmailUser,
   createOrder,
   createVerification,
+  getAllOrders,
+  getAllUsers,
+  getAllVerifications,
   getLatestVerification,
   getOrderByOrderId,
   getOrderItems,
@@ -19,10 +23,12 @@ import {
   getUserByResetToken,
   getUserById,
   getUserOrders,
+  rejectVerification,
   updateOrderStatus,
   updateUserPassword,
   updateUserProfile,
   updateUserResetToken,
+  updateUserRole,
   updateVerification,
 } from "./db";
 import { storagePut } from "./storage";
@@ -222,6 +228,70 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Admin ─────────────────────────────────────────────────────────────────
+  admin: router({
+    // adminProcedure: role === 'admin' 체크
+    users: protectedProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getAllUsers(input.page, input.limit);
+      }),
+
+    updateUserRole: protectedProcedure
+      .input(z.object({ userId: z.number(), role: z.enum(["user", "admin"]) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await updateUserRole(input.userId, input.role);
+        return { success: true };
+      }),
+
+    verifications: protectedProcedure
+      .input(z.object({ status: z.enum(["pending", "approved", "rejected"]).optional() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getAllVerifications(input.status);
+      }),
+
+    approveVerification: protectedProcedure
+      .input(z.object({ id: z.number(), userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await approveVerification(input.id, input.userId);
+        return { success: true };
+      }),
+
+    rejectVerification: protectedProcedure
+      .input(z.object({ id: z.number(), userId: z.number(), reason: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await rejectVerification(input.id, input.userId, input.reason);
+        return { success: true };
+      }),
+
+    orders: protectedProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getAllOrders(input.page, input.limit);
+      }),
+
+    orderItems: protectedProcedure
+      .input(z.object({ orderDbId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getOrderItems(input.orderDbId);
+      }),
+
+    updateOrderStatus: protectedProcedure
+      .input(z.object({ orderId: z.string(), status: z.enum(["created", "paid", "failed", "cancelled"]) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await updateOrderStatus(input.orderId, { status: input.status });
+        return { success: true };
+      }),
+  }),
+
   order: router({
     create: protectedProcedure
       .input(z.object({
@@ -287,3 +357,4 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
+

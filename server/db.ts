@@ -233,3 +233,51 @@ export async function updateUserPassword(id: number, passwordHash: string) {
   if (!db) return;
   await db.update(users).set({ passwordHash, resetToken: null, resetTokenExpiresAt: null }).where(eq(users.id, id));
 }
+
+// ─── Admin Helpers ────────────────────────────────────────────────────────────
+export async function getAllUsers(page = 1, limit = 20) {
+  const db = await getDb();
+  if (!db) return { users: [], total: 0 };
+  const offset = (page - 1) * limit;
+  const result = await db.select().from(users).orderBy(desc(users.createdAt)).limit(limit).offset(offset);
+  const countResult = await db.select({ count: users.id }).from(users);
+  return { users: result, total: countResult.length };
+}
+
+export async function getAllVerifications(status?: "pending" | "approved" | "rejected") {
+  const db = await getDb();
+  if (!db) return [];
+  if (status) {
+    return db.select().from(businessVerifications).where(eq(businessVerifications.status, status)).orderBy(desc(businessVerifications.createdAt));
+  }
+  return db.select().from(businessVerifications).orderBy(desc(businessVerifications.createdAt));
+}
+
+export async function approveVerification(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(businessVerifications).set({ status: "approved", reviewedAt: new Date() }).where(eq(businessVerifications.id, id));
+  await db.update(users).set({ proVerificationStatus: "approved", memberRole: "professional" }).where(eq(users.id, userId));
+}
+
+export async function rejectVerification(id: number, userId: number, reason: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(businessVerifications).set({ status: "rejected", rejectReason: reason, reviewedAt: new Date() }).where(eq(businessVerifications.id, id));
+  await db.update(users).set({ proVerificationStatus: "rejected" }).where(eq(users.id, userId));
+}
+
+export async function getAllOrders(page = 1, limit = 20) {
+  const db = await getDb();
+  if (!db) return { orders: [], total: 0 };
+  const offset = (page - 1) * limit;
+  const result = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(limit).offset(offset);
+  const countResult = await db.select({ count: orders.id }).from(orders);
+  return { orders: result, total: countResult.length };
+}
+
+export async function updateUserRole(id: number, role: "user" | "admin") {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ role }).where(eq(users.id, id));
+}
