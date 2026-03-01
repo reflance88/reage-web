@@ -57,3 +57,13 @@
 - [x] UI: 제품 관리 (리스트 + 가격/visible/is_pro_only 편집, confirm 모달)
 - [x] UI: 주문 조회 (검색/필터, 상세 모달, 읽기 전용)
 - [ ] robots noindex 처리 (/admin)
+
+## 대시보드 차트 시각화
+- [x] 서버: 일별 주문 수 집계 쿼리 (최근 30일)
+- [x] 서버: 일별 신규 가입자 수 집계 쿼리 (최근 30일)
+- [x] 서버: 일별 매출 합계 집계 쿼리 (최근 30일)
+- [x] 서버: 인증 상태별 현황 집계 쿼리 (pending/approved/rejected)
+- [x] UI: 일별 주문 수 AreaChart
+- [x] UI: 신규 가입자 수 BarChart
+- [x] UI: 매출 추이 LineChart
+- [x] UI: 인증 현황 PieChart

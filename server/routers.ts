@@ -17,6 +17,9 @@ import {
   getAllVerifications,
   getAuditLogs,
   getDashboardSummary,
+  getDailyOrderStats,
+  getDailySignupStats,
+  getVerificationStatusStats,
   getLatestVerification,
   getOrderByOrderId,
   getOrderItems,
@@ -303,6 +306,17 @@ export const appRouter = router({
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       return getDashboardSummary();
     }),
+    dashboardCharts: protectedProcedure
+      .input(z.object({ days: z.number().min(7).max(90).default(30) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const [orderStats, signupStats, verificationStats] = await Promise.all([
+          getDailyOrderStats(input.days),
+          getDailySignupStats(input.days),
+          getVerificationStatusStats(),
+        ]);
+        return { orderStats, signupStats, verificationStats };
+      }),
 
     // ─── Products ──────────────────────────────────────────────────────────
     allProducts: protectedProcedure.query(async ({ ctx }) => {

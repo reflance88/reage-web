@@ -1,8 +1,13 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import {
+  AreaChart, Area, BarChart, Bar, LineChart, Line,
+  PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -76,33 +81,149 @@ function ConfirmModal({
 }
 
 // ─── Dashboard Tab ─────────────────────────────────────────────────────────────
+const CHART_COLORS = ["#6B0F1A", "#C9A96E", "#1D4ED8", "#166534", "#B45309"];
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: C.white, borderRadius: "16px", padding: "24px", border: `1px solid ${C.border}`, boxShadow: "0 1px 6px rgba(0,0,0,.04)" }}>
+      <p style={{ fontSize: "14px", fontWeight: 700, color: C.text, marginBottom: "20px" }}>{title}</p>
+      {children}
+    </div>
+  );
+}
+
 function DashboardTab() {
-  const { data, isLoading, refetch } = trpc.admin.dashboard.useQuery();
+  const [days, setDays] = useState(30);
+  const { data: summary, isLoading: sumLoading, refetch } = trpc.admin.dashboard.useQuery();
+  const { data: charts, isLoading: chartLoading } = trpc.admin.dashboardCharts.useQuery({ days });
+
+  // 일별 주문+매출 데이터 (날짜 포맷 단축)
+  const orderData = useMemo(() =>
+    (charts?.orderStats ?? []).map((r) => ({ ...r, day: r.day.slice(5) })),
+    [charts]
+  );
+  // 일별 가입자 데이터
+  const signupData = useMemo(() =>
+    (charts?.signupStats ?? []).map((r) => ({ ...r, day: r.day.slice(5) })),
+    [charts]
+  );
+  // 인증 현황 파이 데이터
+  const verifData = useMemo(() => {
+    const v = charts?.verificationStats;
+    if (!v) return [];
+    return [
+      { name: "대기", value: v.pending },
+      { name: "승인", value: v.approved },
+      { name: "반려", value: v.rejected },
+    ].filter((d) => d.value > 0);
+  }, [charts]);
 
   const cards = [
-    { label: "대기 중인 인증 요청", value: data?.pendingVerifications ?? 0, color: "#B45309", bg: "#FEF3C7" },
-    { label: "전체 회원 수", value: (data?.totalUsers ?? 0) + "명", color: "#1D4ED8", bg: "#EFF6FF" },
-    { label: "오늘 결제 완료", value: (data?.todayOrders ?? 0) + "건", color: "#166534", bg: "#DCFCE7" },
-    { label: "누적 결제 금액", value: krw(data?.totalPaidAmount ?? 0), color: "#5B21B6", bg: "#EDE9FE" },
+    { label: "대기 중인 인증 요청", value: summary?.pendingVerifications ?? 0, color: "#B45309", bg: "#FEF3C7" },
+    { label: "전체 회원 수", value: (summary?.totalUsers ?? 0) + "명", color: "#1D4ED8", bg: "#EFF6FF" },
+    { label: "오늘 결제 완료", value: (summary?.todayOrders ?? 0) + "건", color: "#166534", bg: "#DCFCE7" },
+    { label: "누적 결제 금액", value: krw(summary?.totalPaidAmount ?? 0), color: "#5B21B6", bg: "#EDE9FE" },
   ];
+
+  const isLoading = sumLoading || chartLoading;
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
         <h2 style={{ fontSize: "20px", fontWeight: 700, color: C.text }}>대시보드</h2>
-        <button onClick={() => refetch()} style={{ padding: "6px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", color: C.muted, fontSize: "13px", cursor: "pointer" }}>새로고침</button>
-      </div>
-      {isLoading ? (
-        <p style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>로딩 중...</p>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-          {cards.map((c) => (
-            <div key={c.label} style={{ background: c.bg, borderRadius: "16px", padding: "24px", border: `1px solid ${C.border}` }}>
-              <p style={{ fontSize: "13px", color: c.color, fontWeight: 600, marginBottom: "8px" }}>{c.label}</p>
-              <p style={{ fontSize: "28px", fontWeight: 800, color: c.color }}>{c.value}</p>
-            </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          {([7, 14, 30, 60, 90] as const).map((d) => (
+            <button key={d} onClick={() => setDays(d)} style={{
+              padding: "5px 12px", borderRadius: "999px", border: `1.5px solid ${days === d ? C.primary : C.border}`,
+              background: days === d ? C.primary : "#fff", color: days === d ? "#fff" : C.muted,
+              fontSize: "12px", fontWeight: 600, cursor: "pointer",
+            }}>{d}일</button>
           ))}
+          <button onClick={() => refetch()} style={{ padding: "5px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", color: C.muted, fontSize: "12px", cursor: "pointer", marginLeft: "4px" }}>새로고침</button>
         </div>
+      </div>
+
+      {/* 요약 카드 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", marginBottom: "28px" }}>
+        {cards.map((c) => (
+          <div key={c.label} style={{ background: c.bg, borderRadius: "16px", padding: "20px 24px", border: `1px solid ${C.border}` }}>
+            <p style={{ fontSize: "12px", color: c.color, fontWeight: 600, marginBottom: "6px" }}>{c.label}</p>
+            <p style={{ fontSize: "26px", fontWeight: 800, color: c.color }}>{c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <p style={{ color: C.muted, textAlign: "center", padding: "60px 0" }}>차트 데이터 로딩 중...</p>
+      ) : (
+        <>
+          {/* 차트 상단 행: 일별 주문 수 + 매출 추이 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+            <ChartCard title={`일별 주문 수 (최근 ${days}일)`}>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={orderData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="orderGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={C.primary} stopOpacity={0.25} />
+                      <stop offset="95%" stopColor={C.primary} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11, fill: C.muted }} allowDecimals={false} width={32} />
+                  <Tooltip formatter={(v: any) => [v + "건", "주문"]} labelStyle={{ fontSize: 12 }} contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}` }} />
+                  <Area type="monotone" dataKey="orderCount" stroke={C.primary} strokeWidth={2} fill="url(#orderGrad)" name="주문 수" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard title={`매출 추이 (최근 ${days}일)`}>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={orderData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11, fill: C.muted }} tickFormatter={(v) => (v >= 10000 ? Math.round(v / 10000) + "만" : v + "")} width={40} />
+                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("ko-KR") + "원", "매출"]} labelStyle={{ fontSize: 12 }} contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}` }} />
+                  <Line type="monotone" dataKey="revenue" stroke={C.gold} strokeWidth={2.5} dot={{ r: 3, fill: C.gold }} name="매출" />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+
+          {/* 차트 하단 행: 신규 가입자 + 인증 현황 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <ChartCard title={`신규 가입자 수 (최근 ${days}일)`}>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={signupData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11, fill: C.muted }} allowDecimals={false} width={32} />
+                  <Tooltip formatter={(v: any) => [v + "명", "가입자"]} labelStyle={{ fontSize: 12 }} contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}` }} />
+                  <Bar dataKey="signupCount" fill="#1D4ED8" radius={[4, 4, 0, 0]} name="가입자" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard title="사업자 인증 현황">
+              {verifData.length === 0 ? (
+                <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: "13px" }}>인증 데이터 없음</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={verifData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                      {verifData.map((_, i) => (
+                        <Cell key={i} fill={["#B45309", "#166534", "#991B1B"][i % 3]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: any, name: any) => [v + "건", name]} contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}` }} />
+                    <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+          </div>
+        </>
       )}
     </div>
   );

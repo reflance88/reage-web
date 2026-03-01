@@ -441,3 +441,69 @@ export async function getDashboardSummary() {
     totalPaidAmount: Number(totalPaid?.total ?? 0),
   };
 }
+
+// ─── Dashboard Chart Data ───────────────────────────────────────────────────────
+
+/** 최근 N일간 일별 주문 수 + 매출 집계 */
+export async function getDailyOrderStats(days = 30) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.execute(sql`
+    SELECT
+      DATE(paid_at) AS day,
+      COUNT(*) AS order_count,
+      COALESCE(SUM(total_amount), 0) AS revenue
+    FROM orders
+    WHERE status = 'paid'
+      AND paid_at >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+    GROUP BY DATE(paid_at)
+    ORDER BY day ASC
+  `);
+
+  return (rows[0] as unknown as any[]).map((r: any) => ({
+    day: String(r.day),
+    orderCount: Number(r.order_count),
+    revenue: Number(r.revenue),
+  }));
+}
+
+/** 최근 N일간 일별 신규 가입자 수 집계 */
+export async function getDailySignupStats(days = 30) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.execute(sql`
+    SELECT
+      DATE(created_at) AS day,
+      COUNT(*) AS signup_count
+    FROM users
+    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+    GROUP BY DATE(created_at)
+    ORDER BY day ASC
+  `);
+
+  return (rows[0] as unknown as any[]).map((r: any) => ({
+    day: String(r.day),
+    signupCount: Number(r.signup_count),
+  }));
+}
+
+/** 인증 상태별 현황 */
+export async function getVerificationStatusStats() {
+  const db = await getDb();
+  if (!db) return { pending: 0, approved: 0, rejected: 0 };
+
+  const rows = await db.execute(sql`
+    SELECT status, COUNT(*) AS cnt
+    FROM business_verifications
+    GROUP BY status
+  `);
+
+  const result = { pending: 0, approved: 0, rejected: 0 };
+  for (const r of (rows[0] as unknown as any[])) {
+    const s = r.status as keyof typeof result;
+    if (s in result) result[s] = Number(r.cnt);
+  }
+  return result;
+}
