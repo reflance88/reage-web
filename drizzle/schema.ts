@@ -93,6 +93,7 @@ export const products = mysqlTable("products", {
   stock: int("stock").default(999).notNull(),
   imageUrl: text("imageUrl"),
   isActive: boolean("isActive").default(true).notNull(),
+  visible: boolean("visible").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -141,3 +142,21 @@ export const orderItems = mysqlTable("order_items", {
 
 export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = typeof orderItems.$inferInsert;
+
+// ─── Admin Audit Log ─────────────────────────────────────────────────────────────────
+export const adminAuditLogs = mysqlTable("admin_audit_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  adminUserId: int("adminUserId").notNull().references(() => users.id),
+  actionType: varchar("actionType", { length: 100 }).notNull(),
+  // e.g. APPROVE_PRO, REJECT_PRO, UPDATE_PRODUCT_PRICE, TOGGLE_PRODUCT_VISIBILITY
+  targetType: varchar("targetType", { length: 50 }).notNull(),
+  // user | pro_verification | product | order
+  targetId: int("targetId").notNull(),
+  before: text("before"),  // JSON string
+  after: text("after"),   // JSON string
+  note: text("note"),     // optional human note
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
+export type InsertAdminAuditLog = typeof adminAuditLogs.$inferInsert;

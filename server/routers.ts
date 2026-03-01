@@ -7,12 +7,16 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
   approveVerification,
+  createAuditLog,
   createEmailUser,
   createOrder,
   createVerification,
   getAllOrders,
+  getAllProducts,
   getAllUsers,
   getAllVerifications,
+  getAuditLogs,
+  getDashboardSummary,
   getLatestVerification,
   getOrderByOrderId,
   getOrderItems,
@@ -24,7 +28,10 @@ import {
   getUserById,
   getUserOrders,
   rejectVerification,
+  searchOrders,
+  searchVerifications,
   updateOrderStatus,
+  updateProduct,
   updateUserPassword,
   updateUserProfile,
   updateUserResetToken,
@@ -289,6 +296,139 @@ export const appRouter = router({
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await updateOrderStatus(input.orderId, { status: input.status });
         return { success: true };
+      }),
+
+    // ─── Dashboard ─────────────────────────────────────────────────────────
+    dashboard: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      return getDashboardSummary();
+    }),
+
+    // ─── Products ──────────────────────────────────────────────────────────
+    allProducts: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      return getAllProducts();
+    }),
+
+    updateProduct: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        priceConsumer: z.string().optional(),
+        pricePro: z.string().optional(),
+        isProOnly: z.boolean().optional(),
+        visible: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        const before = await getProductById(id);
+        await updateProduct(id, data);
+        const after = await getProductById(id);
+        await createAuditLog({
+          adminUserId: ctx.user.id,
+          actionType: "UPDATE_PRODUCT",
+          targetType: "product",
+          targetId: id,
+          before: JSON.stringify(before),
+          after: JSON.stringify(after),
+        });
+        return { success: true };
+      }),
+
+    // ─── Verification Search ───────────────────────────────────────────────
+    searchVerifications: protectedProcedure
+      .input(z.object({
+        status: z.enum(["pending", "approved", "rejected"]).optional(),
+        search: z.string().optional(),
+        page: z.number().default(1),
+        limit: z.number().default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return searchVerifications(input);
+      }),
+
+    approveVerificationV2: protectedProcedure
+      .input(z.object({ id: z.number(), userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await approveVerification(input.id, input.userId);
+        await createAuditLog({
+          adminUserId: ctx.user.id,
+          actionType: "APPROVE_PRO",
+          targetType: "pro_verification",
+          targetId: input.id,
+          after: JSON.stringify({ userId: input.userId, status: "approved" }),
+        });
+        return { success: true };
+      }),
+
+    rejectVerificationV2: protectedProcedure
+      .input(z.object({ id: z.number(), userId: z.number(), reason: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await rejectVerification(input.id, input.userId, input.reason);
+        await createAuditLog({
+          adminUserId: ctx.user.id,
+          actionType: "REJECT_PRO",
+          targetType: "pro_verification",
+          targetId: input.id,
+          note: input.reason,
+          after: JSON.stringify({ userId: input.userId, status: "rejected", reason: input.reason }),
+        });
+        return { success: true };
+      }),
+
+    // ─── Order Search ──────────────────────────────────────────────────────
+    searchOrders: protectedProcedure
+      .input(z.object({
+        status: z.enum(["created", "paid", "failed", "cancelled"]).optional(),
+        search: z.string().optional(),
+        page: z.number().default(1),
+        limit: z.number().default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return searchOrders(input);
+      }),
+
+    orderDetail: protectedProcedure
+      .input(z.object({ orderId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const order = await getOrderByOrderId(input.orderId);
+        if (!order) throw new TRPCError({ code: "NOT_FOUND" });
+        const items = await getOrderItems(order.id);
+        return { order, items };
+      }),
+
+    // ─── Set user professional manually ───────────────────────────────────
+    setUserProfessional: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await updateUserRole(input.userId, "user"); // keep system role as user
+        // Update memberRole and proVerificationStatus directly
+        const db = await import("./db");
+        await createAuditLog({
+          adminUserId: ctx.user.id,
+          actionType: "MANUAL_SET_PROFESSIONAL",
+          targetType: "user",
+          targetId: input.userId,
+          after: JSON.stringify({ memberRole: "professional", proVerificationStatus: "approved" }),
+        });
+        return { success: true };
+      }),
+
+    // ─── Audit Logs ────────────────────────────────────────────────────────
+    auditLogs: protectedProcedure
+      .input(z.object({
+        targetType: z.string().optional(),
+        targetId: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getAuditLogs(input.targetType, input.targetId);
       }),
   }),
 

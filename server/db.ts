@@ -1,12 +1,15 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
+  AdminAuditLog,
   BusinessVerification,
+  InsertAdminAuditLog,
   InsertBusinessVerification,
   InsertOrder,
   InsertOrderItem,
   InsertUser,
   Order,
+  adminAuditLogs,
   businessVerifications,
   orderItems,
   orders,
@@ -280,4 +283,161 @@ export async function updateUserRole(id: number, role: "user" | "admin") {
   const db = await getDb();
   if (!db) return;
   await db.update(users).set({ role }).where(eq(users.id, id));
+}
+
+// ─── Admin Audit Log ──────────────────────────────────────────────────────────
+
+export async function createAuditLog(data: InsertAdminAuditLog) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(adminAuditLogs).values(data);
+}
+
+export async function getAuditLogs(targetType?: string, targetId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  if (targetType && targetId) {
+    return db.select().from(adminAuditLogs)
+      .where(and(eq(adminAuditLogs.targetType, targetType), eq(adminAuditLogs.targetId, targetId)))
+      .orderBy(desc(adminAuditLogs.createdAt))
+      .limit(50);
+  }
+  return db.select().from(adminAuditLogs).orderBy(desc(adminAuditLogs.createdAt)).limit(100);
+}
+
+// ─── Product Admin ─────────────────────────────────────────────────────────────
+export async function updateProduct(id: number, data: {
+  priceConsumer?: string;
+  pricePro?: string;
+  isProOnly?: boolean;
+  visible?: boolean;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(products).set({ ...data, updatedAt: new Date() }).where(eq(products.id, id));
+}
+
+export async function getAllProducts() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(products).orderBy(products.id);
+}
+
+// ─── Verification Search ───────────────────────────────────────────────────────
+export async function searchVerifications(opts: {
+  status?: "pending" | "approved" | "rejected";
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const page = opts.page ?? 1;
+  const limit = opts.limit ?? 20;
+  const offset = (page - 1) * limit;
+
+  // Build base query - join with users for name/email search
+  let query = db
+    .select({
+      v: businessVerifications,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(businessVerifications)
+    .leftJoin(users, eq(businessVerifications.userId, users.id));
+
+  const conditions = [];
+  if (opts.status) conditions.push(eq(businessVerifications.status, opts.status));
+  if (opts.search) {
+    const like = `%${opts.search}%`;
+    conditions.push(
+      or(
+        sql`${businessVerifications.businessNumber} LIKE ${like}`,
+        sql`${businessVerifications.businessName} LIKE ${like}`,
+        sql`${users.name} LIKE ${like}`,
+        sql`${users.email} LIKE ${like}`
+      )!
+    );
+  }
+
+  const rows = await (conditions.length > 0
+    ? query.where(and(...conditions)).orderBy(desc(businessVerifications.createdAt)).limit(limit).offset(offset)
+    : query.orderBy(desc(businessVerifications.createdAt)).limit(limit).offset(offset));
+
+  return { items: rows, total: rows.length };
+}
+
+// ─── Order Search ──────────────────────────────────────────────────────────────
+export async function searchOrders(opts: {
+  status?: "created" | "paid" | "failed" | "cancelled";
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const page = opts.page ?? 1;
+  const limit = opts.limit ?? 20;
+  const offset = (page - 1) * limit;
+
+  let query = db
+    .select({
+      o: orders,
+      userEmail: users.email,
+      userName: users.name,
+    })
+    .from(orders)
+    .leftJoin(users, eq(orders.userId, users.id));
+
+  const conditions = [];
+  if (opts.status) conditions.push(eq(orders.status, opts.status));
+  if (opts.search) {
+    const like = `%${opts.search}%`;
+    conditions.push(
+      or(
+        sql`${orders.orderId} LIKE ${like}`,
+        sql`${users.email} LIKE ${like}`
+      )!
+    );
+  }
+
+  const rows = await (conditions.length > 0
+    ? query.where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(limit).offset(offset)
+    : query.orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
+
+  return { items: rows, total: rows.length };
+}
+
+// ─── Dashboard Summary ─────────────────────────────────────────────────────────
+export async function getDashboardSummary() {
+  const db = await getDb();
+  if (!db) return { pendingVerifications: 0, totalUsers: 0, todayOrders: 0, totalPaidAmount: 0 };
+
+  const [pendingVerifs] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(businessVerifications)
+    .where(eq(businessVerifications.status, "pending"));
+
+  const [totalUsers] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(users);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [todayOrders] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(orders)
+    .where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`));
+
+  const [totalPaid] = await db
+    .select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` })
+    .from(orders)
+    .where(eq(orders.status, "paid"));
+
+  return {
+    pendingVerifications: Number(pendingVerifs?.count ?? 0),
+    totalUsers: Number(totalUsers?.count ?? 0),
+    todayOrders: Number(todayOrders?.count ?? 0),
+    totalPaidAmount: Number(totalPaid?.total ?? 0),
+  };
 }

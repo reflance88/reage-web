@@ -44,3 +44,16 @@
 - [x] 전체 HTML 헤더에서 아카데미 버튼 제거
 - [x] 관리자 페이지 구현 (사업자 인증 심사, 회원 관리, 주문 관리)
 - [x] 서버 adminProcedure 기반 관리자 API 라우터 구현
+
+## 관리자 페이지 전면 재구성 (기획서 v2)
+- [x] DB 스키마: AdminAuditLog 테이블 추가, products.visible 컨럼 추가
+- [x] DB 마이그레이션 (pnpm db:push)
+- [x] 서버: 제품 가격 편집 API (AdminAuditLog 기록 포함)
+- [x] 서버: 인증 검색 (이름/이메일/사업자번호), reviewed_by 저장
+- [x] 서버: 주문 검색 (order_id/이메일/기간/상태), 주문 상세
+- [x] 서버: 대시보드 요약 API (pending 인증 수, 오늘 주문 수, 전체 회원 수)
+- [x] UI: 대시보드 탭 (요약 카드)
+- [x] UI: 사업자 인증 관리 (검색/필터, 상세 모달, 승인/반려 confirm 모달)
+- [x] UI: 제품 관리 (리스트 + 가격/visible/is_pro_only 편집, confirm 모달)
+- [x] UI: 주문 조회 (검색/필터, 상세 모달, 읽기 전용)
+- [ ] robots noindex 처리 (/admin)
