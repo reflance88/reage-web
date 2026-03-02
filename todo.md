@@ -67,3 +67,6 @@
 - [x] UI: 신규 가입자 수 BarChart
 - [x] UI: 매출 추이 LineChart
 - [x] UI: 인증 현황 PieChart
+
+## 헤더 도입 상담 버튼 제거
+- [x] 전체 HTML 파일 헤더에서 "도입 상담" 버튼 제거
