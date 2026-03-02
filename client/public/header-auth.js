@@ -37,18 +37,13 @@
         ${cartBadge}
       </a>`;
 
+    const loginBtn = `<a href="/login" style="padding:9px 18px;border-radius:8px;border:1.5px solid #6B0F1A;background:transparent;color:#6B0F1A;font-size:13px;font-weight:600;text-decoration:none;transition:all .2s;" onmouseover="this.style.background='#6B0F1A';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#6B0F1A'">로그인</a>`;
+    const mypageBtn = `<a href="/mypage" style="padding:9px 18px;border-radius:8px;background:#6B0F1A;color:#fff;font-size:13px;font-weight:600;text-decoration:none;transition:background .2s;" onmouseover="this.style.background='#8B1525'" onmouseout="this.style.background='#6B0F1A'">마이페이지</a>`;
+
     if (user) {
-      container.innerHTML = `
-        ${cartBtn}
-        <a href="/mypage" style="padding:9px 18px;border-radius:8px;background:#6B0F1A;color:#fff;font-size:13px;font-weight:600;text-decoration:none;transition:background .2s;" onmouseover="this.style.background='#8B1525'" onmouseout="this.style.background='#6B0F1A'">
-          마이페이지
-        </a>`;
+      container.innerHTML = `${cartBtn}${mypageBtn}${loginBtn}`;
     } else {
-      container.innerHTML = `
-        ${cartBtn}
-        <a href="/login" style="padding:9px 18px;border-radius:8px;border:1.5px solid #6B0F1A;background:transparent;color:#6B0F1A;font-size:13px;font-weight:600;text-decoration:none;transition:all .2s;" onmouseover="this.style.background='#6B0F1A';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#6B0F1A'">
-          로그인
-        </a>`;
+      container.innerHTML = `${cartBtn}${loginBtn}`;
     }
   }
 
