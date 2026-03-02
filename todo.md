@@ -228,3 +228,7 @@
 
 - [x] index-main.html VIDEO PLACEHOLDER를 유튜브 임베드(LY5Wwt3vfi0)로 교체
 - [x] 영상 비율 및 주변 디자인 조정
+
+## 유튜브 영상 자동재생
+
+- [x] 유튜브 임베드 URL에 autoplay=1&mute=1&loop=1 파라미터 추가
