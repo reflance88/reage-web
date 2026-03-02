@@ -239,6 +239,14 @@
       border: none;
       display: block;
     }
+    /* 유튜브 제목/공유 버튼 차단 오버레이 */
+    .video-overlay-block {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background: transparent;
+      cursor: default;
+    }
     /* 하단 그라데이션 페이드 */
     .video-fade-bottom {
       height: 56px;
@@ -1115,6 +1123,8 @@
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
       allowfullscreen
     ></iframe>
+    <!-- 유튜브 제목/공유 UI 차단 -->
+    <div class="video-overlay-block"></div>
   </div>
   <!-- 하단 페이드 -->
   <div class="video-fade-bottom"></div>
