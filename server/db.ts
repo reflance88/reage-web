@@ -507,3 +507,344 @@ export async function getVerificationStatusStats() {
   }
   return result;
 }
+
+// ─── Gallery Posts ─────────────────────────────────────────────────────────────
+import {
+  GalleryPost,
+  InsertGalleryPost,
+  MagazinePost,
+  InsertMagazinePost,
+  InsertPostImage,
+  Popup,
+  InsertPopup,
+  InsertPageView,
+  galleryPosts,
+  magazinePosts,
+  postImages,
+  popups,
+  pageViews,
+} from "../drizzle/schema";
+
+export async function getGalleryPosts(opts: { page?: number; limit?: number; publishedOnly?: boolean } = {}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const page = opts.page ?? 1;
+  const limit = opts.limit ?? 20;
+  const offset = (page - 1) * limit;
+  const conditions = opts.publishedOnly ? [eq(galleryPosts.isPublished, true)] : [];
+  const rows = conditions.length > 0
+    ? await db.select().from(galleryPosts).where(and(...conditions)).orderBy(desc(galleryPosts.createdAt)).limit(limit).offset(offset)
+    : await db.select().from(galleryPosts).orderBy(desc(galleryPosts.createdAt)).limit(limit).offset(offset);
+  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(galleryPosts);
+  return { items: rows, total: Number(countRow?.count ?? 0) };
+}
+
+export async function getGalleryPostById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(galleryPosts).where(eq(galleryPosts.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createGalleryPost(data: InsertGalleryPost) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(galleryPosts).values(data);
+  const result = await db.select().from(galleryPosts).orderBy(desc(galleryPosts.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function updateGalleryPost(id: number, data: Partial<GalleryPost>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(galleryPosts).set({ ...data, updatedAt: new Date() }).where(eq(galleryPosts.id, id));
+}
+
+export async function deleteGalleryPost(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(galleryPosts).where(eq(galleryPosts.id, id));
+}
+
+// ─── Magazine Posts ────────────────────────────────────────────────────────────
+
+export async function getMagazinePosts(opts: { page?: number; limit?: number; publishedOnly?: boolean } = {}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const page = opts.page ?? 1;
+  const limit = opts.limit ?? 20;
+  const offset = (page - 1) * limit;
+  const conditions = opts.publishedOnly ? [eq(magazinePosts.isPublished, true)] : [];
+  const rows = conditions.length > 0
+    ? await db.select().from(magazinePosts).where(and(...conditions)).orderBy(desc(magazinePosts.createdAt)).limit(limit).offset(offset)
+    : await db.select().from(magazinePosts).orderBy(desc(magazinePosts.createdAt)).limit(limit).offset(offset);
+  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(magazinePosts);
+  return { items: rows, total: Number(countRow?.count ?? 0) };
+}
+
+export async function getMagazinePostById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(magazinePosts).where(eq(magazinePosts.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createMagazinePost(data: InsertMagazinePost) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(magazinePosts).values(data);
+  const result = await db.select().from(magazinePosts).orderBy(desc(magazinePosts.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function updateMagazinePost(id: number, data: Partial<MagazinePost>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(magazinePosts).set({ ...data, updatedAt: new Date() }).where(eq(magazinePosts.id, id));
+}
+
+export async function deleteMagazinePost(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(magazinePosts).where(eq(magazinePosts.id, id));
+}
+
+// ─── Post Images ───────────────────────────────────────────────────────────────
+
+export async function getPostImages(postType: "gallery" | "magazine", postId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(postImages)
+    .where(and(eq(postImages.postType, postType), eq(postImages.postId, postId)))
+    .orderBy(postImages.sortOrder);
+}
+
+export async function createPostImage(data: InsertPostImage) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(postImages).values(data);
+}
+
+export async function deletePostImage(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(postImages).where(eq(postImages.id, id));
+}
+
+export async function deletePostImagesByPost(postType: "gallery" | "magazine", postId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(postImages).where(and(eq(postImages.postType, postType), eq(postImages.postId, postId)));
+}
+
+// ─── Popups ────────────────────────────────────────────────────────────────────
+
+export async function getPopups(opts: { activeOnly?: boolean } = {}) {
+  const db = await getDb();
+  if (!db) return [];
+  if (opts.activeOnly) {
+    const now = new Date();
+    return db.select().from(popups)
+      .where(
+        and(
+          eq(popups.isActive, true),
+          or(
+            sql`${popups.startAt} IS NULL`,
+            sql`${popups.startAt} <= ${now}`
+          )!,
+          or(
+            sql`${popups.endAt} IS NULL`,
+            sql`${popups.endAt} >= ${now}`
+          )!
+        )
+      )
+      .orderBy(popups.sortOrder, desc(popups.createdAt));
+  }
+  return db.select().from(popups).orderBy(desc(popups.createdAt));
+}
+
+export async function getPopupById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(popups).where(eq(popups.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createPopup(data: InsertPopup) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(popups).values(data);
+  const result = await db.select().from(popups).orderBy(desc(popups.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function updatePopup(id: number, data: Partial<Popup>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(popups).set({ ...data, updatedAt: new Date() }).where(eq(popups.id, id));
+}
+
+export async function deletePopup(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(popups).where(eq(popups.id, id));
+}
+
+export async function incrementPopupClickCount(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(popups).set({ clickCount: sql`click_count + 1` as any }).where(eq(popups.id, id));
+}
+
+// ─── Page Views ────────────────────────────────────────────────────────────────
+
+export async function recordPageView(data: InsertPageView) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(pageViews).values(data);
+}
+
+export async function getPageViewStats(days = 30) {
+  const db = await getDb();
+  if (!db) return { total: 0, byDay: [], byDevice: [], topPages: [], byHour: [], byDayOfWeek: [] };
+
+  const [totalRow] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(pageViews)
+    .where(sql`${pageViews.createdAt} >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`);
+
+  const byDayRows = await db.execute(sql`
+    SELECT DATE(created_at) AS day, COUNT(*) AS cnt, device_type
+    FROM page_views
+    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+    GROUP BY DATE(created_at), device_type
+    ORDER BY day ASC
+  `);
+
+  const byDeviceRows = await db.execute(sql`
+    SELECT device_type, COUNT(*) AS cnt
+    FROM page_views
+    WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+    GROUP BY device_type
+  `);
+
+  const topPagesRows = await db.execute(sql`
+    SELECT path, COUNT(*) AS cnt
+    FROM page_views
+    WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+    GROUP BY path
+    ORDER BY cnt DESC
+    LIMIT 10
+  `);
+
+  const byHourRows = await db.execute(sql`
+    SELECT HOUR(created_at) AS hour, COUNT(*) AS cnt
+    FROM page_views
+    WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+    GROUP BY HOUR(created_at)
+    ORDER BY hour ASC
+  `);
+
+  const byDayOfWeekRows = await db.execute(sql`
+    SELECT DAYOFWEEK(created_at) AS dow, COUNT(*) AS cnt
+    FROM page_views
+    WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+    GROUP BY DAYOFWEEK(created_at)
+    ORDER BY dow ASC
+  `);
+
+  return {
+    total: Number(totalRow?.count ?? 0),
+    byDay: (byDayRows[0] as unknown as any[]).map((r: any) => ({ day: String(r.day), count: Number(r.cnt), device: r.device_type })),
+    byDevice: (byDeviceRows[0] as unknown as any[]).map((r: any) => ({ device: r.device_type, count: Number(r.cnt) })),
+    topPages: (topPagesRows[0] as unknown as any[]).map((r: any) => ({ path: r.path, count: Number(r.cnt) })),
+    byHour: (byHourRows[0] as unknown as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
+    byDayOfWeek: (byDayOfWeekRows[0] as unknown as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
+  };
+}
+
+// ─── Sales Stats ───────────────────────────────────────────────────────────────
+
+export async function getSalesStats(period: "day" | "week" | "month" = "day", days = 30) {
+  const db = await getDb();
+  if (!db) return [];
+
+  let groupBy = "DATE(paid_at)";
+  if (period === "week") groupBy = "YEARWEEK(paid_at, 1)";
+  if (period === "month") groupBy = "DATE_FORMAT(paid_at, '%Y-%m')";
+
+  const rows = await db.execute(sql`
+    SELECT
+      ${sql.raw(groupBy)} AS period_key,
+      COUNT(*) AS order_count,
+      COALESCE(SUM(total_amount), 0) AS revenue
+    FROM orders
+    WHERE status = 'paid'
+      AND paid_at >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+    GROUP BY ${sql.raw(groupBy)}
+    ORDER BY period_key ASC
+  `);
+
+  return (rows[0] as unknown as any[]).map((r: any) => ({
+    periodKey: String(r.period_key),
+    orderCount: Number(r.order_count),
+    revenue: Number(r.revenue),
+  }));
+}
+
+export async function getProductSalesStats() {
+  const db = await getDb();
+  if (!db) return { topSelling: [], cartAnalysis: [] };
+
+  const topSellingRows = await db.execute(sql`
+    SELECT oi.product_id, oi.product_name, SUM(oi.quantity) AS total_qty, SUM(oi.subtotal) AS total_revenue
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.id
+    WHERE o.status = 'paid'
+    GROUP BY oi.product_id, oi.product_name
+    ORDER BY total_qty DESC
+    LIMIT 10
+  `);
+
+  return {
+    topSelling: (topSellingRows[0] as unknown as any[]).map((r: any) => ({
+      productId: Number(r.product_id),
+      productName: String(r.product_name),
+      totalQty: Number(r.total_qty),
+      totalRevenue: Number(r.total_revenue),
+    })),
+    cartAnalysis: [],
+  };
+}
+
+export async function getCustomerStats() {
+  const db = await getDb();
+  if (!db) return { byMemberRole: [], byDayOfWeek: [], byHour: [] };
+
+  const byMemberRoleRows = await db.execute(sql`
+    SELECT member_role, COUNT(*) AS cnt
+    FROM users
+    GROUP BY member_role
+  `);
+
+  const byDowRows = await db.execute(sql`
+    SELECT DAYOFWEEK(created_at) AS dow, COUNT(*) AS cnt
+    FROM orders
+    WHERE status = 'paid'
+    GROUP BY DAYOFWEEK(created_at)
+    ORDER BY dow ASC
+  `);
+
+  const byHourRows = await db.execute(sql`
+    SELECT HOUR(created_at) AS hour, COUNT(*) AS cnt
+    FROM orders
+    WHERE status = 'paid'
+    GROUP BY HOUR(created_at)
+    ORDER BY hour ASC
+  `);
+
+  return {
+    byMemberRole: (byMemberRoleRows[0] as unknown as any[]).map((r: any) => ({ role: r.member_role, count: Number(r.cnt) })),
+    byDayOfWeek: (byDowRows[0] as unknown as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
+    byHour: (byHourRows[0] as unknown as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
+  };
+}

@@ -1,6 +1,5 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import {
@@ -21,6 +20,9 @@ const C = {
   sidebar: "#1A1412",
   sidebarText: "rgba(255,255,255,0.75)",
   sidebarActive: "#6B0F1A",
+  blue: "#1D4ED8",
+  green: "#166534",
+  orange: "#B45309",
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -31,6 +33,10 @@ function krw(v: string | number | null | undefined) {
 function fmtDate(d: Date | string | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("ko-KR");
+}
+function fmtDateTime(d: Date | string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("ko-KR");
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -47,6 +53,10 @@ function StatusBadge({ status }: { status: string }) {
     consumer: { bg: "#F3F4F6", color: "#374151", label: "일반" },
     user:     { bg: "#F3F4F6", color: "#374151", label: "일반" },
     admin:    { bg: "#EDE9FE", color: "#5B21B6", label: "관리자" },
+    active:   { bg: "#DCFCE7", color: "#166534", label: "사용함" },
+    inactive: { bg: "#F3F4F6", color: "#374151", label: "사용안함" },
+    published:{ bg: "#DCFCE7", color: "#166534", label: "게시됨" },
+    draft:    { bg: "#FEF3C7", color: "#B45309", label: "임시저장" },
   };
   const s = map[status] ?? { bg: "#F3F4F6", color: "#374151", label: status };
   return (
@@ -80,711 +90,1490 @@ function ConfirmModal({
   );
 }
 
-// ─── Dashboard Tab ─────────────────────────────────────────────────────────────
-const CHART_COLORS = ["#6B0F1A", "#C9A96E", "#1D4ED8", "#166534", "#B45309"];
+// ─── Sidebar Nav Structure ─────────────────────────────────────────────────────
+type NavItem = { id: string; label: string; children?: { id: string; label: string }[] };
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+const NAV: NavItem[] = [
+  {
+    id: "dashboard", label: "대시보드",
+  },
+  {
+    id: "order", label: "주문",
+    children: [
+      { id: "order-dashboard", label: "주문 대시보드" },
+      { id: "order-all", label: "전체 주문 조회" },
+      { id: "order-unpaid", label: "입금전 관리" },
+      { id: "order-preparing", label: "배송 준비중 관리" },
+      { id: "order-waiting", label: "배송 대기 관리" },
+      { id: "order-shipping", label: "배송 중 관리" },
+      { id: "order-done", label: "배송 완료 조회" },
+      { id: "order-cancel", label: "취소/교환/반품/환불" },
+    ],
+  },
+  {
+    id: "product", label: "상품",
+    children: [
+      { id: "product-dashboard", label: "상품 대시보드" },
+      { id: "product-list", label: "상품 목록" },
+      { id: "product-register", label: "상품 등록" },
+      { id: "product-manage", label: "상품 관리" },
+      { id: "product-category", label: "분류 관리" },
+      { id: "product-stock", label: "재고 관리" },
+    ],
+  },
+  {
+    id: "customer", label: "고객",
+    children: [
+      { id: "customer-dashboard", label: "고객 대시보드" },
+      { id: "customer-search", label: "회원 조회" },
+      { id: "customer-manage", label: "회원 관리" },
+      { id: "customer-verification", label: "사업자 인증" },
+    ],
+  },
+  {
+    id: "board", label: "게시판",
+    children: [
+      { id: "board-dashboard", label: "게시판 대시보드" },
+      { id: "board-gallery", label: "갤러리 관리" },
+      { id: "board-magazine", label: "매거진 관리" },
+    ],
+  },
+  {
+    id: "stats", label: "통계",
+    children: [
+      { id: "stats-dashboard", label: "통계 대시보드" },
+      { id: "stats-sales", label: "매출 분석" },
+      { id: "stats-product", label: "상품 분석" },
+      { id: "stats-customer", label: "고객 분석" },
+      { id: "stats-access", label: "접속 통계" },
+    ],
+  },
+  {
+    id: "popup", label: "팝업",
+    children: [
+      { id: "popup-list", label: "팝업 목록" },
+      { id: "popup-register", label: "팝업 등록" },
+    ],
+  },
+];
+
+// ─── Sidebar ───────────────────────────────────────────────────────────────────
+function Sidebar({ active, onSelect }: { active: string; onSelect: (id: string) => void }) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    NAV.forEach(n => { if (n.children) init[n.id] = true; });
+    return init;
+  });
+
+  const toggle = (id: string) => setExpanded(p => ({ ...p, [id]: !p[id] }));
+
   return (
-    <div style={{ background: C.white, borderRadius: "16px", padding: "24px", border: `1px solid ${C.border}`, boxShadow: "0 1px 6px rgba(0,0,0,.04)" }}>
-      <p style={{ fontSize: "14px", fontWeight: 700, color: C.text, marginBottom: "20px" }}>{title}</p>
-      {children}
+    <nav style={{
+      width: "220px", minWidth: "220px", background: C.sidebar, height: "100vh",
+      position: "sticky", top: 0, overflowY: "auto", display: "flex", flexDirection: "column",
+    }}>
+      <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+        <a href="/" style={{ textDecoration: "none" }}>
+          <span style={{ color: "#fff", fontSize: "20px", fontWeight: 800, letterSpacing: "0.1em" }}>REAGE</span>
+        </a>
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: "11px", marginTop: "4px" }}>관리자</div>
+      </div>
+
+      <div style={{ flex: 1, padding: "8px 0" }}>
+        {NAV.map(item => (
+          <div key={item.id}>
+            {!item.children ? (
+              <button
+                onClick={() => onSelect(item.id)}
+                style={{
+                  width: "100%", textAlign: "left", padding: "10px 16px",
+                  background: active === item.id ? C.sidebarActive : "transparent",
+                  color: active === item.id ? "#fff" : C.sidebarText,
+                  border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600,
+                  display: "flex", alignItems: "center", gap: "8px",
+                }}
+              >
+                <span style={{ fontSize: "16px" }}>{item.id === "dashboard" ? "🏠" : ""}</span>
+                {item.label}
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => toggle(item.id)}
+                  style={{
+                    width: "100%", textAlign: "left", padding: "10px 16px",
+                    background: "transparent", color: "#fff",
+                    border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    letterSpacing: "0.05em", opacity: 0.9,
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span>{
+                      item.id === "order" ? "🛒" :
+                      item.id === "product" ? "📦" :
+                      item.id === "customer" ? "👤" :
+                      item.id === "board" ? "📋" :
+                      item.id === "stats" ? "📊" :
+                      item.id === "popup" ? "🎯" : ""
+                    }</span>
+                    {item.label}
+                  </span>
+                  <span style={{ fontSize: "10px", opacity: 0.6 }}>{expanded[item.id] ? "▲" : "▼"}</span>
+                </button>
+                {expanded[item.id] && item.children.map(child => (
+                  <button
+                    key={child.id}
+                    onClick={() => onSelect(child.id)}
+                    style={{
+                      width: "100%", textAlign: "left", padding: "8px 16px 8px 36px",
+                      background: active === child.id ? C.sidebarActive : "transparent",
+                      color: active === child.id ? "#fff" : C.sidebarText,
+                      border: "none", cursor: "pointer", fontSize: "12px",
+                    }}
+                  >
+                    {child.label}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+// ─── Summary Card ──────────────────────────────────────────────────────────────
+function SummaryCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
+  return (
+    <div style={{ background: C.white, borderRadius: "12px", padding: "20px 24px", border: `1px solid ${C.border}`, flex: 1, minWidth: "160px" }}>
+      <div style={{ fontSize: "12px", color: C.muted, fontWeight: 600, marginBottom: "8px" }}>{label}</div>
+      <div style={{ fontSize: "26px", fontWeight: 800, color: color ?? C.text }}>{value}</div>
+      {sub && <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>{sub}</div>}
     </div>
   );
 }
 
-function DashboardTab() {
+// ─── Section Header ────────────────────────────────────────────────────────────
+function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+      <h2 style={{ fontSize: "20px", fontWeight: 800, color: C.text, margin: 0 }}>{title}</h2>
+      {action}
+    </div>
+  );
+}
+
+// ─── Table ─────────────────────────────────────────────────────────────────────
+function Table({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+        <thead>
+          <tr style={{ background: "#F9F8F7" }}>
+            {headers.map((h, i) => (
+              <th key={i} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.muted, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr><td colSpan={headers.length} style={{ padding: "40px", textAlign: "center", color: C.muted }}>데이터가 없습니다.</td></tr>
+          ) : rows.map((row, i) => (
+            <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+              {row.map((cell, j) => (
+                <td key={j} style={{ padding: "10px 14px", color: C.text }}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Search Bar ────────────────────────────────────────────────────────────────
+function SearchBar({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <input
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder ?? "검색..."}
+      style={{ padding: "8px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", width: "260px", outline: "none" }}
+    />
+  );
+}
+
+// ─── Filter Select ─────────────────────────────────────────────────────────────
+function FilterSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      style={{ padding: "8px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", background: "#fff", cursor: "pointer" }}
+    >
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
+
+// ─── Btn ───────────────────────────────────────────────────────────────────────
+function Btn({ children, onClick, variant = "primary", size = "md", disabled }: {
+  children: React.ReactNode; onClick?: () => void;
+  variant?: "primary" | "secondary" | "danger" | "success" | "outline";
+  size?: "sm" | "md"; disabled?: boolean;
+}) {
+  const bg = variant === "primary" ? C.primary : variant === "danger" ? "#991B1B" : variant === "success" ? "#166534" : variant === "secondary" ? C.gold : "#fff";
+  const color = variant === "outline" ? C.text : "#fff";
+  const border = variant === "outline" ? `1.5px solid ${C.border}` : "none";
+  const pad = size === "sm" ? "5px 12px" : "8px 18px";
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{ padding: pad, borderRadius: "8px", border, background: bg, color, fontSize: size === "sm" ? "12px" : "13px", fontWeight: 700, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.6 : 1 }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
+function DashboardSection() {
   const [days, setDays] = useState(30);
-  const { data: summary, isLoading: sumLoading, refetch } = trpc.admin.dashboard.useQuery();
-  const { data: charts, isLoading: chartLoading } = trpc.admin.dashboardCharts.useQuery({ days });
+  const summaryQuery = trpc.admin.dashboard.useQuery();
+  const chartsQuery = trpc.admin.dashboardCharts.useQuery({ days });
+  const summary = summaryQuery.data;
+  const orderStats = { data: chartsQuery.data?.orderStats };
+  const signupStats = { data: chartsQuery.data?.signupStats };
+  const verStats = { data: chartsQuery.data?.verificationStats };
 
-  // 일별 주문+매출 데이터 (날짜 포맷 단축)
-  const orderData = useMemo(() =>
-    (charts?.orderStats ?? []).map((r) => ({ ...r, day: r.day.slice(5) })),
-    [charts]
-  );
-  // 일별 가입자 데이터
-  const signupData = useMemo(() =>
-    (charts?.signupStats ?? []).map((r) => ({ ...r, day: r.day.slice(5) })),
-    [charts]
-  );
-  // 인증 현황 파이 데이터
-  const verifData = useMemo(() => {
-    const v = charts?.verificationStats;
-    if (!v) return [];
-    return [
-      { name: "대기", value: v.pending },
-      { name: "승인", value: v.approved },
-      { name: "반려", value: v.rejected },
-    ].filter((d) => d.value > 0);
-  }, [charts]);
-
-  const cards = [
-    { label: "대기 중인 인증 요청", value: summary?.pendingVerifications ?? 0, color: "#B45309", bg: "#FEF3C7" },
-    { label: "전체 회원 수", value: (summary?.totalUsers ?? 0) + "명", color: "#1D4ED8", bg: "#EFF6FF" },
-    { label: "오늘 결제 완료", value: (summary?.todayOrders ?? 0) + "건", color: "#166534", bg: "#DCFCE7" },
-    { label: "누적 결제 금액", value: krw(summary?.totalPaidAmount ?? 0), color: "#5B21B6", bg: "#EDE9FE" },
-  ];
-
-  const isLoading = sumLoading || chartLoading;
+  const COLORS = [C.orange, C.green, "#991B1B"];
 
   return (
     <div>
-      {/* 헤더 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 700, color: C.text }}>대시보드</h2>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          {([7, 14, 30, 60, 90] as const).map((d) => (
-            <button key={d} onClick={() => setDays(d)} style={{
-              padding: "5px 12px", borderRadius: "999px", border: `1.5px solid ${days === d ? C.primary : C.border}`,
-              background: days === d ? C.primary : "#fff", color: days === d ? "#fff" : C.muted,
-              fontSize: "12px", fontWeight: 600, cursor: "pointer",
-            }}>{d}일</button>
-          ))}
-          <button onClick={() => refetch()} style={{ padding: "5px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", color: C.muted, fontSize: "12px", cursor: "pointer", marginLeft: "4px" }}>새로고침</button>
+      <SectionHeader title="대시보드" action={
+        <FilterSelect value={String(days)} onChange={v => setDays(Number(v))} options={[
+          { value: "7", label: "최근 7일" }, { value: "14", label: "최근 14일" },
+          { value: "30", label: "최근 30일" }, { value: "60", label: "최근 60일" },
+          { value: "90", label: "최근 90일" },
+        ]} />
+      } />
+
+      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "24px" }}>
+        <SummaryCard label="대기 중 인증" value={summary?.pendingVerifications ?? "—"} color={C.orange} />
+        <SummaryCard label="전체 회원" value={summary?.totalUsers ?? "—"} />
+        <SummaryCard label="오늘 주문" value={summary?.todayOrders ?? "—"} color={C.green} />
+        <SummaryCard label="누적 매출" value={summary ? krw(summary.totalPaidAmount) : "—"} color={C.primary} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
+        <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>일별 주문 수</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={orderStats.data ?? []}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Area type="monotone" dataKey="orderCount" stroke={C.primary} fill={C.primary} fillOpacity={0.15} name="주문 수" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>매출 추이</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={orderStats.data ?? []}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => (v / 10000).toFixed(0) + "만"} />
+              <Tooltip formatter={(v: number) => krw(v)} />
+              <Line type="monotone" dataKey="revenue" stroke={C.gold} strokeWidth={2} dot={false} name="매출" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>신규 가입자</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={signupStats.data ?? []}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Bar dataKey="signupCount" fill={C.blue} name="가입자" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>사업자 인증 현황</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={[
+                { name: "대기", value: verStats.data?.pending ?? 0 },
+                { name: "승인", value: verStats.data?.approved ?? 0 },
+                { name: "반려", value: verStats.data?.rejected ?? 0 },
+              ]} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                {COLORS.map((color, i) => <Cell key={i} fill={color} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* 요약 카드 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", marginBottom: "28px" }}>
-        {cards.map((c) => (
-          <div key={c.label} style={{ background: c.bg, borderRadius: "16px", padding: "20px 24px", border: `1px solid ${C.border}` }}>
-            <p style={{ fontSize: "12px", color: c.color, fontWeight: 600, marginBottom: "6px" }}>{c.label}</p>
-            <p style={{ fontSize: "26px", fontWeight: 800, color: c.color }}>{c.value}</p>
-          </div>
-        ))}
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: ORDER
+// ═══════════════════════════════════════════════════════════════════════════════
+function OrderSection({ subPage }: { subPage: string }) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const statusMap: Record<string, string | undefined> = {
+    "order-unpaid": "created",
+    "order-preparing": "paid",
+    "order-done": "paid",
+    "order-cancel": "cancelled",
+  };
+
+  const effectiveStatus = statusMap[subPage] ?? (statusFilter !== "all" ? statusFilter : undefined);
+
+  const orders = trpc.admin.searchOrders.useQuery({
+    search: search || undefined,
+    status: effectiveStatus as any,
+    page: 1,
+    limit: 50,
+  });
+
+  const updateStatus = trpc.admin.updateOrderStatus.useMutation({
+    onSuccess: () => { toast.success("주문 상태가 변경되었습니다."); orders.refetch(); },
+  });
+
+  const title = subPage === "order-dashboard" ? "주문 대시보드"
+    : subPage === "order-all" ? "전체 주문 조회"
+    : subPage === "order-unpaid" ? "입금전 관리"
+    : subPage === "order-preparing" ? "배송 준비중 관리"
+    : subPage === "order-waiting" ? "배송 대기 관리"
+    : subPage === "order-shipping" ? "배송 중 관리"
+    : subPage === "order-done" ? "배송 완료 조회"
+    : subPage === "order-cancel" ? "취소/교환/반품/환불" : "주문 관리";
+
+  if (subPage === "order-dashboard") {
+    const orderDashboard = trpc.admin.dashboard.useQuery();
+    return (
+      <div>
+        <SectionHeader title="주문 대시보드" />
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+          <SummaryCard label="오늘 주문" value={orderDashboard.data?.todayOrders ?? "—"} color={C.green} />
+          <SummaryCard label="누적 매출" value={orderDashboard.data ? krw(orderDashboard.data.totalPaidAmount) : "—"} color={C.primary} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeader title={title} />
+      <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
+        <SearchBar value={search} onChange={setSearch} placeholder="주문번호, 이메일 검색" />
+        {subPage === "order-all" && (
+          <FilterSelect value={statusFilter} onChange={setStatusFilter} options={[
+            { value: "all", label: "전체 상태" },
+            { value: "created", label: "입금전" },
+            { value: "paid", label: "결제완료" },
+            { value: "failed", label: "실패" },
+            { value: "cancelled", label: "취소" },
+          ]} />
+        )}
+      </div>
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <Table
+          headers={["주문번호", "회원", "주문명", "금액", "상태", "결제일", "관리"]}
+          rows={(orders.data?.items ?? []).map((item: any) => {
+            const o = item.o;
+            return [
+              <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{o.orderId}</span>,
+              <div><div style={{ fontWeight: 600 }}>{item.userName ?? "—"}</div><div style={{ fontSize: "11px", color: C.muted }}>{item.userEmail ?? "—"}</div></div>,
+              o.orderName ?? "—",
+              krw(o.totalAmount),
+              <StatusBadge status={o.status} />,
+              fmtDate(o.paidAt),
+              <Btn size="sm" variant="outline" onClick={() => { setSelectedOrder(item); setDetailOpen(true); }}>상세</Btn>,
+            ];
+          })}
+        />
       </div>
 
-      {isLoading ? (
-        <p style={{ color: C.muted, textAlign: "center", padding: "60px 0" }}>차트 데이터 로딩 중...</p>
-      ) : (
-        <>
-          {/* 차트 상단 행: 일별 주문 수 + 매출 추이 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
-            <ChartCard title={`일별 주문 수 (최근 ${days}일)`}>
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={orderData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="orderGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={C.primary} stopOpacity={0.25} />
-                      <stop offset="95%" stopColor={C.primary} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11, fill: C.muted }} allowDecimals={false} width={32} />
-                  <Tooltip formatter={(v: any) => [v + "건", "주문"]} labelStyle={{ fontSize: 12 }} contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}` }} />
-                  <Area type="monotone" dataKey="orderCount" stroke={C.primary} strokeWidth={2} fill="url(#orderGrad)" name="주문 수" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            <ChartCard title={`매출 추이 (최근 ${days}일)`}>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={orderData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11, fill: C.muted }} tickFormatter={(v) => (v >= 10000 ? Math.round(v / 10000) + "만" : v + "")} width={40} />
-                  <Tooltip formatter={(v: any) => [Number(v).toLocaleString("ko-KR") + "원", "매출"]} labelStyle={{ fontSize: 12 }} contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}` }} />
-                  <Line type="monotone" dataKey="revenue" stroke={C.gold} strokeWidth={2.5} dot={{ r: 3, fill: C.gold }} name="매출" />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
-
-          {/* 차트 하단 행: 신규 가입자 + 인증 현황 */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-            <ChartCard title={`신규 가입자 수 (최근 ${days}일)`}>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={signupData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: C.muted }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11, fill: C.muted }} allowDecimals={false} width={32} />
-                  <Tooltip formatter={(v: any) => [v + "명", "가입자"]} labelStyle={{ fontSize: 12 }} contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}` }} />
-                  <Bar dataKey="signupCount" fill="#1D4ED8" radius={[4, 4, 0, 0]} name="가입자" />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            <ChartCard title="사업자 인증 현황">
-              {verifData.length === 0 ? (
-                <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: "13px" }}>인증 데이터 없음</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie data={verifData} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
-                      {verifData.map((_, i) => (
-                        <Cell key={i} fill={["#B45309", "#166534", "#991B1B"][i % 3]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: any, name: any) => [v + "건", name]} contentStyle={{ borderRadius: 8, border: `1px solid ${C.border}` }} />
-                    <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
+      {detailOpen && selectedOrder && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
+          <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "560px", maxHeight: "80vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "17px", fontWeight: 800 }}>주문 상세</h3>
+              <button onClick={() => setDetailOpen(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ display: "grid", gap: "12px", fontSize: "13px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문번호</span><span style={{ fontFamily: "monospace" }}>{selectedOrder.o.orderId}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>회원</span><span>{selectedOrder.userName} ({selectedOrder.userEmail})</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문명</span><span>{selectedOrder.o.orderName}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>결제금액</span><span style={{ fontWeight: 700 }}>{krw(selectedOrder.o.totalAmount)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>상태</span><StatusBadge status={selectedOrder.o.status} /></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>결제일</span><span>{fmtDateTime(selectedOrder.o.paidAt)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문일</span><span>{fmtDateTime(selectedOrder.o.createdAt)}</span></div>
+            </div>
+            <div style={{ marginTop: "20px", display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              {selectedOrder.o.status !== "cancelled" && (
+                <Btn size="sm" variant="danger" onClick={() => {
+                  updateStatus.mutate({ orderId: selectedOrder.o.orderId, status: "cancelled" });
+                  setDetailOpen(false);
+                }}>주문 취소</Btn>
               )}
-            </ChartCard>
+              <Btn size="sm" variant="outline" onClick={() => setDetailOpen(false)}>닫기</Btn>
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
 }
 
-// ─── Verification Tab ──────────────────────────────────────────────────────────
-function VerificationsTab() {
-  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
-  const [search, setSearch] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [selectedVerif, setSelectedVerif] = useState<any>(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null);
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: PRODUCT
+// ═══════════════════════════════════════════════════════════════════════════════
+function ProductSection({ subPage }: { subPage: string }) {
+  const products = trpc.admin.allProducts.useQuery();
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editData, setEditData] = useState<any>({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const updateProduct = trpc.admin.updateProduct.useMutation({
+    onSuccess: () => { toast.success("상품이 수정되었습니다."); products.refetch(); setEditId(null); setConfirmOpen(false); },
+  });
 
-  const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.admin.searchVerifications.useQuery({
-    status: statusFilter === "all" ? undefined : statusFilter,
+  const title = subPage === "product-dashboard" ? "상품 대시보드"
+    : subPage === "product-list" ? "상품 목록"
+    : subPage === "product-register" ? "상품 등록"
+    : subPage === "product-manage" ? "상품 관리"
+    : subPage === "product-category" ? "분류 관리"
+    : subPage === "product-stock" ? "재고 관리" : "상품 관리";
+
+  if (subPage === "product-dashboard") {
+    return (
+      <div>
+        <SectionHeader title="상품 대시보드" />
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+          <SummaryCard label="전체 상품" value={products.data?.length ?? "—"} />
+          <SummaryCard label="노출 중" value={products.data?.filter((p: any) => p.visible).length ?? "—"} color={C.green} />
+          <SummaryCard label="전문가 전용" value={products.data?.filter((p: any) => p.isProOnly).length ?? "—"} color={C.primary} />
+        </div>
+      </div>
+    );
+  }
+
+  if (subPage === "product-register") {
+    return (
+      <div>
+        <SectionHeader title="상품 등록" />
+        <div style={{ background: C.white, borderRadius: "12px", padding: "24px", border: `1px solid ${C.border}` }}>
+          <p style={{ color: C.muted, fontSize: "14px" }}>현재 상품 등록은 DB 시드 방식으로 관리됩니다. 상품 가격/노출 변경은 상품 관리 탭을 이용해 주세요.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (subPage === "product-stock") {
+    return (
+      <div>
+        <SectionHeader title="재고 관리" />
+        <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <Table
+            headers={["상품명", "현재 재고", "상태"]}
+            rows={(products.data ?? []).map((p: any) => [
+              p.name,
+              <span style={{ fontWeight: 700 }}>{p.stock}</span>,
+              <StatusBadge status={p.stock > 0 ? "active" : "inactive"} />,
+            ])}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeader title={title} />
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <Table
+          headers={["상품명", "일반가", "전문가가", "노출", "전문가전용", "관리"]}
+          rows={(products.data ?? []).map((p: any) => [
+            <div>
+              <div style={{ fontWeight: 600 }}>{p.name}</div>
+              <div style={{ fontSize: "11px", color: C.muted }}>{p.slug}</div>
+            </div>,
+            editId === p.id
+              ? <input type="number" value={editData.priceConsumer ?? p.priceConsumer} onChange={e => setEditData((d: any) => ({ ...d, priceConsumer: e.target.value }))} style={{ width: "100px", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: "6px" }} />
+              : krw(p.priceConsumer),
+            editId === p.id
+              ? <input type="number" value={editData.pricePro ?? p.pricePro} onChange={e => setEditData((d: any) => ({ ...d, pricePro: e.target.value }))} style={{ width: "100px", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: "6px" }} />
+              : krw(p.pricePro),
+            editId === p.id
+              ? <input type="checkbox" checked={editData.visible ?? p.visible} onChange={e => setEditData((d: any) => ({ ...d, visible: e.target.checked }))} />
+              : <StatusBadge status={p.visible ? "active" : "inactive"} />,
+            editId === p.id
+              ? <input type="checkbox" checked={editData.isProOnly ?? p.isProOnly} onChange={e => setEditData((d: any) => ({ ...d, isProOnly: e.target.checked }))} />
+              : <StatusBadge status={p.isProOnly ? "active" : "inactive"} />,
+            editId === p.id
+              ? <div style={{ display: "flex", gap: "6px" }}>
+                  <Btn size="sm" onClick={() => setConfirmOpen(true)}>저장</Btn>
+                  <Btn size="sm" variant="outline" onClick={() => { setEditId(null); setEditData({}); }}>취소</Btn>
+                </div>
+              : <Btn size="sm" variant="outline" onClick={() => { setEditId(p.id); setEditData({}); }}>편집</Btn>,
+          ])}
+        />
+      </div>
+      <ConfirmModal
+        open={confirmOpen}
+        title="상품 정보 수정"
+        message="상품 정보를 저장하시겠습니까?"
+        onConfirm={() => {
+          if (editId === null) return;
+          updateProduct.mutate({ productId: editId, ...editData });
+        }}
+        onCancel={() => setConfirmOpen(false)}
+        loading={updateProduct.isPending}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: CUSTOMER
+// ═══════════════════════════════════════════════════════════════════════════════
+function CustomerSection({ subPage }: { subPage: string }) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedVer, setSelectedVer] = useState<any>(null);
+  const [verDetailOpen, setVerDetailOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<null | { type: "approve" | "reject"; id: number; userId: number }>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const users = trpc.admin.users.useQuery({ page: 1, limit: 50 });
+  const verifications = trpc.admin.searchVerifications.useQuery({
     search: search || undefined,
+    status: statusFilter !== "all" ? statusFilter as any : undefined,
     page: 1, limit: 50,
   });
 
-  const approveMut = trpc.admin.approveVerificationV2.useMutation({
-    onSuccess: () => { toast.success("승인 완료"); setSelectedVerif(null); setConfirmAction(null); utils.admin.searchVerifications.invalidate(); utils.admin.dashboard.invalidate(); },
-    onError: (e: any) => toast.error(e.message),
+  const updateRole = trpc.admin.updateUserRole.useMutation({
+    onSuccess: () => { toast.success("역할이 변경되었습니다."); users.refetch(); },
   });
-  const rejectMut = trpc.admin.rejectVerificationV2.useMutation({
-    onSuccess: () => { toast.success("반려 처리 완료"); setSelectedVerif(null); setConfirmAction(null); setRejectReason(""); utils.admin.searchVerifications.invalidate(); utils.admin.dashboard.invalidate(); },
-    onError: (e: any) => toast.error(e.message),
+  const approveVer = trpc.admin.approveVerification.useMutation({
+    onSuccess: () => { toast.success("인증이 승인되었습니다."); verifications.refetch(); setConfirmAction(null); },
   });
+  const rejectVer = trpc.admin.rejectVerification.useMutation({
+    onSuccess: () => { toast.success("인증이 반려되었습니다."); verifications.refetch(); setConfirmAction(null); },
+  });
+  // Note: approveVerification uses { id, userId }, rejectVerification uses { id, userId, reason }
 
-  const handleConfirm = () => {
-    if (!selectedVerif) return;
-    if (confirmAction === "approve") approveMut.mutate({ id: selectedVerif.v.id, userId: selectedVerif.v.userId });
-    else if (confirmAction === "reject") {
-      if (!rejectReason.trim()) { toast.error("반려 사유를 입력해주세요."); return; }
-      rejectMut.mutate({ id: selectedVerif.v.id, userId: selectedVerif.v.userId, reason: rejectReason });
+  const title = subPage === "customer-dashboard" ? "고객 대시보드"
+    : subPage === "customer-search" ? "회원 조회"
+    : subPage === "customer-manage" ? "회원 관리"
+    : "사업자 인증";
+
+  if (subPage === "customer-dashboard") {
+    return (
+      <div>
+        <SectionHeader title="고객 대시보드" />
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+          <SummaryCard label="전체 회원" value={users.data?.total ?? "—"} />
+          <SummaryCard label="대기 중 인증" value={verifications.data?.total ?? "—"} color={C.orange} />
+        </div>
+      </div>
+    );
+  }
+
+  if (subPage === "customer-verification") {
+    return (
+      <div>
+        <SectionHeader title="사업자 인증 관리" />
+        <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
+          <SearchBar value={search} onChange={setSearch} placeholder="이름, 이메일, 사업자번호 검색" />
+          <FilterSelect value={statusFilter} onChange={setStatusFilter} options={[
+            { value: "all", label: "전체" }, { value: "pending", label: "대기" },
+            { value: "approved", label: "승인" }, { value: "rejected", label: "반려" },
+          ]} />
+        </div>
+        <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <Table
+            headers={["회원", "상호명", "사업자번호", "상태", "신청일", "관리"]}
+            rows={(verifications.data?.items ?? []).map((item: any) => [
+              <div><div style={{ fontWeight: 600 }}>{item.userName ?? "—"}</div><div style={{ fontSize: "11px", color: C.muted }}>{item.userEmail ?? "—"}</div></div>,
+              item.v.businessName,
+              item.v.businessNumber,
+              <StatusBadge status={item.v.status} />,
+              fmtDate(item.v.submittedAt),
+              <div style={{ display: "flex", gap: "6px" }}>
+                <Btn size="sm" variant="outline" onClick={() => { setSelectedVer(item); setVerDetailOpen(true); }}>상세</Btn>
+                {item.v.status === "pending" && (
+                  <>
+                    <Btn size="sm" variant="success" onClick={() => setConfirmAction({ type: "approve", id: item.v.id, userId: item.v.userId })}>승인</Btn>
+                    <Btn size="sm" variant="danger" onClick={() => { setConfirmAction({ type: "reject", id: item.v.id, userId: item.v.userId }); setRejectReason(""); }}>반려</Btn>
+                  </>
+                )}
+              </div>,
+            ])}
+          />
+        </div>
+
+        {verDetailOpen && selectedVer && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
+            <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "560px", maxHeight: "80vh", overflowY: "auto" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
+                <h3 style={{ fontSize: "17px", fontWeight: 800 }}>인증 상세</h3>
+                <button onClick={() => setVerDetailOpen(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer" }}>✕</button>
+              </div>
+              <div style={{ display: "grid", gap: "12px", fontSize: "13px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>회원</span><span>{selectedVer.userName} ({selectedVer.userEmail})</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>상호명</span><span>{selectedVer.v.businessName}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>사업자번호</span><span>{selectedVer.v.businessNumber}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>연락처</span><span>{selectedVer.v.contactPhone ?? "—"}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>상태</span><StatusBadge status={selectedVer.v.status} /></div>
+                {selectedVer.v.rejectReason && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>반려 사유</span><span style={{ color: "#991B1B" }}>{selectedVer.v.rejectReason}</span></div>}
+                {selectedVer.v.fileUrl && (
+                  <div>
+                    <span style={{ color: C.muted, display: "block", marginBottom: "8px" }}>첨부 서류</span>
+                    <a href={selectedVer.v.fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: C.primary, fontWeight: 600 }}>📄 서류 보기</a>
+                  </div>
+                )}
+              </div>
+              <div style={{ marginTop: "20px", display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                <Btn size="sm" variant="outline" onClick={() => setVerDetailOpen(false)}>닫기</Btn>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ConfirmModal
+          open={!!confirmAction}
+          title={confirmAction?.type === "approve" ? "인증 승인" : "인증 반려"}
+          message={confirmAction?.type === "approve" ? "이 인증 신청을 승인하시겠습니까?" : "이 인증 신청을 반려하시겠습니까?"}
+          onConfirm={() => {
+            if (!confirmAction) return;
+            if (confirmAction.type === "approve") {
+              approveVer.mutate({ id: confirmAction.id, userId: confirmAction.userId });
+            } else {
+              rejectVer.mutate({ id: confirmAction.id, userId: confirmAction.userId, reason: rejectReason || "서류 미비" });
+            }
+          }}
+          onCancel={() => setConfirmAction(null)}
+          loading={approveVer.isPending || rejectVer.isPending}
+          danger={confirmAction?.type === "reject"}
+        />
+      </div>
+    );
+  }
+
+  // 회원 조회 / 회원 관리
+  return (
+    <div>
+      <SectionHeader title={title} />
+      <div style={{ marginBottom: "16px" }}>
+        <SearchBar value={search} onChange={setSearch} placeholder="이름, 이메일 검색" />
+      </div>
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <Table
+          headers={["이름", "이메일", "역할", "회원등급", "인증상태", "가입일", ...(subPage === "customer-manage" ? ["관리"] : [])]}
+          rows={(users.data?.users ?? [])
+            .filter((u: any) => {
+              if (!search) return true;
+              return u.name?.includes(search) || u.email?.includes(search);
+            })
+            .map((u: any) => [
+              u.name ?? "—",
+              u.email ?? "—",
+              <StatusBadge status={u.role} />,
+              <StatusBadge status={u.memberRole} />,
+              <StatusBadge status={u.proVerificationStatus} />,
+              fmtDate(u.createdAt),
+              ...(subPage === "customer-manage" ? [
+                <FilterSelect
+                  value={u.role}
+                  onChange={v => updateRole.mutate({ userId: u.id, role: v as "user" | "admin" })}
+                  options={[{ value: "user", label: "일반" }, { value: "admin", label: "관리자" }]}
+                />,
+              ] : []),
+            ])}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: BOARD (Gallery & Magazine)
+// ═══════════════════════════════════════════════════════════════════════════════
+function PostEditor({
+  type, post, onSave, onCancel,
+}: {
+  type: "gallery" | "magazine";
+  post?: any;
+  onSave: (data: any) => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(post?.title ?? "");
+  const [subtitle, setSubtitle] = useState(post?.subtitle ?? "");
+  const [content, setContent] = useState(post?.content ?? "");
+  const [isPublished, setIsPublished] = useState(post?.isPublished ?? true);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState(post?.coverImageUrl ?? "");
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const uploadImage = trpc.admin.uploadPostImage.useMutation();
+
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverFile(file);
+    const reader = new FileReader();
+    reader.onload = ev => setCoverPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = async () => {
+    setUploading(true);
+    try {
+      let coverImageUrl = post?.coverImageUrl ?? "";
+      let coverImageKey = post?.coverImageKey ?? "";
+      if (coverFile) {
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = ev => resolve((ev.target?.result as string).split(",")[1]);
+          reader.readAsDataURL(coverFile);
+        });
+        const result = await uploadImage.mutateAsync({
+          fileBase64: base64,
+          fileName: coverFile.name,
+          fileMimeType: coverFile.type,
+          postType: type,
+        });
+        coverImageUrl = result.url;
+        coverImageKey = result.key;
+      }
+      onSave({ title, subtitle, content, isPublished, coverImageUrl, coverImageKey });
+    } finally {
+      setUploading(false);
     }
   };
 
-  const items = data?.items ?? [];
-
   return (
-    <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px", alignItems: "center" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 700, color: C.text, marginRight: "auto" }}>사업자 인증 관리</h2>
-        {(["pending", "approved", "rejected", "all"] as const).map((s) => (
-          <button key={s} onClick={() => setStatusFilter(s)} style={{
-            padding: "6px 16px", borderRadius: "999px", border: `1.5px solid ${statusFilter === s ? C.primary : C.border}`,
-            background: statusFilter === s ? C.primary : "#fff", color: statusFilter === s ? "#fff" : C.text,
-            fontSize: "13px", fontWeight: 600, cursor: "pointer",
-          }}>
-            {s === "pending" ? "대기" : s === "approved" ? "승인" : s === "rejected" ? "반려" : "전체"}
-          </button>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-        <input
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") setSearch(searchInput); }}
-          placeholder="이름 / 이메일 / 사업자번호 / 상호명"
-          style={{ padding: "8px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", width: "280px", outline: "none" }}
-        />
-        <button onClick={() => setSearch(searchInput)} style={{ padding: "8px 16px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", fontSize: "13px", cursor: "pointer" }}>검색</button>
-        {search && <button onClick={() => { setSearch(""); setSearchInput(""); }} style={{ padding: "8px 12px", borderRadius: "8px", border: "none", background: "transparent", color: C.muted, fontSize: "13px", cursor: "pointer" }}>초기화</button>}
-      </div>
-
-      {isLoading ? (
-        <p style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>로딩 중...</p>
-      ) : items.length === 0 ? (
-        <p style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>해당 조건의 인증 요청이 없습니다.</p>
-      ) : (
-        <div style={{ overflowX: "auto", borderRadius: "12px", border: `1px solid ${C.border}` }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ background: "#F9F7F5" }}>
-                {["신청일", "이름", "이메일", "사업자번호", "상호명", "상태", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.muted, whiteSpace: "nowrap", borderBottom: `1px solid ${C.border}` }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row: any) => (
-                <tr key={row.v.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                  <td style={{ padding: "10px 14px", color: C.muted }}>{fmtDate(row.v.createdAt)}</td>
-                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.text }}>{row.userName ?? "—"}</td>
-                  <td style={{ padding: "10px 14px", color: C.muted }}>{row.userEmail ?? "—"}</td>
-                  <td style={{ padding: "10px 14px" }}>{row.v.businessNumber}</td>
-                  <td style={{ padding: "10px 14px" }}>{row.v.businessName}</td>
-                  <td style={{ padding: "10px 14px" }}><StatusBadge status={row.v.status} /></td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <button onClick={() => setSelectedVerif(row)} style={{ padding: "5px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>상세</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div style={{ background: C.white, borderRadius: "12px", padding: "28px", border: `1px solid ${C.border}` }}>
+      <div style={{ display: "grid", gap: "16px" }}>
+        <div>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>제목 *</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목을 입력하세요"
+            style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "14px", boxSizing: "border-box" }} />
         </div>
-      )}
-
-      {/* Detail Modal */}
-      {selectedVerif && !confirmAction && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "520px", boxShadow: "0 8px 40px rgba(0,0,0,.2)", maxHeight: "90vh", overflowY: "auto" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 700, marginBottom: "20px", color: C.text }}>인증 상세</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px", fontSize: "13px" }}>
-              {[
-                ["이름", selectedVerif.userName ?? "—"],
-                ["이메일", selectedVerif.userEmail ?? "—"],
-                ["사업자번호", selectedVerif.v.businessNumber],
-                ["상호명", selectedVerif.v.businessName],
-                ["신청일", fmtDate(selectedVerif.v.createdAt)],
-                ["현재 상태", null],
-              ].map(([label, val]) => (
-                <div key={label as string}>
-                  <p style={{ color: C.muted, marginBottom: "2px" }}>{label}</p>
-                  {val === null ? <StatusBadge status={selectedVerif.v.status} /> : <p style={{ fontWeight: 600, color: C.text }}>{val}</p>}
-                </div>
-              ))}
-            </div>
-            {selectedVerif.v.certificateFileUrl && (
-              <div style={{ marginBottom: "16px" }}>
-                <p style={{ color: C.muted, fontSize: "13px", marginBottom: "6px" }}>사업자등록증</p>
-                {/\.(jpg|jpeg|png|gif|webp)$/i.test(selectedVerif.v.certificateFileUrl) ? (
-                  <img src={selectedVerif.v.certificateFileUrl} alt="사업자등록증" style={{ maxHeight: "200px", borderRadius: "8px", border: `1px solid ${C.border}`, objectFit: "contain" }} />
-                ) : (
-                  <a href={selectedVerif.v.certificateFileUrl} target="_blank" rel="noreferrer" style={{ color: C.primary, fontSize: "13px", fontWeight: 600 }}>📄 파일 열기 / 다운로드</a>
-                )}
-              </div>
-            )}
-            {selectedVerif.v.adminNote && (
-              <div style={{ background: "#FEE2E2", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px" }}>
-                <p style={{ color: "#991B1B", fontSize: "13px" }}>반려 사유: {selectedVerif.v.adminNote}</p>
-              </div>
-            )}
-            {selectedVerif.v.status === "pending" && (
-              <div style={{ marginBottom: "16px" }}>
-                <p style={{ color: C.muted, fontSize: "13px", marginBottom: "6px" }}>반려 사유 (반려 시 필수)</p>
-                <textarea
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="반려 사유를 입력하세요..."
-                  rows={3}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", resize: "none", outline: "none", boxSizing: "border-box" }}
-                />
-              </div>
-            )}
-            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-              <button onClick={() => setSelectedVerif(null)} style={{ padding: "10px 20px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", color: C.text, fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>닫기</button>
-              {selectedVerif.v.status === "pending" && (
-                <>
-                  <button onClick={() => setConfirmAction("reject")} style={{ padding: "10px 20px", borderRadius: "8px", border: "none", background: "#FEE2E2", color: "#991B1B", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>반려</button>
-                  <button onClick={() => setConfirmAction("approve")} style={{ padding: "10px 20px", borderRadius: "8px", border: "none", background: "#166534", color: "#fff", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>승인</button>
-                </>
-              )}
+        {type === "magazine" && (
+          <div>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>부제목</label>
+            <input value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="부제목을 입력하세요"
+              style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "14px", boxSizing: "border-box" }} />
+          </div>
+        )}
+        <div>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>커버 이미지</label>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            {coverPreview && <img src={coverPreview} alt="cover" style={{ width: "120px", height: "80px", objectFit: "cover", borderRadius: "8px", border: `1px solid ${C.border}` }} />}
+            <div>
+              <input ref={fileRef} type="file" accept="image/*" onChange={handleCoverChange} style={{ display: "none" }} />
+              <Btn size="sm" variant="outline" onClick={() => fileRef.current?.click()}>이미지 선택</Btn>
+              <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>JPG, PNG, WebP / 10MB 이하</div>
             </div>
           </div>
         </div>
-      )}
+        <div>
+          <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>내용</label>
+          <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용을 입력하세요. HTML 태그 사용 가능합니다."
+            rows={12}
+            style={{ width: "100%", padding: "12px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", lineHeight: 1.7, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <input type="checkbox" id="isPublished" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} />
+          <label htmlFor="isPublished" style={{ fontSize: "13px", fontWeight: 600 }}>게시 (체크 해제 시 임시저장)</label>
+        </div>
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <Btn variant="outline" onClick={onCancel}>취소</Btn>
+          <Btn onClick={handleSave} disabled={!title || uploading}>{uploading ? "저장 중..." : "저장"}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
 
+function BoardSection({ subPage }: { subPage: string }) {
+  const [view, setView] = useState<"list" | "create" | "edit">("list");
+  const [editPost, setEditPost] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<null | { id: number; type: "gallery" | "magazine" }>(null);
+
+  const galleryPosts = trpc.admin.galleryPosts.useQuery({ page: 1, limit: 50 });
+  const magazinePosts = trpc.admin.magazinePosts.useQuery({ page: 1, limit: 50 });
+
+  const createGallery = trpc.admin.createGalleryPost.useMutation({
+    onSuccess: () => { toast.success("갤러리 글이 등록되었습니다."); galleryPosts.refetch(); setView("list"); },
+  });
+  const updateGallery = trpc.admin.updateGalleryPost.useMutation({
+    onSuccess: () => { toast.success("갤러리 글이 수정되었습니다."); galleryPosts.refetch(); setView("list"); },
+  });
+  const deleteGallery = trpc.admin.deleteGalleryPost.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다."); galleryPosts.refetch(); setDeleteConfirm(null); },
+  });
+
+  const createMagazine = trpc.admin.createMagazinePost.useMutation({
+    onSuccess: () => { toast.success("매거진 글이 등록되었습니다."); magazinePosts.refetch(); setView("list"); },
+  });
+  const updateMagazine = trpc.admin.updateMagazinePost.useMutation({
+    onSuccess: () => { toast.success("매거진 글이 수정되었습니다."); magazinePosts.refetch(); setView("list"); },
+  });
+  const deleteMagazine = trpc.admin.deleteMagazinePost.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다."); magazinePosts.refetch(); setDeleteConfirm(null); },
+  });
+
+  const isGallery = subPage === "board-gallery";
+  const type = isGallery ? "gallery" : "magazine";
+  const posts = isGallery ? galleryPosts.data?.items : magazinePosts.data?.items;
+  const title = subPage === "board-dashboard" ? "게시판 대시보드" : isGallery ? "갤러리 관리" : "매거진 관리";
+
+  if (subPage === "board-dashboard") {
+    return (
+      <div>
+        <SectionHeader title="게시판 대시보드" />
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+          <SummaryCard label="갤러리 게시물" value={galleryPosts.data?.total ?? "—"} />
+          <SummaryCard label="매거진 게시물" value={magazinePosts.data?.total ?? "—"} />
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "create") {
+    return (
+      <div>
+        <SectionHeader title={`${isGallery ? "갤러리" : "매거진"} 글 작성`} />
+        <PostEditor
+          type={type}
+          onSave={data => {
+            if (isGallery) createGallery.mutate(data);
+            else createMagazine.mutate(data);
+          }}
+          onCancel={() => setView("list")}
+        />
+      </div>
+    );
+  }
+
+  if (view === "edit" && editPost) {
+    return (
+      <div>
+        <SectionHeader title={`${isGallery ? "갤러리" : "매거진"} 글 수정`} />
+        <PostEditor
+          type={type}
+          post={editPost}
+          onSave={data => {
+            if (isGallery) updateGallery.mutate({ id: editPost.id, ...data });
+            else updateMagazine.mutate({ id: editPost.id, ...data });
+          }}
+          onCancel={() => setView("list")}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeader title={title} action={
+        <Btn onClick={() => setView("create")}>+ 새 글 작성</Btn>
+      } />
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <Table
+          headers={["커버", "제목", ...(type === "magazine" ? ["부제목"] : []), "상태", "조회수", "작성일", "관리"]}
+          rows={(posts ?? []).map((p: any) => [
+            p.coverImageUrl
+              ? <img src={p.coverImageUrl} alt="" style={{ width: "60px", height: "40px", objectFit: "cover", borderRadius: "4px" }} />
+              : <div style={{ width: "60px", height: "40px", background: C.border, borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", color: C.muted }}>없음</div>,
+            <span style={{ fontWeight: 600 }}>{p.title}</span>,
+            ...(type === "magazine" ? [p.subtitle ?? "—"] : []),
+            <StatusBadge status={p.isPublished ? "published" : "draft"} />,
+            p.viewCount,
+            fmtDate(p.createdAt),
+            <div style={{ display: "flex", gap: "6px" }}>
+              <Btn size="sm" variant="outline" onClick={() => { setEditPost(p); setView("edit"); }}>수정</Btn>
+              <Btn size="sm" variant="danger" onClick={() => setDeleteConfirm({ id: p.id, type })}>삭제</Btn>
+            </div>,
+          ])}
+        />
+      </div>
       <ConfirmModal
-        open={!!confirmAction}
-        title={confirmAction === "approve" ? "승인 확인" : "반려 확인"}
-        message={confirmAction === "approve"
-          ? "이 사업자 인증을 승인하시겠습니까? 승인 후 해당 회원은 즉시 전문가 가격이 적용됩니다."
-          : `반려 사유 "${rejectReason}" — 정말 반려 처리하시겠습니까?`}
-        onConfirm={handleConfirm}
-        onCancel={() => setConfirmAction(null)}
-        loading={approveMut.isPending || rejectMut.isPending}
-        danger={confirmAction === "reject"}
+        open={!!deleteConfirm}
+        title="게시물 삭제"
+        message="이 게시물을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+        onConfirm={() => {
+          if (!deleteConfirm) return;
+          if (deleteConfirm.type === "gallery") deleteGallery.mutate({ id: deleteConfirm.id });
+          else deleteMagazine.mutate({ id: deleteConfirm.id });
+        }}
+        onCancel={() => setDeleteConfirm(null)}
+        loading={deleteGallery.isPending || deleteMagazine.isPending}
+        danger
       />
     </div>
   );
 }
 
-// ─── Product Tab ───────────────────────────────────────────────────────────────
-function ProductsTab() {
-  const utils = trpc.useUtils();
-  const { data: products, isLoading } = trpc.admin.allProducts.useQuery();
-  const [editTarget, setEditTarget] = useState<any>(null);
-  const [form, setForm] = useState({ priceConsumer: "", pricePro: "", isProOnly: false, visible: true });
-  const [confirmOpen, setConfirmOpen] = useState(false);
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: STATS
+// ═══════════════════════════════════════════════════════════════════════════════
+const DOW_LABELS = ["", "일", "월", "화", "수", "목", "금", "토"];
 
-  const updateMut = trpc.admin.updateProduct.useMutation({
-    onSuccess: () => { toast.success("가격 저장 완료"); setEditTarget(null); setConfirmOpen(false); utils.admin.allProducts.invalidate(); },
-    onError: (e: any) => toast.error(e.message),
-  });
+function StatsSection({ subPage }: { subPage: string }) {
+  const [salesPeriod, setSalesPeriod] = useState<"day" | "week" | "month">("day");
+  const [salesDays, setSalesDays] = useState(30);
+  const [deviceFilter, setDeviceFilter] = useState<"all" | "pc" | "mobile">("all");
 
-  const openEdit = (p: any) => {
-    setEditTarget(p);
-    setForm({ priceConsumer: String(p.priceConsumer), pricePro: String(p.pricePro), isProOnly: !!p.isProOnly, visible: p.visible !== false });
-  };
+  const salesStats = trpc.admin.salesStats.useQuery({ period: salesPeriod, days: salesDays });
+  const productStats = trpc.admin.productSalesStats.useQuery();
+  const customerStats = trpc.admin.customerStats.useQuery();
+  const pageViewStats = trpc.admin.pageViewStats.useQuery({ days: 30 });  const orderStats2 = trpc.admin.dashboardCharts.useQuery({ days: 30 });
 
-  const handleSave = () => {
-    const pc = Number(form.priceConsumer), pp = Number(form.pricePro);
-    if (isNaN(pc) || pc < 0 || isNaN(pp) || pp < 0) { toast.error("가격은 0 이상의 숫자여야 합니다."); return; }
-    setConfirmOpen(true);
-  };
+  const title = subPage === "stats-dashboard" ? "통계 대시보드"
+    : subPage === "stats-sales" ? "매출 분석"
+    : subPage === "stats-product" ? "상품 분석"
+    : subPage === "stats-customer" ? "고객 분석"
+    : "접속 통계";
 
-  const priceWarning = form.priceConsumer && form.pricePro && Number(form.pricePro) >= Number(form.priceConsumer);
+  if (subPage === "stats-dashboard") {
+    return (
+      <div>
+        <SectionHeader title="통계 대시보드" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>최근 30일 매출</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={orderStats2.data?.orderStats ?? []}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="day" tick={{ fontSize: 9 }} />
+                <YAxis tick={{ fontSize: 9 }} tickFormatter={v => (v / 10000).toFixed(0) + "만"} />
+                <Tooltip formatter={(v: number) => krw(v)} />
+                <Area type="monotone" dataKey="revenue" stroke={C.gold} fill={C.gold} fillOpacity={0.15} name="매출" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>방문자 현황</div>
+            <div style={{ fontSize: "36px", fontWeight: 800, color: C.primary }}>{pageViewStats.data?.total ?? 0}</div>
+            <div style={{ fontSize: "12px", color: C.muted }}>최근 30일 총 방문</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (subPage === "stats-sales") {
+    return (
+      <div>
+        <SectionHeader title="매출 분석" action={
+          <div style={{ display: "flex", gap: "8px" }}>
+            <FilterSelect value={salesPeriod} onChange={v => setSalesPeriod(v as any)} options={[
+              { value: "day", label: "일별" }, { value: "week", label: "주별" }, { value: "month", label: "월별" },
+            ]} />
+            <FilterSelect value={String(salesDays)} onChange={v => setSalesDays(Number(v))} options={[
+              { value: "30", label: "최근 30일" }, { value: "60", label: "최근 60일" }, { value: "90", label: "최근 90일" },
+            ]} />
+          </div>
+        } />
+        <div style={{ display: "grid", gap: "20px" }}>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>매출 추이</div>
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={salesStats.data ?? []}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="periodKey" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => (v / 10000).toFixed(0) + "만"} />
+                <Tooltip formatter={(v: number) => krw(v)} />
+                <Area type="monotone" dataKey="revenue" stroke={C.primary} fill={C.primary} fillOpacity={0.15} name="매출" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>주문 건수</div>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={salesStats.data ?? []}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="periodKey" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar dataKey="orderCount" fill={C.gold} name="주문 수" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>매출 집계</div>
+            <Table
+              headers={["기간", "주문 건수", "매출"]}
+              rows={(salesStats.data ?? []).map((r: any) => [r.periodKey, r.orderCount + "건", krw(r.revenue)])}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (subPage === "stats-product") {
+    return (
+      <div>
+        <SectionHeader title="상품 분석" />
+        <div style={{ display: "grid", gap: "20px" }}>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>판매 상품 순위</div>
+            <Table
+              headers={["순위", "상품명", "판매 수량", "매출"]}
+              rows={(productStats.data?.topSelling ?? []).map((r: any, i: number) => [
+                <span style={{ fontWeight: 700, color: i < 3 ? C.primary : C.text }}>#{i + 1}</span>,
+                r.productName,
+                r.totalQty + "개",
+                krw(r.totalRevenue),
+              ])}
+            />
+          </div>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "8px" }}>취소/반품 순위</div>
+            <p style={{ color: C.muted, fontSize: "13px" }}>취소/반품 데이터가 쌓이면 표시됩니다.</p>
+          </div>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "8px" }}>장바구니 상품 분석</div>
+            <p style={{ color: C.muted, fontSize: "13px" }}>장바구니 데이터가 쌓이면 표시됩니다.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (subPage === "stats-customer") {
+    return (
+      <div>
+        <SectionHeader title="고객 분석" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>회원 등급별 분석</div>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={(customerStats.data?.byMemberRole ?? []).map((r: any) => ({ name: r.role === "professional" ? "전문가" : "일반", value: r.count }))}
+                  cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ name, value }) => `${name}: ${value}`}
+                >
+                  <Cell fill={C.primary} />
+                  <Cell fill={C.gold} />
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>요일별 주문 분석</div>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={(customerStats.data?.byDayOfWeek ?? []).map((r: any) => ({ day: DOW_LABELS[r.dow] ?? r.dow, count: r.count }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar dataKey="count" fill={C.primary} name="주문 수" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>시간별 주문 분석</div>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={(customerStats.data?.byHour ?? []).map((r: any) => ({ hour: r.hour + "시", count: r.count }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="hour" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar dataKey="count" fill={C.gold} name="주문 수" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "8px" }}>배송 지역별 분석</div>
+            <p style={{ color: C.muted, fontSize: "13px" }}>배송 주소 데이터가 쌓이면 표시됩니다.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 접속 통계
+  const filteredByDay = (pageViewStats.data?.byDay ?? []).filter((r: any) =>
+    deviceFilter === "all" ? true : r.device === deviceFilter
+  );
+  const aggregatedByDay = filteredByDay.reduce((acc: any[], r: any) => {
+    const existing = acc.find(a => a.day === r.day);
+    if (existing) existing.count += r.count;
+    else acc.push({ day: r.day, count: r.count });
+    return acc;
+  }, []);
 
   return (
     <div>
-      <h2 style={{ fontSize: "20px", fontWeight: 700, color: C.text, marginBottom: "20px" }}>제품 관리</h2>
-      {isLoading ? (
-        <p style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>로딩 중...</p>
-      ) : (
-        <div style={{ overflowX: "auto", borderRadius: "12px", border: `1px solid ${C.border}` }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ background: "#F9F7F5" }}>
-                {["제품명", "Slug", "일반가", "전문가가", "전문가 전용", "노출", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.muted, whiteSpace: "nowrap", borderBottom: `1px solid ${C.border}` }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(products ?? []).map((p: any) => (
-                <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                  <td style={{ padding: "10px 14px", fontWeight: 600, color: C.text }}>{p.name}</td>
-                  <td style={{ padding: "10px 14px", color: C.muted, fontFamily: "monospace", fontSize: "12px" }}>{p.slug}</td>
-                  <td style={{ padding: "10px 14px", fontWeight: 700 }}>{krw(p.priceConsumer)}</td>
-                  <td style={{ padding: "10px 14px", fontWeight: 700, color: "#5B21B6" }}>{krw(p.pricePro)}</td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 600, color: p.isProOnly ? "#5B21B6" : C.muted }}>{p.isProOnly ? "전용" : "—"}</span>
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <span style={{ fontSize: "12px", fontWeight: 600, color: p.visible !== false ? "#166534" : "#991B1B" }}>{p.visible !== false ? "노출" : "숨김"}</span>
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <button onClick={() => openEdit(p)} style={{ padding: "5px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>수정</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <SectionHeader title="접속 통계" action={
+        <FilterSelect value={deviceFilter} onChange={v => setDeviceFilter(v as any)} options={[
+          { value: "all", label: "전체" }, { value: "pc", label: "PC" }, { value: "mobile", label: "모바일" },
+        ]} />
+      } />
+      <div style={{ display: "grid", gap: "20px" }}>
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+          <SummaryCard label="총 방문자" value={pageViewStats.data?.total ?? 0} />
+          <SummaryCard label="PC 방문" value={(pageViewStats.data?.byDevice ?? []).find((r: any) => r.device === "pc")?.count ?? 0} />
+          <SummaryCard label="모바일 방문" value={(pageViewStats.data?.byDevice ?? []).find((r: any) => r.device === "mobile")?.count ?? 0} />
         </div>
-      )}
-
-      {/* Edit Modal */}
-      {editTarget && !confirmOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "400px", boxShadow: "0 8px 40px rgba(0,0,0,.2)" }}>
-            <h3 style={{ fontSize: "17px", fontWeight: 700, marginBottom: "20px", color: C.text }}>제품 편집 — {editTarget.name}</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              <div>
-                <label style={{ fontSize: "13px", color: C.muted, display: "block", marginBottom: "4px" }}>일반가 (원)</label>
-                <input type="number" min={0} value={form.priceConsumer} onChange={(e) => setForm((f) => ({ ...f, priceConsumer: e.target.value }))}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
-              </div>
-              <div>
-                <label style={{ fontSize: "13px", color: C.muted, display: "block", marginBottom: "4px" }}>전문가가 (원)</label>
-                <input type="number" min={0} value={form.pricePro} onChange={(e) => setForm((f) => ({ ...f, pricePro: e.target.value }))}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
-                {priceWarning && <p style={{ fontSize: "12px", color: "#B45309", marginTop: "4px" }}>⚠️ 전문가가가 일반가 이상입니다. 확인해주세요.</p>}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <label style={{ fontSize: "13px", color: C.text, fontWeight: 600 }}>전문가 전용 상품</label>
-                <button onClick={() => setForm((f) => ({ ...f, isProOnly: !f.isProOnly }))}
-                  style={{ width: "48px", height: "26px", borderRadius: "999px", border: "none", background: form.isProOnly ? C.primary : "#D1D5DB", cursor: "pointer", position: "relative", transition: "background .2s" }}>
-                  <span style={{ position: "absolute", top: "3px", left: form.isProOnly ? "24px" : "3px", width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transition: "left .2s" }} />
-                </button>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <label style={{ fontSize: "13px", color: C.text, fontWeight: 600 }}>홈페이지 노출</label>
-                <button onClick={() => setForm((f) => ({ ...f, visible: !f.visible }))}
-                  style={{ width: "48px", height: "26px", borderRadius: "999px", border: "none", background: form.visible ? C.primary : "#D1D5DB", cursor: "pointer", position: "relative", transition: "background .2s" }}>
-                  <span style={{ position: "absolute", top: "3px", left: form.visible ? "24px" : "3px", width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transition: "left .2s" }} />
-                </button>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
-              <button onClick={() => setEditTarget(null)} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", color: C.text, fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>취소</button>
-              <button onClick={handleSave} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "none", background: C.primary, color: "#fff", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}>저장</button>
-            </div>
-          </div>
+        <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>일별 방문자 추이</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={aggregatedByDay}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Area type="monotone" dataKey="count" stroke={C.blue} fill={C.blue} fillOpacity={0.15} name="방문자" />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
-      )}
-
-      <ConfirmModal
-        open={confirmOpen}
-        title="가격 변경 확인"
-        message={`${editTarget?.name}의 일반가를 ${krw(form.priceConsumer)}, 전문가가를 ${krw(form.pricePro)}으로 변경하시겠습니까?`}
-        onConfirm={() => updateMut.mutate({ id: editTarget.id, priceConsumer: form.priceConsumer, pricePro: form.pricePro, isProOnly: form.isProOnly, visible: form.visible })}
-        onCancel={() => setConfirmOpen(false)}
-        loading={updateMut.isPending}
-      />
+        <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>많이 찾는 페이지 Top 10</div>
+          <Table
+            headers={["순위", "페이지", "방문 수"]}
+            rows={(pageViewStats.data?.topPages ?? []).map((r: any, i: number) => [
+              <span style={{ fontWeight: 700, color: i < 3 ? C.primary : C.text }}>#{i + 1}</span>,
+              <span style={{ fontFamily: "monospace", fontSize: "12px" }}>{r.path}</span>,
+              r.count,
+            ])}
+          />
+        </div>
+        <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "8px" }}>사이트 체류시간</div>
+          <p style={{ color: C.muted, fontSize: "13px" }}>체류시간 데이터가 쌓이면 표시됩니다. (페이지뷰 트래킹 스크립트 연동 필요)</p>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── Order Tab ─────────────────────────────────────────────────────────────────
-function OrdersTab() {
-  const [statusFilter, setStatusFilter] = useState<"paid" | "created" | "failed" | "cancelled" | "all">("all");
-  const [search, setSearch] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: POPUP
+// ═══════════════════════════════════════════════════════════════════════════════
+function PopupForm({ popup, onSave, onCancel }: { popup?: any; onSave: (data: any) => void; onCancel: () => void }) {
+  const [title, setTitle] = useState(popup?.title ?? "");
+  const [popupType, setPopupType] = useState(popup?.popupType ?? "both");
+  const [isActive, setIsActive] = useState(popup?.isActive ?? true);
+  const [linkUrl, setLinkUrl] = useState(popup?.linkUrl ?? "");
+  const [linkTarget, setLinkTarget] = useState(popup?.linkTarget ?? "_blank");
+  const [displayPosition, setDisplayPosition] = useState(popup?.displayPosition ?? "main");
+  const [bottomText, setBottomText] = useState(popup?.bottomText ?? "today");
+  const [startAt, setStartAt] = useState(popup?.startAt ? new Date(popup.startAt).toISOString().slice(0, 16) : "");
+  const [endAt, setEndAt] = useState(popup?.endAt ? new Date(popup.endAt).toISOString().slice(0, 16) : "");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState(popup?.imageUrl ?? "");
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const { data, isLoading } = trpc.admin.searchOrders.useQuery({
-    status: statusFilter === "all" ? undefined : statusFilter,
-    search: search || undefined,
-    page: 1, limit: 50,
-  });
-  const { data: orderDetail } = trpc.admin.orderDetail.useQuery(
-    { orderId: selectedOrderId! },
-    { enabled: !!selectedOrderId }
-  );
+  const uploadImage = trpc.admin.uploadPostImage.useMutation();
 
-  const items = data?.items ?? [];
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = ev => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
 
-  return (
-    <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px", alignItems: "center" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 700, color: C.text, marginRight: "auto" }}>주문 조회</h2>
-        {(["all", "paid", "created", "failed", "cancelled"] as const).map((s) => (
-          <button key={s} onClick={() => setStatusFilter(s)} style={{
-            padding: "6px 16px", borderRadius: "999px", border: `1.5px solid ${statusFilter === s ? C.primary : C.border}`,
-            background: statusFilter === s ? C.primary : "#fff", color: statusFilter === s ? "#fff" : C.text,
-            fontSize: "13px", fontWeight: 600, cursor: "pointer",
-          }}>
-            {s === "all" ? "전체" : s === "paid" ? "결제완료" : s === "created" ? "생성됨" : s === "failed" ? "실패" : "취소"}
-          </button>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-        <input
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") setSearch(searchInput); }}
-          placeholder="주문번호 / 이메일 검색"
-          style={{ padding: "8px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", width: "260px", outline: "none" }}
-        />
-        <button onClick={() => setSearch(searchInput)} style={{ padding: "8px 16px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", fontSize: "13px", cursor: "pointer" }}>검색</button>
-        {search && <button onClick={() => { setSearch(""); setSearchInput(""); }} style={{ padding: "8px 12px", borderRadius: "8px", border: "none", background: "transparent", color: C.muted, fontSize: "13px", cursor: "pointer" }}>초기화</button>}
-      </div>
+  const handleSave = async () => {
+    setUploading(true);
+    try {
+      let imageUrl = popup?.imageUrl ?? "";
+      let imageKey = popup?.imageKey ?? "";
+      if (imageFile) {
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = ev => resolve((ev.target?.result as string).split(",")[1]);
+          reader.readAsDataURL(imageFile);
+        });
+        const result = await uploadImage.mutateAsync({
+          fileBase64: base64,
+          fileName: imageFile.name,
+          fileMimeType: imageFile.type,
+          postType: "gallery",
+        });
+        imageUrl = result.url;
+        imageKey = result.key;
+      }
+      onSave({
+        title, popupType, isActive, linkUrl: linkUrl || null, linkTarget,
+        displayPosition, bottomText,
+        startAt: startAt ? new Date(startAt) : null,
+        endAt: endAt ? new Date(endAt) : null,
+        imageUrl: imageUrl || null, imageKey: imageKey || null,
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
-      {isLoading ? (
-        <p style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>로딩 중...</p>
-      ) : items.length === 0 ? (
-        <p style={{ color: C.muted, textAlign: "center", padding: "40px 0" }}>해당 조건의 주문이 없습니다.</p>
-      ) : (
-        <div style={{ overflowX: "auto", borderRadius: "12px", border: `1px solid ${C.border}` }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-            <thead>
-              <tr style={{ background: "#F9F7F5" }}>
-                {["주문일", "주문번호", "이메일", "상태", "금액", "결제일", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.muted, whiteSpace: "nowrap", borderBottom: `1px solid ${C.border}` }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row: any) => (
-                <tr key={row.o.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                  <td style={{ padding: "10px 14px", color: C.muted }}>{fmtDate(row.o.createdAt)}</td>
-                  <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: "11px", color: C.muted }}>{row.o.orderId}</td>
-                  <td style={{ padding: "10px 14px", color: C.text }}>{row.userEmail ?? "—"}</td>
-                  <td style={{ padding: "10px 14px" }}><StatusBadge status={row.o.status} /></td>
-                  <td style={{ padding: "10px 14px", fontWeight: 700 }}>{krw(row.o.totalAmount)}</td>
-                  <td style={{ padding: "10px 14px", color: C.muted }}>{fmtDate(row.o.paidAt)}</td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <button onClick={() => setSelectedOrderId(row.o.orderId)} style={{ padding: "5px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>상세</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Order Detail Modal */}
-      {selectedOrderId && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "560px", boxShadow: "0 8px 40px rgba(0,0,0,.2)", maxHeight: "90vh", overflowY: "auto" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 700, marginBottom: "20px", color: C.text }}>주문 상세</h3>
-            {orderDetail ? (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px", fontSize: "13px" }}>
-                  {[
-                    ["주문번호", orderDetail.order.orderId],
-                    ["상태", null],
-                    ["결제 수단", (orderDetail.order as any).paymentProvider ?? "—"],
-                    ["결제 키", orderDetail.order.paymentKey ? orderDetail.order.paymentKey.slice(0, 20) + "..." : "—"],
-                    ["결제 금액", krw(orderDetail.order.totalAmount)],
-                    ["결제일", fmtDate(orderDetail.order.paidAt)],
-                  ].map(([label, val]) => (
-                    <div key={label as string}>
-                      <p style={{ color: C.muted, marginBottom: "2px" }}>{label}</p>
-                      {val === null ? <StatusBadge status={orderDetail.order.status} /> : <p style={{ fontWeight: 600, color: C.text, fontFamily: label === "주문번호" || label === "결제 키" ? "monospace" : undefined, fontSize: label === "주문번호" || label === "결제 키" ? "11px" : undefined }}>{val}</p>}
-                    </div>
-                  ))}
-                </div>
-                <p style={{ fontSize: "13px", color: C.muted, marginBottom: "8px", fontWeight: 600 }}>주문 상품</p>
-                <div style={{ borderRadius: "8px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-                    <thead>
-                      <tr style={{ background: "#F9F7F5" }}>
-                        {["상품명", "수량", "단가", "소계"].map((h) => (
-                          <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, color: C.muted }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orderDetail.items.map((item: any) => (
-                        <tr key={item.id} style={{ borderTop: `1px solid ${C.border}` }}>
-                          <td style={{ padding: "8px 12px", color: C.text }}>{item.productName}</td>
-                          <td style={{ padding: "8px 12px", color: C.muted }}>{item.quantity}</td>
-                          <td style={{ padding: "8px 12px", color: C.muted }}>{krw(item.unitPrice)}</td>
-                          <td style={{ padding: "8px 12px", fontWeight: 700, color: C.text }}>{krw(item.subtotal)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ) : (
-              <p style={{ color: C.muted, textAlign: "center", padding: "20px 0" }}>로딩 중...</p>
-            )}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
-              <button onClick={() => setSelectedOrderId(null)} style={{ padding: "10px 24px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", color: C.text, fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>닫기</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Users Tab ─────────────────────────────────────────────────────────────────
-function UsersTab() {
-  const [page, setPage] = useState(1);
-  const { data, refetch } = trpc.admin.users.useQuery({ page, limit: 20 });
-  const updateRoleMut = trpc.admin.updateUserRole.useMutation({
-    onSuccess: () => { toast.success("역할 변경 완료"); refetch(); },
-    onError: (e: any) => toast.error(e.message),
-  });
+  const rowStyle = { display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "start", gap: "12px", paddingBottom: "16px", borderBottom: `1px solid ${C.border}` };
+  const labelStyle = { fontSize: "13px", fontWeight: 700, color: C.text, paddingTop: "8px" };
+  const inputStyle = { padding: "8px 12px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", width: "100%", boxSizing: "border-box" as const };
 
   return (
-    <div>
-      <h2 style={{ fontSize: "20px", fontWeight: 700, color: C.text, marginBottom: "20px" }}>회원 관리</h2>
-      <div style={{ overflowX: "auto", borderRadius: "12px", border: `1px solid ${C.border}` }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-          <thead>
-            <tr style={{ background: "#F9F7F5" }}>
-              {["ID", "이름", "이메일", "회원 등급", "인증 상태", "가입일", "시스템 역할"].map((h) => (
-                <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.muted, whiteSpace: "nowrap", borderBottom: `1px solid ${C.border}` }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {(data?.users ?? []).map((u: any) => (
-              <tr key={u.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                <td style={{ padding: "10px 14px", color: C.muted }}>{u.id}</td>
-                <td style={{ padding: "10px 14px", fontWeight: 600, color: C.text }}>{u.name ?? "—"}</td>
-                <td style={{ padding: "10px 14px", color: C.muted }}>{u.email ?? "—"}</td>
-                <td style={{ padding: "10px 14px" }}><StatusBadge status={u.memberRole ?? "consumer"} /></td>
-                <td style={{ padding: "10px 14px" }}><StatusBadge status={u.proVerificationStatus ?? "none"} /></td>
-                <td style={{ padding: "10px 14px", color: C.muted, whiteSpace: "nowrap" }}>{fmtDate(u.createdAt)}</td>
-                <td style={{ padding: "10px 14px" }}>
-                  <select
-                    value={u.role}
-                    onChange={(e) => updateRoleMut.mutate({ userId: u.id, role: e.target.value as "user" | "admin" })}
-                    style={{ padding: "4px 8px", borderRadius: "6px", border: `1px solid ${C.border}`, fontSize: "12px", cursor: "pointer", background: "#fff" }}
-                  >
-                    <option value="user">일반</option>
-                    <option value="admin">관리자</option>
-                  </select>
-                </td>
-              </tr>
+    <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+      <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: "15px" }}>
+        {popup ? "팝업 수정" : "팝업 등록"}
+      </div>
+      <div style={{ padding: "24px", display: "grid", gap: "16px" }}>
+        <div style={rowStyle}>
+          <span style={labelStyle}>팝업 종류</span>
+          <div style={{ display: "flex", gap: "16px", paddingTop: "8px" }}>
+            {[{ v: "pc", l: "PC" }, { v: "mobile", l: "모바일" }, { v: "both", l: "PC + 모바일" }].map(o => (
+              <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                <input type="radio" name="popupType" value={o.v} checked={popupType === o.v} onChange={() => setPopupType(o.v)} />
+                {o.l}
+              </label>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>사용 여부</span>
+          <div style={{ display: "flex", gap: "16px", paddingTop: "8px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+              <input type="radio" name="isActive" checked={isActive} onChange={() => setIsActive(true)} /> 사용함
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+              <input type="radio" name="isActive" checked={!isActive} onChange={() => setIsActive(false)} /> 사용 안함
+            </label>
+          </div>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>하단 문구</span>
+          <div style={{ display: "flex", gap: "16px", paddingTop: "8px" }}>
+            {[{ v: "today", l: "오늘 하루 열지 않기" }, { v: "week", l: "일주일간 열지 않기" }, { v: "none", l: "없음" }].map(o => (
+              <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
+                <input type="radio" name="bottomText" value={o.v} checked={bottomText === o.v} onChange={() => setBottomText(o.v)} />
+                {o.l}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>팝업 제목</span>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="팝업 제목 (관리용)" style={inputStyle} />
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>이미지 등록</span>
+          <div>
+            {imagePreview && (
+              <img src={imagePreview} alt="popup" style={{ maxWidth: "300px", maxHeight: "200px", objectFit: "contain", borderRadius: "8px", border: `1px solid ${C.border}`, marginBottom: "10px", display: "block" }} />
+            )}
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleImageChange} style={{ display: "none" }} />
+            <Btn size="sm" variant="outline" onClick={() => fileRef.current?.click()}>직접 등록하기</Btn>
+            <div style={{ fontSize: "11px", color: C.muted, marginTop: "6px" }}>권장 이미지: 300px~1920px / 10MB 이하 / jpg, jpeg, png</div>
+          </div>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>클릭 링크 URL</span>
+          <div>
+            <input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://example.com" style={inputStyle} />
+            <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+              {[{ v: "_blank", l: "새 탭에서 열기" }, { v: "_self", l: "현재 탭에서 열기" }].map(o => (
+                <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "12px" }}>
+                  <input type="radio" name="linkTarget" value={o.v} checked={linkTarget === o.v} onChange={() => setLinkTarget(o.v)} />
+                  {o.l}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>노출 위치</span>
+          <select value={displayPosition} onChange={e => setDisplayPosition(e.target.value)} style={inputStyle}>
+            <option value="main">메인화면</option>
+            <option value="all">전체 페이지</option>
+          </select>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>노출 기간</span>
+          <div style={{ display: "grid", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+              <input type="datetime-local" value={startAt} onChange={e => setStartAt(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
+              <span>~</span>
+              <input type="datetime-local" value={endAt} onChange={e => setEndAt(e.target.value)} style={{ ...inputStyle, width: "auto" }} />
+            </div>
+            <div style={{ fontSize: "11px", color: C.muted }}>비워두면 기간 제한 없이 노출됩니다.</div>
+          </div>
+        </div>
       </div>
-      <div style={{ display: "flex", gap: "8px", marginTop: "16px", justifyContent: "center" }}>
-        <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: "6px 16px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", cursor: page === 1 ? "not-allowed" : "pointer", color: C.text, fontSize: "13px" }}>이전</button>
-        <span style={{ padding: "6px 12px", fontSize: "13px", color: C.muted }}>{page} 페이지</span>
-        <button onClick={() => setPage((p) => p + 1)} disabled={(data?.users.length ?? 0) < 20} style={{ padding: "6px 16px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", cursor: "pointer", color: C.text, fontSize: "13px" }}>다음</button>
+      <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", gap: "10px", justifyContent: "center" }}>
+        <Btn onClick={handleSave} disabled={!title || uploading}>{uploading ? "저장 중..." : "저장"}</Btn>
+        <Btn variant="outline" onClick={onCancel}>취소</Btn>
       </div>
     </div>
   );
 }
 
-// ─── Main AdminPage ────────────────────────────────────────────────────────────
-type Tab = "dashboard" | "verifications" | "products" | "orders" | "users";
+function PopupSection({ subPage, onNavigate }: { subPage: string; onNavigate: (id: string) => void }) {
+  const [editPopup, setEditPopup] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
+  const popups = trpc.admin.popups.useQuery();
+  const createPopup = trpc.admin.createPopup.useMutation({
+    onSuccess: () => { toast.success("팝업이 등록되었습니다."); popups.refetch(); onNavigate("popup-list"); },
+  });
+  const updatePopup = trpc.admin.updatePopup.useMutation({
+    onSuccess: () => { toast.success("팝업이 수정되었습니다."); popups.refetch(); setEditPopup(null); onNavigate("popup-list"); },
+  });
+  const deletePopup = trpc.admin.deletePopup.useMutation({
+    onSuccess: () => { toast.success("팝업이 삭제되었습니다."); popups.refetch(); setDeleteConfirm(null); },
+  });
+
+  if (subPage === "popup-register") {
+    return (
+      <div>
+        <SectionHeader title="팝업 등록" />
+        <PopupForm
+          onSave={data => createPopup.mutate(data)}
+          onCancel={() => onNavigate("popup-list")}
+        />
+      </div>
+    );
+  }
+
+  if (editPopup) {
+    return (
+      <div>
+        <SectionHeader title="팝업 수정" />
+        <PopupForm
+          popup={editPopup}
+          onSave={data => updatePopup.mutate({ id: editPopup.id, ...data })}
+          onCancel={() => setEditPopup(null)}
+        />
+      </div>
+    );
+  }
+
+  const popupTypeLabel = (t: string) => t === "pc" ? "PC" : t === "mobile" ? "모바일" : "PC + 모바일";
+  const bottomTextLabel = (t: string) => t === "today" ? "오늘 하루 열지 않기" : t === "week" ? "일주일간 열지 않기" : "없음";
+
+  return (
+    <div>
+      <SectionHeader title="팝업 목록" action={
+        <Btn onClick={() => onNavigate("popup-register")}>+ 팝업 등록</Btn>
+      } />
+      <div style={{ display: "grid", gap: "16px" }}>
+        {(popups.data ?? []).length === 0 && (
+          <div style={{ background: C.white, borderRadius: "12px", padding: "40px", textAlign: "center", color: C.muted, border: `1px solid ${C.border}` }}>
+            등록된 팝업이 없습니다.
+          </div>
+        )}
+        {(popups.data ?? []).map((p: any, idx: number) => (
+          <div key={p.id} style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, padding: "20px", display: "grid", gridTemplateColumns: "40px 160px 1fr auto", gap: "16px", alignItems: "start" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "16px", fontWeight: 700, color: C.muted }}>{idx + 1}</div>
+              <div style={{ fontSize: "10px", color: C.muted, marginTop: "4px" }}>유형<br />이미지</div>
+              <div style={{ fontSize: "11px", fontWeight: 700, marginTop: "4px" }}>클릭수 {p.clickCount}</div>
+            </div>
+            <div>
+              {p.imageUrl
+                ? <img src={p.imageUrl} alt={p.title} style={{ width: "150px", height: "100px", objectFit: "cover", borderRadius: "8px", border: `1px solid ${C.border}` }} />
+                : <div style={{ width: "150px", height: "100px", background: C.border, borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: C.muted }}>이미지 없음</div>
+              }
+            </div>
+            <div style={{ display: "grid", gap: "6px", fontSize: "13px" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <StatusBadge status={p.isActive ? "active" : "inactive"} />
+              </div>
+              <div><span style={{ color: C.muted, marginRight: "8px" }}>팝업 종류</span>{popupTypeLabel(p.popupType)}</div>
+              <div><span style={{ color: C.muted, marginRight: "8px" }}>제목</span>{p.title}</div>
+              <div><span style={{ color: C.muted, marginRight: "8px" }}>하단 버튼</span>{bottomTextLabel(p.bottomText)}</div>
+              <div><span style={{ color: C.muted, marginRight: "8px" }}>노출 위치</span>{p.displayPosition === "main" ? "메인화면" : "전체 페이지"}</div>
+              <div><span style={{ color: C.muted, marginRight: "8px" }}>노출 기간</span>
+                {p.startAt || p.endAt
+                  ? `${p.startAt ? fmtDateTime(p.startAt) : "~"} ~ ${p.endAt ? fmtDateTime(p.endAt) : "~"}`
+                  : "기간 제한 없음"}
+              </div>
+              {p.linkUrl && <div><span style={{ color: C.muted, marginRight: "8px" }}>링크</span><a href={p.linkUrl} target="_blank" rel="noopener noreferrer" style={{ color: C.primary }}>{p.linkUrl}</a></div>}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <Btn size="sm" variant="outline" onClick={() => setEditPopup(p)}>팝업수정</Btn>
+              <Btn size="sm" variant="danger" onClick={() => setDeleteConfirm(p.id)}>팝업삭제</Btn>
+            </div>
+          </div>
+        ))}
+      </div>
+      <ConfirmModal
+        open={deleteConfirm !== null}
+        title="팝업 삭제"
+        message="이 팝업을 삭제하시겠습니까?"
+        onConfirm={() => { if (deleteConfirm !== null) deletePopup.mutate({ id: deleteConfirm }); }}
+        onCancel={() => setDeleteConfirm(null)}
+        loading={deletePopup.isPending}
+        danger
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN ADMIN PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
 export default function AdminPage() {
-  const { user, loading } = useAuth();
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const me = trpc.auth.me.useQuery();
+  const [activePage, setActivePage] = useState("dashboard");
 
-  if (loading) {
+  if (me.isLoading) {
+    return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontSize: "14px", color: C.muted }}>로딩 중...</div>;
+  }
+
+  if (!me.data || me.data.role !== "admin") {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.bg }}>
-        <div style={{ width: "32px", height: "32px", border: `2px solid ${C.gold}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", gap: "16px" }}>
+        <div style={{ fontSize: "48px" }}>🔒</div>
+        <div style={{ fontSize: "18px", fontWeight: 700 }}>접근 권한이 없습니다</div>
+        <div style={{ fontSize: "14px", color: C.muted }}>관리자 계정으로 로그인해 주세요.</div>
+        <Btn onClick={() => navigate("/login")}>로그인 페이지로</Btn>
       </div>
     );
   }
 
-  if (!user || user.role !== "admin") {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: C.bg, gap: "16px" }}>
-        <p style={{ fontSize: "18px", fontWeight: 700, color: C.text }}>접근 권한이 없습니다.</p>
-        <button onClick={() => navigate("/")} style={{ padding: "10px 24px", borderRadius: "8px", border: `1.5px solid ${C.border}`, background: "#fff", color: C.text, fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>메인으로</button>
-      </div>
-    );
-  }
-
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "dashboard", label: "대시보드" },
-    { id: "verifications", label: "사업자 인증" },
-    { id: "products", label: "제품 관리" },
-    { id: "orders", label: "주문 조회" },
-    { id: "users", label: "회원 관리" },
-  ];
+  const renderContent = () => {
+    if (activePage === "dashboard") return <DashboardSection />;
+    if (activePage.startsWith("order-") || activePage === "order") return <OrderSection subPage={activePage} />;
+    if (activePage.startsWith("product-") || activePage === "product") return <ProductSection subPage={activePage} />;
+    if (activePage.startsWith("customer-") || activePage === "customer") return <CustomerSection subPage={activePage} />;
+    if (activePage.startsWith("board-") || activePage === "board") return <BoardSection subPage={activePage} />;
+    if (activePage.startsWith("stats-") || activePage === "stats") return <StatsSection subPage={activePage} />;
+    if (activePage.startsWith("popup-") || activePage === "popup") return <PopupSection subPage={activePage} onNavigate={setActivePage} />;
+    return <DashboardSection />;
+  };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column" }}>
-      {/* Top Bar */}
-      <header style={{ background: C.sidebar, padding: "0 24px", height: "56px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ color: "#fff", fontWeight: 800, fontSize: "16px", letterSpacing: ".08em" }}>REAGE</span>
-          <span style={{ background: C.primary, color: "#fff", fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px" }}>ADMIN</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <span style={{ color: C.sidebarText, fontSize: "13px" }}>{user.name ?? user.email}</span>
-          <button onClick={() => navigate("/")} style={{ padding: "6px 14px", borderRadius: "8px", border: "1px solid rgba(255,255,255,.2)", background: "transparent", color: C.sidebarText, fontSize: "12px", cursor: "pointer" }}>사이트로</button>
-        </div>
-      </header>
-
-      <div style={{ display: "flex", flex: 1 }}>
-        {/* Sidebar */}
-        <aside style={{ width: "200px", background: C.sidebar, padding: "16px 8px", flexShrink: 0 }}>
-          <nav style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                style={{
-                  width: "100%", padding: "10px 14px", borderRadius: "8px", border: "none",
-                  background: activeTab === t.id ? C.primary : "transparent",
-                  color: activeTab === t.id ? "#fff" : C.sidebarText,
-                  fontSize: "13px", fontWeight: activeTab === t.id ? 700 : 500,
-                  cursor: "pointer", textAlign: "left", transition: "all .15s",
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main style={{ flex: 1, padding: "28px 32px", overflowAuto: "auto" } as any}>
-          <div style={{ background: "#fff", borderRadius: "16px", padding: "28px", border: `1px solid ${C.border}`, minHeight: "400px" }}>
-            {activeTab === "dashboard" && <DashboardTab />}
-            {activeTab === "verifications" && <VerificationsTab />}
-            {activeTab === "products" && <ProductsTab />}
-            {activeTab === "orders" && <OrdersTab />}
-            {activeTab === "users" && <UsersTab />}
-          </div>
-        </main>
-      </div>
+    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: "'Pretendard', 'Apple SD Gothic Neo', sans-serif" }}>
+      <Sidebar active={activePage} onSelect={setActivePage} />
+      <main style={{ flex: 1, padding: "28px 32px", overflowY: "auto", minWidth: 0 }}>
+        {renderContent()}
+      </main>
     </div>
   );
 }

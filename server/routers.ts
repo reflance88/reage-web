@@ -40,6 +40,36 @@ import {
   updateUserResetToken,
   updateUserRole,
   updateVerification,
+  // Gallery
+  getGalleryPosts,
+  getGalleryPostById,
+  createGalleryPost,
+  updateGalleryPost,
+  deleteGalleryPost,
+  // Magazine
+  getMagazinePosts,
+  getMagazinePostById,
+  createMagazinePost,
+  updateMagazinePost,
+  deleteMagazinePost,
+  // Post Images
+  getPostImages,
+  createPostImage,
+  deletePostImage,
+  deletePostImagesByPost,
+  // Popups
+  getPopups,
+  getPopupById,
+  createPopup,
+  updatePopup,
+  deletePopup,
+  incrementPopupClickCount,
+  // Stats
+  recordPageView,
+  getPageViewStats,
+  getSalesStats,
+  getProductSalesStats,
+  getCustomerStats,
 } from "./db";
 import { storagePut } from "./storage";
 
@@ -172,6 +202,51 @@ export const appRouter = router({
       .input(z.object({ name: z.string().min(1).max(50).optional(), phone: z.string().max(30).optional() }))
       .mutation(async ({ ctx, input }) => {
         await updateUserProfile(ctx.user.id, input);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Public Gallery ──────────────────────────────────────────────────────────
+  gallery: router({
+    list: publicProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }).optional())
+      .query(async ({ input }) => {
+        return getGalleryPosts({ page: input?.page ?? 1, limit: input?.limit ?? 20, publishedOnly: true });
+      }),
+    byId: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const post = await getGalleryPostById(input.id);
+        if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+        return post;
+      }),
+  }),
+
+  // ─── Public Magazine ──────────────────────────────────────────────────────────
+  magazine: router({
+    list: publicProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }).optional())
+      .query(async ({ input }) => {
+        return getMagazinePosts({ page: input?.page ?? 1, limit: input?.limit ?? 20, publishedOnly: true });
+      }),
+    byId: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const post = await getMagazinePostById(input.id);
+        if (!post) throw new TRPCError({ code: "NOT_FOUND" });
+        return post;
+      }),
+  }),
+
+  // ─── Public Popups ────────────────────────────────────────────────────────────
+  popup: router({
+    active: publicProcedure.query(async () => {
+      return getPopups({ activeOnly: true });
+    }),
+    click: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await incrementPopupClickCount(input.id);
         return { success: true };
       }),
   }),
@@ -434,7 +509,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // ─── Audit Logs ────────────────────────────────────────────────────────
+    // ─── Audit Logs ────────────────────────────────────────────────────────────
     auditLogs: protectedProcedure
       .input(z.object({
         targetType: z.string().optional(),
@@ -444,9 +519,199 @@ export const appRouter = router({
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         return getAuditLogs(input.targetType, input.targetId);
       }),
-  }),
 
-  order: router({
+    // ─── Gallery ───────────────────────────────────────────────────────────────
+    galleryPosts: protectedProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getGalleryPosts(input);
+      }),
+
+    createGalleryPost: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        content: z.string().optional(),
+        coverImageUrl: z.string().optional(),
+        coverImageKey: z.string().optional(),
+        isPublished: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createGalleryPost({ ...input, authorId: ctx.user.id });
+      }),
+
+    updateGalleryPost: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().min(1).optional(),
+        content: z.string().optional(),
+        coverImageUrl: z.string().optional(),
+        coverImageKey: z.string().optional(),
+        isPublished: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        return updateGalleryPost(id, data);
+      }),
+
+    deleteGalleryPost: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await deletePostImagesByPost("gallery" as const, input.id);
+        return deleteGalleryPost(input.id);
+      }),
+
+    // ─── Magazine ──────────────────────────────────────────────────────────────
+    magazinePosts: protectedProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getMagazinePosts(input);
+      }),
+
+    createMagazinePost: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        subtitle: z.string().optional(),
+        content: z.string().optional(),
+        coverImageUrl: z.string().optional(),
+        coverImageKey: z.string().optional(),
+        isPublished: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createMagazinePost({ ...input, authorId: ctx.user.id });
+      }),
+
+    updateMagazinePost: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().min(1).optional(),
+        subtitle: z.string().optional(),
+        content: z.string().optional(),
+        coverImageUrl: z.string().optional(),
+        coverImageKey: z.string().optional(),
+        isPublished: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        return updateMagazinePost(id, data);
+      }),
+
+    deleteMagazinePost: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await deletePostImagesByPost("magazine" as const, input.id);
+        return deleteMagazinePost(input.id);
+      }),
+
+    // ─── Image Upload ──────────────────────────────────────────────────────────
+    uploadPostImage: protectedProcedure
+      .input(z.object({
+        fileBase64: z.string(),
+        fileName: z.string(),
+        fileMimeType: z.string(),
+        postType: z.enum(["gallery", "magazine"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const buffer = Buffer.from(input.fileBase64, "base64");
+        const ext = input.fileName.split(".").pop() ?? "jpg";
+        const key = `${input.postType}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.fileMimeType);
+        await createPostImage({ postId: 0, postType: input.postType, imageUrl: url, imageKey: key, sortOrder: 0 });
+        return { url, key };
+      }),
+
+    // ─── Popups ────────────────────────────────────────────────────────────────
+    popups: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getPopups();
+      }),
+
+    createPopup: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        popupType: z.enum(["pc", "mobile", "both"]).default("both"),
+        isActive: z.boolean().default(true),
+        imageUrl: z.string().nullable().optional(),
+        imageKey: z.string().nullable().optional(),
+        linkUrl: z.string().nullable().optional(),
+        linkTarget: z.enum(["_blank", "_self"]).default("_blank"),
+        displayPosition: z.string().default("main"),
+        bottomText: z.enum(["today", "week", "none"]).default("today"),
+        startAt: z.date().nullable().optional(),
+        endAt: z.date().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createPopup(input);
+      }),
+
+    updatePopup: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().min(1).optional(),
+        popupType: z.enum(["pc", "mobile", "both"]).optional(),
+        isActive: z.boolean().optional(),
+        imageUrl: z.string().nullable().optional(),
+        imageKey: z.string().nullable().optional(),
+        linkUrl: z.string().nullable().optional(),
+        linkTarget: z.enum(["_blank", "_self"]).optional(),
+        displayPosition: z.string().optional(),
+        bottomText: z.enum(["today", "week", "none"]).optional(),
+        startAt: z.date().nullable().optional(),
+        endAt: z.date().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        return updatePopup(id, data);
+      }),
+
+    deletePopup: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return deletePopup(input.id);
+      }),
+
+    // ─── Stats ─────────────────────────────────────────────────────────────────
+    salesStats: protectedProcedure
+      .input(z.object({
+        period: z.enum(["day", "week", "month"]).default("day"),
+        days: z.number().default(30),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getSalesStats(input.period, input.days);
+      }),
+
+    productSalesStats: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getProductSalesStats();
+      }),
+
+    customerStats: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getCustomerStats();
+      }),
+
+    pageViewStats: protectedProcedure
+      .input(z.object({ days: z.number().default(30) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getPageViewStats(input.days);
+      }),
+  }),order: router({
     create: protectedProcedure
       .input(z.object({
         items: z.array(z.object({ productId: z.number(), quantity: z.number().min(1) })),
@@ -511,4 +776,7 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
+
+// ─── Gallery Router ────────────────────────────────────────────────────────────
+// (exported separately for type inference)
 

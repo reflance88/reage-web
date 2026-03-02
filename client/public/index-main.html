@@ -2097,5 +2097,98 @@
   updateScrollspy();
 </script>
 <script src="/header-auth.js"></script>
+<script>
+// ─── 팝업 렌더링 ───
+(function() {
+  const DISMISSED_KEY = 'reage_popup_dismissed';
+
+  async function loadPopups() {
+    try {
+      const res = await fetch('/api/trpc/popup.active?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%7D%7D', {
+        credentials: 'include'
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const popups = data[0]?.result?.data?.json;
+      if (!Array.isArray(popups) || popups.length === 0) return;
+
+      const isMobile = window.innerWidth < 768;
+      const now = Date.now();
+      const dismissed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || '{}');
+
+      popups.forEach((popup, idx) => {
+        if (popup.popupType === 'pc' && isMobile) return;
+        if (popup.popupType === 'mobile' && !isMobile) return;
+        if (popup.startAt && new Date(popup.startAt).getTime() > now) return;
+        if (popup.endAt && new Date(popup.endAt).getTime() < now) return;
+        const dismissedUntil = dismissed[popup.id];
+        if (dismissedUntil && dismissedUntil > now) return;
+        renderPopup(popup, idx);
+      });
+    } catch(e) {
+      console.log('Popup load skipped:', e.message);
+    }
+  }
+
+  function renderPopup(popup, idx) {
+    const overlay = document.createElement('div');
+    overlay.id = 'popup-overlay-' + popup.id;
+    overlay.style.cssText = [
+      'position:fixed',
+      'z-index:' + (10000 + idx),
+      'left:' + (20 + idx * 20) + 'px',
+      'top:' + (20 + idx * 20) + 'px',
+      'background:#fff',
+      'border-radius:12px',
+      'box-shadow:0 8px 40px rgba(0,0,0,0.25)',
+      'overflow:hidden',
+      'max-width:400px',
+      'min-width:280px',
+      "font-family:'Noto Sans KR',sans-serif"
+    ].join(';');
+
+    let imgHtml = '';
+    if (popup.imageUrl) {
+      const tag = popup.linkUrl ? 'a' : 'div';
+      const attrs = popup.linkUrl ? ' href="' + popup.linkUrl + '" target="' + (popup.linkTarget || '_blank') + '" rel="noopener"' : '';
+      imgHtml = '<' + tag + attrs + '><img src="' + popup.imageUrl + '" alt="' + popup.title + '" style="width:100%;display:block;cursor:' + (popup.linkUrl ? 'pointer' : 'default') + ';"></' + tag + '>';
+    } else {
+      imgHtml = '<div style="padding:24px;font-size:16px;font-weight:600;color:#1A1412;">' + popup.title + '</div>';
+    }
+
+    let bottomHtml = '';
+    const btnStyle = 'background:none;border:none;cursor:pointer;font-size:13px;';
+    const wrapStyle = 'display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:#f7f5f2;border-top:1px solid #e8e6e3;';
+    if (popup.bottomText === 'today') {
+      bottomHtml = '<div style="' + wrapStyle + '"><button style="' + btnStyle + 'color:#6B6B6B;" onclick="dismissPopup(' + popup.id + ',\'today\')">\uc624\ub298 \ud558\ub8e8 \ub2eb\uc9c0 \uc54a\uae30</button><button style="' + btnStyle + 'color:#6B0F1A;font-weight:600;" onclick="closePopup(' + popup.id + ')">\ub2eb\uae30</button></div>';
+    } else if (popup.bottomText === 'week') {
+      bottomHtml = '<div style="' + wrapStyle + '"><button style="' + btnStyle + 'color:#6B6B6B;" onclick="dismissPopup(' + popup.id + ',\'week\')">\uc77c\uc8fc\uc77c \ub3d9\uc548 \ubcf4\uc9c0 \uc54a\uae30</button><button style="' + btnStyle + 'color:#6B0F1A;font-weight:600;" onclick="closePopup(' + popup.id + ')">\ub2eb\uae30</button></div>';
+    } else {
+      bottomHtml = '<div style="display:flex;justify-content:flex-end;padding:10px 16px;background:#f7f5f2;border-top:1px solid #e8e6e3;"><button style="' + btnStyle + 'color:#6B0F1A;font-weight:600;" onclick="closePopup(' + popup.id + ')">\ub2eb\uae30</button></div>';
+    }
+
+    overlay.innerHTML = imgHtml + bottomHtml;
+    document.body.appendChild(overlay);
+  }
+
+  window.closePopup = function(id) {
+    const el = document.getElementById('popup-overlay-' + id);
+    if (el) el.remove();
+  };
+
+  window.dismissPopup = function(id, type) {
+    const dismissed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || '{}');
+    dismissed[id] = Date.now() + (type === 'week' ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000);
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify(dismissed));
+    closePopup(id);
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadPopups);
+  } else {
+    loadPopups();
+  }
+})();
+</script>
 </body>
 </html>

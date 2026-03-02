@@ -557,5 +557,62 @@
   });
 </script>
 <script src="/header-auth.js"></script>
+<script>
+// ─── DB 갤러리 게시물 로드 ───
+async function loadGalleryFromDB() {
+  try {
+    const res = await fetch('/api/trpc/gallery.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22page%22%3A1%2C%22limit%22%3A50%7D%7D%7D', {
+      credentials: 'include'
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const posts = data[0]?.result?.data?.json?.items;
+    if (!posts || posts.length === 0) return;
+
+    const grid = document.getElementById('galleryGrid');
+    // DB 게시물을 기존 정적 콘텐츠 앞에 삽입
+    const fragment = document.createDocumentFragment();
+    posts.forEach((post, i) => {
+      const item = document.createElement('div');
+      item.className = 'gallery-item stagger-card';
+      item.setAttribute('data-category', 'db');
+      item.setAttribute('data-id', post.id);
+      item.style.transitionDelay = (i * 0.05) + 's';
+      item.setAttribute('onclick', 'openLightbox(this)');
+      if (post.coverImageUrl) {
+        item.innerHTML = `
+          <div class="gallery-item-img" style="background-image:url('${post.coverImageUrl}');background-size:cover;background-position:center;">&nbsp;</div>
+          <div class="gallery-overlay">
+            <div class="gallery-overlay-text">
+              <div class="gallery-overlay-tag">GALLERY</div>
+              <div class="gallery-overlay-title">${post.title}</div>
+            </div>
+          </div>`;
+      } else {
+        item.innerHTML = `
+          <div class="gallery-item-img">📸</div>
+          <div class="gallery-overlay">
+            <div class="gallery-overlay-text">
+              <div class="gallery-overlay-tag">GALLERY</div>
+              <div class="gallery-overlay-title">${post.title}</div>
+            </div>
+          </div>`;
+      }
+      fragment.appendChild(item);
+    });
+    grid.insertBefore(fragment, grid.firstChild);
+
+    // 새로 추가된 아이템에 stagger 애니메이션 적용
+    setTimeout(() => {
+      grid.querySelectorAll('.stagger-card:not(.visible)').forEach((card, i) => {
+        setTimeout(() => card.classList.add('visible'), i * 80);
+      });
+    }, 100);
+  } catch(e) {
+    console.log('Gallery DB load skipped:', e.message);
+  }
+}
+loadGalleryFromDB();
+</script>
 </body>
 </html>

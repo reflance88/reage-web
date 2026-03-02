@@ -160,3 +160,92 @@ export const adminAuditLogs = mysqlTable("admin_audit_logs", {
 
 export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
 export type InsertAdminAuditLog = typeof adminAuditLogs.$inferInsert;
+
+// ─── Gallery Posts ────────────────────────────────────────────────────────────
+export const galleryPosts = mysqlTable("gallery_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 300 }).notNull(),
+  content: text("content"),
+  coverImageUrl: text("coverImageUrl"),
+  coverImageKey: text("coverImageKey"),
+  isPublished: boolean("isPublished").default(true).notNull(),
+  authorId: int("authorId").references(() => users.id),
+  viewCount: int("viewCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type GalleryPost = typeof galleryPosts.$inferSelect;
+export type InsertGalleryPost = typeof galleryPosts.$inferInsert;
+
+// ─── Magazine Posts ───────────────────────────────────────────────────────────
+export const magazinePosts = mysqlTable("magazine_posts", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 300 }).notNull(),
+  subtitle: varchar("subtitle", { length: 500 }),
+  content: text("content"),
+  coverImageUrl: text("coverImageUrl"),
+  coverImageKey: text("coverImageKey"),
+  isPublished: boolean("isPublished").default(true).notNull(),
+  authorId: int("authorId").references(() => users.id),
+  viewCount: int("viewCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MagazinePost = typeof magazinePosts.$inferSelect;
+export type InsertMagazinePost = typeof magazinePosts.$inferInsert;
+
+// ─── Post Images ──────────────────────────────────────────────────────────────
+export const postImages = mysqlTable("post_images", {
+  id: int("id").autoincrement().primaryKey(),
+  postType: mysqlEnum("postType", ["gallery", "magazine"]).notNull(),
+  postId: int("postId").notNull(),
+  imageUrl: text("imageUrl").notNull(),
+  imageKey: text("imageKey").notNull(),
+  fileName: varchar("fileName", { length: 300 }),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PostImage = typeof postImages.$inferSelect;
+export type InsertPostImage = typeof postImages.$inferInsert;
+
+// ─── Popups ───────────────────────────────────────────────────────────────────
+export const popups = mysqlTable("popups", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 300 }).notNull(),
+  popupType: mysqlEnum("popupType", ["pc", "mobile", "both"]).default("both").notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  imageUrl: text("imageUrl"),
+  imageKey: text("imageKey"),
+  linkUrl: text("linkUrl"),
+  linkTarget: mysqlEnum("linkTarget", ["_self", "_blank"]).default("_blank").notNull(),
+  displayPosition: varchar("displayPosition", { length: 100 }).default("main").notNull(),
+  bottomText: mysqlEnum("bottomText", ["today", "week", "none"]).default("today").notNull(),
+  startAt: timestamp("startAt"),
+  endAt: timestamp("endAt"),
+  clickCount: int("clickCount").default(0).notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Popup = typeof popups.$inferSelect;
+export type InsertPopup = typeof popups.$inferInsert;
+
+// ─── Page Views (접속 통계) ───────────────────────────────────────────────────
+export const pageViews = mysqlTable("page_views", {
+  id: int("id").autoincrement().primaryKey(),
+  path: varchar("path", { length: 500 }).notNull(),
+  deviceType: mysqlEnum("deviceType", ["pc", "mobile", "tablet"]).default("pc").notNull(),
+  sessionId: varchar("sessionId", { length: 128 }),
+  userId: int("userId").references(() => users.id),
+  referrer: text("referrer"),
+  userAgent: text("userAgent"),
+  duration: int("duration"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PageView = typeof pageViews.$inferSelect;
+export type InsertPageView = typeof pageViews.$inferInsert;
