@@ -191,120 +191,62 @@
     /* ─── VIDEO SECTION (최상단 — 메인 플로우 첫 번째) ─── */
     #video-section {
       margin-top: 72px;
-      background: #1A1412;
+      background: #0d0a09;
       position: relative;
       overflow: hidden;
     }
-    .video-wrapper {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 16 / 7;
-      background: linear-gradient(135deg, #0d0a09 0%, #1a0408 40%, #2a0810 70%, #1A1412 100%);
-      overflow: hidden;
+    /* 상단 장식 란 */
+    .video-top-bar {
+      background: linear-gradient(90deg, #1A1412 0%, #2a0810 50%, #1A1412 100%);
+      padding: 12px 32px;
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 10px;
+      border-bottom: 1px solid rgba(200,162,106,0.2);
     }
-    /* 미세전류 에너지 이미지 배경 */
-    .video-bg-image {
+    .video-top-bar .vt-label {
+      font-size: 10.5px;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--gold);
+      font-weight: 600;
+    }
+    .video-top-bar .vt-dot {
+      width: 3px; height: 3px;
+      border-radius: 50%;
+      background: rgba(200,162,106,0.5);
+    }
+    .video-top-bar .vt-title {
+      font-size: 12.5px;
+      color: rgba(247,245,242,0.65);
+      font-weight: 400;
+      letter-spacing: .04em;
+    }
+    /* 유튜브 16:9 래퍼 */
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      padding-bottom: 56.25%;
+      background: #0d0a09;
+      overflow: hidden;
+    }
+    .video-wrapper iframe {
       position: absolute;
       inset: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover;
-      opacity: 0.55;
+      border: none;
+      display: block;
     }
-    /* 영상 플레이스홀더 오버레이 */
-    .video-overlay {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(
-        to bottom,
-        rgba(26,20,18,0.35) 0%,
-        rgba(107,15,26,0.15) 50%,
-        rgba(26,20,18,0.6) 100%
-      );
-      z-index: 2;
-    }
-    /* 영상 자리 표시 UI */
-    .video-placeholder {
-      position: relative;
-      z-index: 3;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      text-align: center;
-      padding: 40px;
-    }
-    .video-play-btn {
-      width: 80px; height: 80px;
-      border-radius: 50%;
-      background: rgba(200,162,106,0.18);
-      border: 2px solid var(--gold);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      transition: background .3s, transform .3s;
-      backdrop-filter: blur(8px);
-    }
-    .video-play-btn:hover { background: rgba(200,162,106,0.35); transform: scale(1.08); }
-    .video-play-btn svg { width: 28px; height: 28px; fill: var(--gold); margin-left: 4px; }
-    .video-label {
-      font-size: 12px; letter-spacing: .22em; text-transform: uppercase;
-      color: var(--gold); font-weight: 600;
-    }
-    .video-title {
-      font-size: clamp(20px, 2.8vw, 34px);
-      font-weight: 700; color: #fff;
-      line-height: 1.35; letter-spacing: -.01em;
-      text-shadow: 0 2px 24px rgba(0,0,0,.5);
-    }
-    .video-subtitle {
-      font-size: 14px; color: rgba(247,245,242,.7);
-      max-width: 480px; line-height: 1.7;
-    }
-    /* 미세전류 파형 애니메이션 */
-    .wave-lines {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      overflow: hidden;
-    }
-    .wave-lines svg {
-      width: 100%; height: 100%;
-      opacity: 0.22;
-    }
-    @keyframes wavePulse {
-      0%, 100% { opacity: 0.18; transform: scaleY(1); }
-      50% { opacity: 0.32; transform: scaleY(1.08); }
-    }
-    .wave-lines path { animation: wavePulse 4s ease-in-out infinite; }
-    .wave-lines path:nth-child(2) { animation-delay: .8s; }
-    .wave-lines path:nth-child(3) { animation-delay: 1.6s; }
-    .wave-lines path:nth-child(4) { animation-delay: 2.4s; }
-    /* 영상 삽입 안내 배지 */
-    .video-badge {
-      position: absolute;
-      bottom: 24px; right: 28px;
-      z-index: 4;
-      background: rgba(27,27,27,0.7);
-      border: 1px solid rgba(200,162,106,0.4);
-      border-radius: 8px;
-      padding: 10px 16px;
-      font-size: 11px;
-      color: rgba(247,245,242,0.6);
-      letter-spacing: .08em;
-      backdrop-filter: blur(8px);
-    }
-    .video-badge strong { color: var(--gold); }
     /* 하단 그라데이션 페이드 */
     .video-fade-bottom {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 80px;
+      height: 56px;
       background: linear-gradient(to top, #1A1412, transparent);
-      z-index: 5;
+      margin-top: -56px;
+      position: relative;
+      z-index: 2;
+      pointer-events: none;
     }
 
     /* ─── HERO ─── */
@@ -1082,8 +1024,7 @@
       #floating-cta { display: none; }
       #mobile-bar { display: block; }
       body { padding-bottom: 72px; }
-      .video-wrapper { aspect-ratio: 16/9; }
-      .video-badge { display: none; }
+      /* video-wrapper: padding-bottom 방식으로 이미 16:9 유지 */
     }
     @media (max-width: 600px) {
       .container { padding: 0 20px; }
@@ -1158,54 +1099,25 @@
      영상이 들어갈 자리 + 미세전류 이미지 배경
 ════════════════════════════════════════════ -->
 <section id="video-section">
-  <div class="video-wrapper">
-    <!-- 미세전류 에너지 이미지 배경 -->
-    <img class="video-bg-image" src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/TeFTnNIKYgJuSUPE.jpg" alt="미세전류 에너지 시각화" />
-
-    <!-- 미세전류 파형 SVG 애니메이션 -->
-    <div class="wave-lines">
-      <svg viewBox="0 0 1440 500" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0,250 C180,200 360,300 540,250 C720,200 900,300 1080,250 C1260,200 1380,270 1440,250" stroke="#C8A26A" stroke-width="1.5" fill="none"/>
-        <path d="M0,280 C200,230 400,330 600,280 C800,230 1000,330 1200,280 C1350,240 1420,290 1440,280" stroke="#6B0F1A" stroke-width="1.2" fill="none"/>
-        <path d="M0,220 C160,180 320,260 480,220 C640,180 800,260 960,220 C1120,180 1300,240 1440,220" stroke="#C8A26A" stroke-width="0.8" fill="none"/>
-        <path d="M0,310 C220,270 440,350 660,310 C880,270 1100,350 1320,310 C1400,295 1440,315 1440,310" stroke="#8B1525" stroke-width="1" fill="none"/>
-      </svg>
-    </div>
-
-    <!-- 다크 오버레이 -->
-    <div class="video-overlay"></div>
-
-    <!-- 영상 플레이스홀더 콘텐츠 -->
-    <div class="video-placeholder">
-      <div class="video-label">REAGE — 올핸드 미세전류 테라피</div>
-      <div class="video-title">
-        손으로 전달하는 미세전류.<br/>20년의 깊이가 만든 차이.
-      </div>
-      <div class="video-subtitle">
-        아래 영역에 브랜드 영상을 삽입해 주세요.<br/>
-        권장 포맷: MP4 · 16:7 비율 · 자동재생 + 음소거
-      </div>
-      <!-- 영상 삽입 시 아래 video 태그 활성화 -->
-      <!--
-      <video autoplay muted loop playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;">
-        <source src="your-video.mp4" type="video/mp4" />
-      </video>
-      -->
-      <div class="video-play-btn" title="영상 재생">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8 5v14l11-7z"/>
-        </svg>
-      </div>
-    </div>
-
-    <!-- 영상 삽입 안내 배지 -->
-    <div class="video-badge">
-      <strong>VIDEO PLACEHOLDER</strong> — 브랜드 영상 삽입 영역
-    </div>
-
-    <!-- 하단 페이드 -->
-    <div class="video-fade-bottom"></div>
+  <!-- 상단 장식 란 -->
+  <div class="video-top-bar">
+    <span class="vt-label">REAGE</span>
+    <span class="vt-dot"></span>
+    <span class="vt-title">올핸드 미세전류 테라피</span>
+    <span class="vt-dot"></span>
+    <span class="vt-label">Brand Film</span>
   </div>
+  <!-- 유튜브 16:9 임베드 -->
+  <div class="video-wrapper">
+    <iframe
+      src="https://www.youtube.com/embed/LY5Wwt3vfi0?rel=0&modestbranding=1&color=white"
+      title="REAGE 브랜드 영상"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowfullscreen
+    ></iframe>
+  </div>
+  <!-- 하단 페이드 -->
+  <div class="video-fade-bottom"></div>
 </section>
 
 <!-- ─── HERO ─── -->
@@ -1940,15 +1852,9 @@
   }, { threshold: 0.5 });
   document.querySelectorAll('[data-count]').forEach(el => countObserver.observe(el));
 
-  /* 9. 패럴랙스 스크롤 */
-  const videoBg = document.querySelector('.video-bg-image');
+  /* 9. 패러렉스 스크롤 */
   function updateParallax() {
-    const scrollY = window.scrollY;
-    // 비디오 섹션 패럴랙스
-    if (videoBg) {
-      const offset = scrollY * 0.25;
-      videoBg.style.transform = `scale(1.1) translateY(${offset}px)`;
-    }
+    // 유튜브 임베드 전환 후 패러렉스 제거
   }
 
   /* 10. 스크롤스파이 — 네비게이션 활성화 */
