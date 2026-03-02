@@ -105,7 +105,7 @@ import {
   deleteReview,
 } from "./db";
 import { storagePut } from "./storage";
-import { sendOrderConfirmSms, sendNewOrderAlertSms } from "./_core/sms";
+import { sendOrderConfirmSms, sendNewOrderAlertSms, sendShippingNoticeSms } from "./_core/sms";
 
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY ?? "";
 const TOSS_CONFIRM_URL = "https://api.tosspayments.com/v1/payments/confirm";
@@ -267,7 +267,8 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const post = await getGalleryPostById(input.id);
         if (!post) throw new TRPCError({ code: "NOT_FOUND" });
-        return post;
+        const images = await getPostImages("gallery", input.id);
+        return { ...post, images };
       }),
   }),
 
@@ -862,7 +863,23 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         const { orderId, ...data } = input;
+        // 운송장 번호가 새로 등록되는 경우 배송 출발 SMS 발송
+        const prevOrder = await getOrderByOrderId(orderId);
         await updateOrderShipping(orderId, data);
+        const isNewTracking = data.trackingNumber && prevOrder && !prevOrder.trackingNumber;
+        if (isNewTracking && data.trackingNumber) {
+          const order = await getOrderByOrderId(orderId);
+          if (order?.recipientPhone) {
+            sendShippingNoticeSms({
+              recipientPhone: order.recipientPhone,
+              recipientName: order.recipientName ?? "고객",
+              orderId: order.orderId,
+              orderName: order.orderName ?? "",
+              courierName: data.courierName ?? order.courierName ?? "택배사",
+              trackingNumber: data.trackingNumber,
+            }).catch((e) => console.warn("[SMS] 배송 출발 문자 발송 실패:", e));
+          }
+        }
         return { success: true };
       }),
 

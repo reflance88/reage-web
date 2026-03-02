@@ -8,10 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
-    /* ─── 글씨 밀림 방지 ─── */
     * { word-break: keep-all; overflow-wrap: break-word; }
     html, body { overflow-x: hidden; }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --wine: #6B0F1A; --wine-light: #8B1525;
@@ -30,10 +28,6 @@
 
     .fade-in { opacity: 0; transform: translateY(32px); transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1), transform 0.75s cubic-bezier(0.22,1,0.36,1); }
     .fade-in.visible { opacity: 1; transform: none; }
-    .slide-in-left { opacity: 0; transform: translateX(-40px); transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1); }
-    .slide-in-left.visible { opacity: 1; transform: none; }
-    .slide-in-right { opacity: 0; transform: translateX(40px); transition: opacity 0.8s cubic-bezier(0.22,1,0.36,1), transform 0.8s cubic-bezier(0.22,1,0.36,1); }
-    .slide-in-right.visible { opacity: 1; transform: none; }
     .stagger-card { opacity: 0; transform: translateY(24px); transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1); }
     .stagger-card.visible { opacity: 1; transform: none; }
     .gold-line { width: 0; height: 2px; background: var(--gold); margin: 0 auto 20px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s; }
@@ -59,12 +53,8 @@
     .btn-primary:hover { background: var(--wine-light); transform: translateY(-2px); }
     .btn-outline { display: inline-flex; align-items: center; background: transparent; color: var(--wine); padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--wine); cursor: pointer; transition: background .25s, color .25s, transform .2s; }
     .btn-outline:hover { background: var(--wine); color: #fff; transform: translateY(-2px); }
-    .btn-gold { display: inline-flex; align-items: center; gap: 8px; background: var(--gold); color: var(--charcoal); padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 700; border: none; cursor: pointer; transition: background .25s, transform .2s; }
-    .btn-gold:hover { background: var(--gold-light); transform: translateY(-2px); }
     .btn-wine { display: inline-flex; align-items: center; gap: 8px; background: var(--wine); color: #fff; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; transition: background .25s, transform .2s; }
     .btn-wine:hover { background: var(--wine-light); transform: translateY(-2px); }
-    .btn-outline-light { display: inline-flex; align-items: center; gap: 8px; background: transparent; color: var(--offwhite); padding: 13px 30px; border-radius: 8px; font-size: 15px; font-weight: 600; border: 1.5px solid rgba(247,245,242,.5); cursor: pointer; transition: background .25s, transform .2s; }
-    .btn-outline-light:hover { background: rgba(247,245,242,.12); transform: translateY(-2px); }
     .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 8px; }
     .hamburger span { display: block; width: 24px; height: 2px; background: var(--charcoal); border-radius: 2px; }
     .mobile-menu { display: none; position: fixed; top: 72px; left: 0; right: 0; background: #fff; border-top: 1px solid var(--light-gray); padding: 20px 32px; z-index: 999; box-shadow: 0 8px 32px rgba(26,20,18,.1); }
@@ -98,56 +88,40 @@
     .filter-tab:hover { color: var(--charcoal); }
     .filter-tab.active { color: var(--wine); border-bottom-color: var(--wine); }
 
-    /* BEFORE/AFTER */
-    #before-after { padding: 100px 0; background: var(--offwhite); }
-    .section-header { text-align: center; margin-bottom: 64px; }
+    /* REVIEW PHOTO GRID */
+    #review-photos { padding: 80px 0; background: var(--offwhite); min-height: 400px; }
+    .section-header { text-align: center; margin-bottom: 56px; }
     .section-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(26px, 3.5vw, 40px); font-weight: 700; color: var(--charcoal); margin-bottom: 16px; }
     .section-header p { font-size: 16px; color: var(--gray); }
-    .ba-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
-    .ba-card { background: #fff; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--light-gray); transition: box-shadow .3s, transform .3s; }
-    .ba-card:hover { box-shadow: 0 16px 48px rgba(26,20,18,.12); transform: translateY(-4px); }
-    .ba-images { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-    .ba-img { aspect-ratio: 3/4; background: var(--light-gray); display: flex; align-items: center; justify-content: center; position: relative; }
-    .ba-img.before { background: #e8e4e0; }
-    .ba-img.after { background: #d4c4b0; }
-    .ba-img-label { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; letter-spacing: .12em; padding: 3px 10px; border-radius: 20px; }
-    .ba-img.before .ba-img-label { background: rgba(26,20,18,.6); color: #fff; }
-    .ba-img.after .ba-img-label { background: var(--wine); color: #fff; }
-    .ba-img-placeholder { font-size: 32px; }
-    .ba-info { padding: 20px 24px; }
-    .ba-tag { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--wine); margin-bottom: 8px; }
-    .ba-concern { font-size: 15px; font-weight: 700; color: var(--charcoal); margin-bottom: 8px; }
-    .ba-sessions { font-size: 13px; color: var(--gray); }
-    .ba-result { font-size: 13px; color: var(--wine); font-weight: 600; margin-top: 8px; }
 
-    /* REVIEW CARDS */
-    #reviews { padding: 100px 0; background: #fff; }
-    .reviews-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
-    .review-card { background: var(--offwhite); border-radius: var(--radius); padding: 32px 28px; border: 1px solid var(--light-gray); transition: box-shadow .3s, transform .3s; position: relative; overflow: hidden; }
-    .review-card::before { content: '"'; position: absolute; top: 16px; right: 24px; font-size: 80px; font-family: 'Noto Serif KR', serif; color: rgba(200,162,106,.12); line-height: 1; }
-    .review-card:hover { box-shadow: 0 12px 40px rgba(26,20,18,.1); transform: translateY(-3px); }
-    .review-stars { display: flex; gap: 3px; margin-bottom: 16px; }
-    .star { color: var(--gold); font-size: 16px; }
-    .review-text { font-size: 15px; line-height: 1.85; color: var(--charcoal); margin-bottom: 24px; position: relative; z-index: 1; }
-    .review-author { display: flex; align-items: center; gap: 12px; }
-    .review-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--light-gray); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-    .review-name { font-size: 14px; font-weight: 700; color: var(--charcoal); }
-    .review-meta { font-size: 12px; color: var(--gray); margin-top: 2px; }
-    .review-badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 3px 10px; border-radius: 20px; background: rgba(107,15,26,.08); color: var(--wine); margin-top: 6px; }
+    .photo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .photo-card { background: #fff; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--light-gray); transition: box-shadow .3s, transform .3s; cursor: pointer; }
+    .photo-card:hover { box-shadow: 0 12px 40px rgba(26,20,18,.12); transform: translateY(-4px); }
+    .photo-img { aspect-ratio: 1; overflow: hidden; background: var(--light-gray); }
+    .photo-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s; }
+    .photo-card:hover .photo-img img { transform: scale(1.05); }
+    .photo-info { padding: 14px 16px; }
+    .photo-category-badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 3px 10px; border-radius: 20px; background: rgba(107,15,26,.08); color: var(--wine); margin-bottom: 8px; }
+    .photo-title { font-size: 13px; font-weight: 600; color: var(--charcoal); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .photo-date { font-size: 11px; color: var(--gray); margin-top: 6px; }
 
-    /* SNS REVIEWS */
-    #sns-reviews { padding: 100px 0; background: var(--charcoal); }
-    .sns-header { text-align: center; margin-bottom: 64px; }
-    .sns-header h2 { font-family: 'Noto Serif KR', serif; font-size: clamp(26px, 3.5vw, 40px); font-weight: 700; color: var(--offwhite); margin-bottom: 16px; }
-    .sns-header p { font-size: 16px; color: rgba(247,245,242,.7); }
-    .sns-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-    .sns-card { background: rgba(247,245,242,.04); border: 1px solid rgba(200,162,106,.15); border-radius: 12px; overflow: hidden; transition: border-color .3s, transform .3s; cursor: pointer; }
-    .sns-card:hover { border-color: rgba(200,162,106,.4); transform: translateY(-4px); }
-    .sns-img { aspect-ratio: 1; background: rgba(200,162,106,.08); display: flex; align-items: center; justify-content: center; font-size: 40px; }
-    .sns-info { padding: 16px; }
-    .sns-platform { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--gold); margin-bottom: 6px; }
-    .sns-text { font-size: 13px; color: rgba(247,245,242,.7); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-    .sns-likes { font-size: 12px; color: rgba(247,245,242,.4); margin-top: 10px; }
+    /* Empty state */
+    .empty-state { text-align: center; padding: 80px 20px; color: var(--gray); }
+    .empty-state-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+    .empty-state-text { font-size: 16px; }
+
+    /* Loading */
+    .loading-state { text-align: center; padding: 80px 20px; }
+    .loading-spinner { width: 40px; height: 40px; border: 3px solid var(--light-gray); border-top-color: var(--wine); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Lightbox */
+    .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 9999; align-items: center; justify-content: center; }
+    .lightbox.open { display: flex; }
+    .lightbox-inner { position: relative; max-width: 90vw; max-height: 90vh; }
+    .lightbox-img { max-width: 90vw; max-height: 80vh; object-fit: contain; border-radius: 8px; }
+    .lightbox-close { position: absolute; top: -40px; right: 0; background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; line-height: 1; }
+    .lightbox-caption { text-align: center; color: rgba(255,255,255,.8); font-size: 14px; margin-top: 12px; }
 
     /* NUMBERS */
     #review-numbers { padding: 80px 0; background: var(--wine); }
@@ -165,43 +139,27 @@
 
     /* FOOTER */
     #footer { background: #0F0C0B; color: rgba(247,245,242,.6); padding: 60px 0 32px; }
-    .footer-inner {
-      display: grid;
-      grid-template-columns: 1.4fr 1fr 1fr 1fr;
-      gap: 40px;
-      align-items: flex-start;
-    }
-    .footer-brand p { font-size: 13px; line-height: 1.8; }
-    .footer-links { display: flex; gap: 60px; }
+    .footer-inner { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 40px; align-items: flex-start; }
     .footer-col h5 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-bottom: 16px; }
     .footer-col a { display: block; font-size: 13px; margin-bottom: 10px; color: rgba(247,245,242,.55); transition: color .2s; }
     .footer-col a:hover { color: var(--gold); }
-    .footer-bottom { border-top: 1px solid rgba(247,245,242,.08); padding-top: 24px; display: flex; justify-content: space-between; font-size: 12px; flex-wrap: wrap; gap: 8px; }
+    .footer-bottom { border-top: 1px solid rgba(247,245,242,.08); padding-top: 24px; display: flex; justify-content: space-between; font-size: 12px; flex-wrap: wrap; gap: 8px; margin-top: 40px; }
 
     @media (max-width: 900px) {
       nav, .header-cta { display: none; }
       .hamburger { display: flex; }
-      .ba-grid { grid-template-columns: 1fr 1fr; }
-      .reviews-grid { grid-template-columns: 1fr 1fr; }
-      .sns-grid { grid-template-columns: repeat(2, 1fr); }
+      .photo-grid { grid-template-columns: repeat(2, 1fr); }
       .numbers-grid { grid-template-columns: repeat(2, 1fr); }
       .number-item:nth-child(2) { border-right: none; }
       .number-item:nth-child(3) { border-top: 1px solid rgba(247,245,242,.15); }
-      .footer-inner {
-      display: grid;
-      grid-template-columns: 1.4fr 1fr 1fr 1fr;
-      gap: 40px;
-      align-items: flex-start;
-    }
-      .footer-links { flex-wrap: wrap; gap: 32px; }
+      .footer-inner { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 600px) {
       .container { padding: 0 20px; }
-      .ba-grid { grid-template-columns: 1fr; }
-      .reviews-grid { grid-template-columns: 1fr; }
-      .sns-grid { grid-template-columns: repeat(2, 1fr); }
+      .photo-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
       .hero-stats { gap: 32px; }
       .cta-btns { flex-direction: column; align-items: center; }
+      .footer-inner { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -304,207 +262,28 @@
 <!-- FILTER TABS -->
 <div class="filter-tabs">
   <div class="filter-tabs-inner">
-    <div class="filter-tab active" onclick="filterReviews('all', this)">전체 후기</div>
-    <div class="filter-tab" onclick="filterReviews('lifting', this)">리프팅·탄력</div>
-    <div class="filter-tab" onclick="filterReviews('line', this)">라인·윤곽</div>
-    <div class="filter-tab" onclick="filterReviews('skin', this)">피부결·광채</div>
-    <div class="filter-tab" onclick="filterReviews('pore', this)">모공·트러블</div>
-
+    <div class="filter-tab active" data-category="all" onclick="switchTab('all', this)">전체 후기</div>
+    <div class="filter-tab" data-category="before_after" onclick="switchTab('before_after', this)">비포&amp;애프터</div>
+    <div class="filter-tab" data-category="device" onclick="switchTab('device', this)">디바이스</div>
+    <div class="filter-tab" data-category="education" onclick="switchTab('education', this)">교육</div>
+    <div class="filter-tab" data-category="event" onclick="switchTab('event', this)">이벤트</div>
+    <div class="filter-tab" data-category="etc" onclick="switchTab('etc', this)">기타</div>
   </div>
 </div>
 
-<!-- BEFORE / AFTER -->
-<section id="before-after">
+<!-- REVIEW PHOTOS -->
+<section id="review-photos">
   <div class="container">
     <div class="section-header fade-in">
-      <div class="eyebrow" style="color:var(--wine)">BEFORE & AFTER</div>
+      <div class="eyebrow" style="color:var(--wine)">CUSTOMER GALLERY</div>
       <div class="gold-line"></div>
-      <h2>시술 전후 비교</h2>
-      <p>실제 고객의 시술 전후 사진입니다. 모든 사진은 동일 조건에서 촬영되었습니다.</p>
+      <h2 id="section-title">전체 후기</h2>
+      <p id="section-desc">레아쥬를 경험한 고객들의 실제 사진입니다.</p>
     </div>
-    <div class="ba-grid">
-      <div class="ba-card stagger-card" data-category="lifting">
-        <div class="ba-images">
-          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
-          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
-        </div>
-        <div class="ba-info">
-          <div class="ba-tag">LIFTING · 리프팅</div>
-          <div class="ba-concern">볼살 처짐 · 팔자 주름</div>
-          <div class="ba-sessions">시술 횟수: 8회 (4주)</div>
-          <div class="ba-result">→ 볼 라인 리프팅, 팔자 주름 완화</div>
-        </div>
-      </div>
-      <div class="ba-card stagger-card" data-category="line" style="transition-delay:.1s">
-        <div class="ba-images">
-          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
-          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
-        </div>
-        <div class="ba-info">
-          <div class="ba-tag">LINE · 윤곽</div>
-          <div class="ba-concern">이중턱 · 턱선 불명확</div>
-          <div class="ba-sessions">시술 횟수: 10회 (5주)</div>
-          <div class="ba-result">→ 턱선 선명화, 이중턱 감소</div>
-        </div>
-      </div>
-      <div class="ba-card stagger-card" data-category="skin" style="transition-delay:.2s">
-        <div class="ba-images">
-          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
-          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
-        </div>
-        <div class="ba-info">
-          <div class="ba-tag">SKIN · 피부결</div>
-          <div class="ba-concern">칙칙한 피부톤 · 거친 피부결</div>
-          <div class="ba-sessions">시술 횟수: 6회 (3주)</div>
-          <div class="ba-result">→ 피부 광채 개선, 결 정돈</div>
-        </div>
-      </div>
-      <div class="ba-card stagger-card" data-category="lifting" style="transition-delay:.3s">
-        <div class="ba-images">
-          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
-          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
-        </div>
-        <div class="ba-info">
-          <div class="ba-tag">LIFTING · 리프팅</div>
-          <div class="ba-concern">눈가 처짐 · 눈 밑 부기</div>
-          <div class="ba-sessions">시술 횟수: 12회 (6주)</div>
-          <div class="ba-result">→ 눈가 리프팅, 부기 완화</div>
-        </div>
-      </div>
-      <div class="ba-card stagger-card" data-category="pore" style="transition-delay:.4s">
-        <div class="ba-images">
-          <div class="ba-img before"><div class="ba-img-placeholder">📸</div><span class="ba-img-label">BEFORE</span></div>
-          <div class="ba-img after"><div class="ba-img-placeholder">✨</div><span class="ba-img-label">AFTER</span></div>
-        </div>
-        <div class="ba-info">
-          <div class="ba-tag">PORE · 모공</div>
-          <div class="ba-concern">넓은 모공 · 피지 과다</div>
-          <div class="ba-sessions">시술 횟수: 8회 (4주)</div>
-          <div class="ba-result">→ 모공 축소, 피지 밸런스 개선</div>
-        </div>
-      </div>
-
-    </div>
-    <p style="text-align:center; font-size:12px; color:var(--gray); margin-top:32px;">※ 개인차가 있을 수 있으며, 모든 사진은 실제 고객의 동의 하에 게재되었습니다.</p>
-  </div>
-</section>
-
-<!-- TEXT REVIEWS -->
-<section id="reviews">
-  <div class="container">
-    <div class="section-header fade-in">
-      <div class="eyebrow" style="color:var(--wine)">CUSTOMER REVIEWS</div>
-      <div class="gold-line"></div>
-      <h2>고객 리뷰</h2>
-      <p>레아쥬 테라피를 경험한 고객들의 솔직한 이야기입니다.</p>
-    </div>
-    <div class="reviews-grid" id="reviewsGrid">
-      <div class="review-card stagger-card" data-category="lifting">
-        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
-        <p class="review-text">"처음에는 반신반의했는데, 5회 받고 나서 남편이 먼저 알아봤어요. 볼살이 올라가고 턱선이 선명해졌다고. 기계가 직접 닿지 않는데 이런 효과가 나온다는 게 신기했습니다."</p>
-        <div class="review-author">
-          <div class="review-avatar">👩</div>
-          <div>
-            <div class="review-name">김○○ 님</div>
-            <div class="review-meta">서울 강남 · 40대</div>
-            <span class="review-badge">리프팅·탄력</span>
-          </div>
-        </div>
-      </div>
-      <div class="review-card stagger-card" data-category="line" style="transition-delay:.1s">
-        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
-        <p class="review-text">"이중턱 때문에 고민이 많았는데, 레아쥬 10회 코스 끝내고 나서 확실히 달라졌어요. 통증도 없고 시술 중에 오히려 편안했습니다. 원장님 손이 따뜻해서 힐링 받는 느낌."</p>
-        <div class="review-author">
-          <div class="review-avatar">👩</div>
-          <div>
-            <div class="review-name">이○○ 님</div>
-            <div class="review-meta">경기 분당 · 30대</div>
-            <span class="review-badge">라인·윤곽</span>
-          </div>
-        </div>
-      </div>
-      <div class="review-card stagger-card" data-category="skin" style="transition-delay:.2s">
-        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
-        <p class="review-text">"피부가 원래 칙칙하고 결이 거칠었는데, 3주 만에 주변에서 피부 좋아졌다는 말을 들었어요. 화장도 더 잘 받고, 아침에 거울 보는 게 즐거워졌습니다."</p>
-        <div class="review-author">
-          <div class="review-avatar">👩</div>
-          <div>
-            <div class="review-name">박○○ 님</div>
-            <div class="review-meta">서울 마포 · 30대</div>
-            <span class="review-badge">피부결·광채</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="review-card stagger-card" data-category="lifting" style="transition-delay:.4s">
-        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
-        <p class="review-text">"50대인데 이렇게 효과가 좋을 줄 몰랐어요. 눈가가 처지고 눈 밑이 부어있었는데, 꾸준히 받으니까 눈이 커보인다는 말을 듣게 됐습니다. 계속 다닐 것 같아요."</p>
-        <div class="review-author">
-          <div class="review-avatar">👩</div>
-          <div>
-            <div class="review-name">정○○ 님</div>
-            <div class="review-meta">서울 서초 · 50대</div>
-            <span class="review-badge">리프팅·탄력</span>
-          </div>
-        </div>
-      </div>
-      <div class="review-card stagger-card" data-category="pore" style="transition-delay:.5s">
-        <div class="review-stars"><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span></div>
-        <p class="review-text">"모공이 넓어서 항상 고민이었는데 레아쥬 받고 나서 피부 결이 매끄러워졌어요. 피지도 줄고 화장이 훨씬 잘 받아요. 원장님이 꼼꼼하게 관리해주셔서 믿음이 갑니다."</p>
-        <div class="review-author">
-          <div class="review-avatar">👩</div>
-          <div>
-            <div class="review-name">한○○ 님</div>
-            <div class="review-meta">경기 수원 · 20대</div>
-            <span class="review-badge">모공·트러블</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- SNS REVIEWS -->
-<section id="sns-reviews">
-  <div class="container">
-    <div class="sns-header fade-in">
-      <div class="eyebrow">SNS REVIEWS</div>
-      <div class="gold-line"></div>
-      <h2>SNS 실시간 후기</h2>
-      <p>인스타그램·블로그에서 고객들이 직접 공유한 레아쥬 후기입니다.</p>
-    </div>
-    <div class="sns-grid">
-      <div class="sns-card stagger-card">
-        <div class="sns-img">📱</div>
-        <div class="sns-info">
-          <div class="sns-platform">INSTAGRAM</div>
-          <p class="sns-text">레아쥬 10회 완료✨ 확실히 달라진 느낌! 볼살이 올라가고 턱선이 선명해졌어요 #레아쥬 #미세전류 #리프팅</p>
-          <div class="sns-likes">❤️ 248 likes</div>
-        </div>
-      </div>
-      <div class="sns-card stagger-card" style="transition-delay:.1s">
-        <div class="sns-img">📝</div>
-        <div class="sns-info">
-          <div class="sns-platform">NAVER BLOG</div>
-          <p class="sns-text">강남 레아쥬 리뷰 — 올핸드 미세전류 테라피 솔직 후기. 3개월 다닌 결과를 공유합니다...</p>
-          <div class="sns-likes">👁 1,240 views</div>
-        </div>
-      </div>
-      <div class="sns-card stagger-card" style="transition-delay:.2s">
-        <div class="sns-img">📱</div>
-        <div class="sns-info">
-          <div class="sns-platform">INSTAGRAM</div>
-          <p class="sns-text">이중턱 고민이었는데 레아쥬 받고 나서 확실히 라인이 생겼어요 🥺 통증 없이 이런 효과라니 #레아쥬기기</p>
-          <div class="sns-likes">❤️ 312 likes</div>
-        </div>
-      </div>
-      <div class="sns-card stagger-card" style="transition-delay:.3s">
-        <div class="sns-img">📝</div>
-        <div class="sns-info">
-          <div class="sns-platform">KAKAO</div>
-          <p class="sns-text">레아쥬 원장님 너무 친절하시고 효과도 좋아요. 피부가 촉촉해지고 탄력이 생긴 것 같아서 계속 다닐 예정입니다.</p>
-          <div class="sns-likes">⭐ 5.0 / 5.0</div>
-        </div>
+    <div id="photos-container">
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <p style="color:var(--gray);font-size:14px;">후기를 불러오는 중...</p>
       </div>
     </div>
   </div>
@@ -540,7 +319,7 @@
     <div class="fade-in" style="text-align:center; max-width:640px; margin:0 auto;">
       <div class="eyebrow" style="color:var(--wine)">EXPERIENCE</div>
       <div class="gold-line"></div>
-      <h2 class="cta-title">레아쥬을 도입하세요.</h2>
+      <h2 class="cta-title">레아쥬를 도입하세요.</h2>
       <p class="cta-sub">수백 명의 에스테틱이 선택한 이유가 있습니다.<br/>도입 상담을 통해 에스테틱의 미래를 함께 설계하세요.</p>
       <div class="cta-btns">
         <a href="contact.html" class="btn-wine" style="padding:16px 40px; font-size:16px;">도입 상담 신청</a>
@@ -555,10 +334,9 @@
   <div class="container">
     <div class="footer-inner">
       <div>
-        <div class="footer-logo">RE<span>A</span>GE</div>
-        <div class="footer-company-h">COMPANY</div>
-        <div class="footer-info">
-          <strong>COMPANY</strong>
+        <div style="font-size:20px;font-weight:700;letter-spacing:.18em;color:var(--wine);margin-bottom:12px;">RE<span style="color:var(--gold)">A</span>GE</div>
+        <div style="font-size:13px;line-height:1.8;color:rgba(247,245,242,.55);">
+          <strong style="color:rgba(247,245,242,.8);">COMPANY</strong><br/>
           (주)리플런스<br/>
           대표자 &#124; 조예나<br/>
           주소 &#124; 06112 서울 강남구 학동로20길 19-3, 3층<br/>
@@ -569,11 +347,13 @@
       </div>
       <div class="footer-col">
         <h5>CUSTOMER CENTER</h5>
-        <p><a href="tel:01096799498" style="color:rgba(247,245,242,.7);font-size:15px;font-weight:600;">010-9679-9498</a><br/>
-        운영시간 &#124; 10:00 - 18:00<br/>
-        (토·일·공휴일 휴무)<br/><br/>
-        계좌정보 &#124; 100-033-276522<br/>
-        예금주 &#124; 주식회사리플런스</p>
+        <p style="font-size:13px;line-height:1.8;color:rgba(247,245,242,.55);">
+          <a href="tel:01096799498" style="color:rgba(247,245,242,.7);font-size:15px;font-weight:600;">010-9679-9498</a><br/>
+          운영시간 &#124; 10:00 - 18:00<br/>
+          (토·일·공휴일 휴무)<br/><br/>
+          계좌정보 &#124; 100-033-276522<br/>
+          예금주 &#124; 주식회사리플런스
+        </p>
       </div>
       <div class="footer-col">
         <h5>SNS</h5>
@@ -589,11 +369,10 @@
         <a href="gallery.html">갤러리</a>
         <a href="magazine.html">매거진</a>
         <a href="contact.html">도입 상담</a>
-        <a href="contact.html?tab=intro">도입 상담</a>
       </div>
     </div>
     <div class="footer-bottom">
-      <div class="footer-disclaimer">
+      <div style="font-size:12px;color:rgba(247,245,242,.4);max-width:600px;">
         본 홈페이지의 모든 내용은 테라피·관리 정보를 목적으로 하며, 의료행위·질병 치료·의학적 효능을 주장하지 않습니다. 개인에 따라 체감 효과는 다를 수 있습니다.
       </div>
       <div>© 2025 REAGE. All rights reserved.</div>
@@ -601,13 +380,149 @@
   </div>
 </footer>
 
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <div class="lightbox-inner">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    <img class="lightbox-img" id="lightbox-img" src="" alt="" />
+    <div class="lightbox-caption" id="lightbox-caption"></div>
+  </div>
+</div>
+
 <script>
+  // ─── 탭 메타 ───────────────────────────────────────────────
+  const CATEGORY_META = {
+    all:          { label: '전체 후기',       desc: '레아쥬를 경험한 고객들의 실제 사진입니다.' },
+    before_after: { label: '비포&애프터',     desc: '시술 전후 비교 사진입니다.' },
+    device:       { label: '디바이스',        desc: '레아쥬 기기 관련 후기 사진입니다.' },
+    education:    { label: '교육',            desc: '교육 현장 사진입니다.' },
+    event:        { label: '이벤트',          desc: '이벤트 및 행사 사진입니다.' },
+    etc:          { label: '기타',            desc: '기타 후기 사진입니다.' },
+  };
+
+  const CATEGORY_LABELS = {
+    before_after: '비포&애프터',
+    device: '디바이스',
+    education: '교육',
+    event: '이벤트',
+    etc: '기타',
+  };
+
+  let currentCategory = 'all';
+
+  // ─── 날짜 포맷 ───────────────────────────────────────────────
+  function fmtDate(dateStr) {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  }
+
+  // ─── 탭 전환 ───────────────────────────────────────────────
+  function switchTab(category, tabEl) {
+    currentCategory = category;
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    const meta = CATEGORY_META[category] || CATEGORY_META.all;
+    document.getElementById('section-title').textContent = meta.label;
+    document.getElementById('section-desc').textContent = meta.desc;
+    loadReviews(category);
+  }
+
+  // ─── DB 조회 ───────────────────────────────────────────────
+  async function loadReviews(category) {
+    const container = document.getElementById('photos-container');
+    container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><p style="color:var(--gray);font-size:14px;">후기를 불러오는 중...</p></div>';
+
+    try {
+      const params = category === 'all'
+        ? { limit: 200 }
+        : { category, limit: 200 };
+      const qs = encodeURIComponent(JSON.stringify(params));
+      const res = await fetch(`/api/trpc/review.list?input=${qs}`);
+      const json = await res.json();
+      const items = json?.result?.data?.json?.items ?? json?.result?.data?.json ?? [];
+
+      renderPhotos(items);
+    } catch (e) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p class="empty-state-text">후기를 불러오지 못했습니다.</p></div>';
+    }
+  }
+
+  // ─── 렌더링 ───────────────────────────────────────────────
+  function renderPhotos(items) {
+    const container = document.getElementById('photos-container');
+    if (!items || items.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📷</div><p class="empty-state-text">등록된 후기 사진이 없습니다.</p></div>';
+      return;
+    }
+
+    // 최신순 정렬
+    const sorted = [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const grid = document.createElement('div');
+    grid.className = 'photo-grid';
+
+    sorted.forEach((item, i) => {
+      const catLabel = item.categoryLabel || CATEGORY_LABELS[item.category] || item.category;
+      const card = document.createElement('div');
+      card.className = 'photo-card stagger-card';
+      card.style.transitionDelay = (i * 0.04) + 's';
+      card.onclick = () => openLightbox(item.imageUrl, item.title || catLabel);
+      card.innerHTML = `
+        <div class="photo-img">
+          <img src="${item.imageUrl}" alt="${item.title || catLabel}" loading="lazy" onerror="this.parentElement.innerHTML='<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--light-gray);font-size:32px;\\'>📷</div>'" />
+        </div>
+        <div class="photo-info">
+          <span class="photo-category-badge">${catLabel}</span>
+          ${item.title ? `<div class="photo-title">${item.title}</div>` : ''}
+          <div class="photo-date">${fmtDate(item.createdAt)}</div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+    container.innerHTML = '';
+    container.appendChild(grid);
+
+    // 스태거 애니메이션
+    setTimeout(() => {
+      grid.querySelectorAll('.stagger-card').forEach((card, i) => {
+        setTimeout(() => card.classList.add('visible'), i * 40);
+      });
+    }, 50);
+  }
+
+  // ─── 라이트박스 ───────────────────────────────────────────────
+  function openLightbox(src, caption) {
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox-caption').textContent = caption || '';
+    document.getElementById('lightbox').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox(e) {
+    if (e && e.target !== document.getElementById('lightbox') && !e.target.classList.contains('lightbox-close')) return;
+    document.getElementById('lightbox').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.getElementById('lightbox').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+  });
+
+  // ─── 초기 로드 ───────────────────────────────────────────────
+  loadReviews('all');
+
+  // ─── 공통 UI ───────────────────────────────────────────────
   function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
 
   const progressBar = document.getElementById('scroll-progress');
   window.addEventListener('scroll', () => {
     const total = document.documentElement.scrollHeight - window.innerHeight;
     progressBar.style.width = (window.scrollY / total * 100) + '%';
+    document.getElementById('header').style.boxShadow = window.scrollY > 40 ? '0 4px 24px rgba(26,20,18,.1)' : 'none';
   });
 
   const follower = document.getElementById('cursor-follower');
@@ -617,29 +532,15 @@
   function animateRing() { ringX += (mouseX - ringX) * 0.12; ringY += (mouseY - ringY) * 0.12; ring.style.left = ringX + 'px'; ring.style.top = ringY + 'px'; requestAnimationFrame(animateRing); }
   animateRing();
 
-  const motionSelector = '.fade-in, .slide-in-left, .slide-in-right';
   const scrollObserver = new IntersectionObserver((entries) => {
     entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
   }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-  document.querySelectorAll(motionSelector).forEach(el => scrollObserver.observe(el));
+  document.querySelectorAll('.fade-in').forEach(el => scrollObserver.observe(el));
 
   const lineObserver = new IntersectionObserver((entries) => {
     entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
   }, { threshold: 0.5 });
   document.querySelectorAll('.gold-line').forEach(el => lineObserver.observe(el));
-
-  const staggerObserver = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        const parent = e.target;
-        parent.querySelectorAll('.stagger-card').forEach((card, i) => {
-          setTimeout(() => card.classList.add('visible'), i * 100);
-        });
-        staggerObserver.unobserve(parent);
-      }
-    });
-  }, { threshold: 0.05 });
-  document.querySelectorAll('.ba-grid, .reviews-grid, .sns-grid').forEach(el => staggerObserver.observe(el));
 
   // Count-up
   function countUp(el) {
@@ -663,23 +564,6 @@
     });
   }, { threshold: 0.5 });
   document.querySelectorAll('[data-count]').forEach(el => counterObserver.observe(el));
-
-  // Filter
-  function filterReviews(category, tab) {
-    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    document.querySelectorAll('.ba-card, .review-card').forEach(card => {
-      if (category === 'all' || card.dataset.category === category) {
-        card.style.display = '';
-      } else {
-        card.style.display = 'none';
-      }
-    });
-  }
-
-  window.addEventListener('scroll', () => {
-    document.getElementById('header').style.boxShadow = window.scrollY > 40 ? '0 4px 24px rgba(26,20,18,.1)' : 'none';
-  });
 </script>
 <script src="/header-auth.js"></script>
 </body>

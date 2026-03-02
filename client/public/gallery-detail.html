@@ -42,17 +42,38 @@
     .detail-tag { font-size: 11px; font-weight: 700; letter-spacing: .15em; color: var(--gold); margin-bottom: 12px; text-transform: uppercase; }
     .detail-title { font-family: 'Noto Serif KR', serif; font-size: 32px; font-weight: 700; color: var(--charcoal); line-height: 1.4; margin-bottom: 16px; }
     .detail-date { font-size: 13px; color: var(--muted); margin-bottom: 40px; }
-    .detail-cover { width: 100%; border-radius: 16px; overflow: hidden; margin-bottom: 40px; background: var(--light-gray); min-height: 400px; display: flex; align-items: center; justify-content: center; }
-    .detail-cover img { width: 100%; height: auto; display: block; object-fit: cover; }
-    .detail-cover-placeholder { font-size: 80px; }
-    .detail-content { font-size: 16px; line-height: 1.9; color: var(--text); white-space: pre-wrap; }
-    .detail-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 40px; }
-    .detail-images img { width: 100%; border-radius: 10px; object-fit: cover; aspect-ratio: 4/3; }
+    .detail-content { font-size: 16px; line-height: 1.9; color: var(--text); white-space: pre-wrap; margin-bottom: 40px; }
     .divider { border: none; border-top: 1px solid var(--light-gray); margin: 48px 0; }
+
+    /* ─── 이미지 슬라이더 ─── */
+    .slider-section { margin-bottom: 40px; }
+    .slider-wrap { position: relative; width: 100%; border-radius: 16px; overflow: hidden; background: var(--light-gray); user-select: none; }
+    .slider-track { display: flex; transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1); will-change: transform; }
+    .slide { flex: 0 0 100%; width: 100%; }
+    .slide img { width: 100%; max-height: 600px; object-fit: contain; display: block; background: #000; }
+
+    /* 슬라이더 버튼 */
+    .slider-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(26,20,18,.55); border: none; color: #fff; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: background .2s; z-index: 10; }
+    .slider-btn:hover { background: rgba(107,15,26,.85); }
+    .slider-btn.prev { left: 12px; }
+    .slider-btn.next { right: 12px; }
+    .slider-btn:disabled { opacity: 0.3; cursor: default; }
+
+    /* 슬라이더 인디케이터 */
+    .slider-dots { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+    .slider-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--light-gray); border: none; cursor: pointer; transition: background .2s, transform .2s; padding: 0; }
+    .slider-dot.active { background: var(--wine); transform: scale(1.3); }
+
+    /* 슬라이더 카운터 */
+    .slider-counter { position: absolute; bottom: 12px; right: 16px; background: rgba(0,0,0,.5); color: #fff; font-size: 12px; padding: 4px 10px; border-radius: 20px; z-index: 10; }
+
+    /* 단일 이미지 (슬라이더 없음) */
+    .single-cover { width: 100%; border-radius: 16px; overflow: hidden; background: var(--light-gray); }
+    .single-cover img { width: 100%; max-height: 600px; object-fit: contain; display: block; }
 
     /* Nav between posts */
     .post-nav { display: flex; justify-content: space-between; gap: 16px; margin-top: 48px; }
-    .post-nav-btn { flex: 1; padding: 16px 20px; border: 1px solid var(--light-gray); border-radius: 10px; background: #fff; cursor: pointer; transition: border-color .2s, background .2s; }
+    .post-nav-btn { flex: 1; padding: 16px 20px; border: 1px solid var(--light-gray); border-radius: 10px; background: #fff; cursor: pointer; transition: border-color .2s, background .2s; text-align: left; }
     .post-nav-btn:hover { border-color: var(--wine); background: var(--offwhite); }
     .post-nav-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
     .post-nav-title { font-size: 14px; font-weight: 600; color: var(--charcoal); }
@@ -65,6 +86,7 @@
     @media (max-width: 640px) {
       .detail-title { font-size: 24px; }
       .detail-wrap { padding: 0 16px 60px; margin-top: 40px; }
+      .slider-btn { width: 36px; height: 36px; font-size: 14px; }
     }
   </style>
 </head>
@@ -72,14 +94,14 @@
 
 <header id="header">
   <div class="inner">
-    <a href="/index-main.html" class="logo">RE<span>AGE</span></a>
+    <a href="/index.html" class="logo">RE<span>AGE</span></a>
     <div id="header-auth-area"></div>
   </div>
 </header>
 
 <div class="breadcrumb">
   <div class="inner">
-    <a href="/index-main.html">홈</a>
+    <a href="/index.html">홈</a>
     <span class="sep">›</span>
     <a href="/gallery.html">갤러리</a>
     <span class="sep">›</span>
@@ -96,6 +118,59 @@
 
 <script src="/header-auth.js"></script>
 <script>
+// ─── 슬라이더 상태 ───────────────────────────────────────────────
+let sliderImages = [];
+let currentSlide = 0;
+
+function initSlider(images) {
+  sliderImages = images;
+  currentSlide = 0;
+  renderSlider();
+}
+
+function renderSlider() {
+  const wrap = document.getElementById('slider-wrap');
+  const track = document.getElementById('slider-track');
+  const dots = document.getElementById('slider-dots');
+  const counter = document.getElementById('slider-counter');
+  if (!wrap || !track) return;
+
+  track.style.transform = `translateX(-${currentSlide * 100}%)`;
+  counter.textContent = `${currentSlide + 1} / ${sliderImages.length}`;
+
+  // 버튼 상태
+  document.getElementById('slider-prev').disabled = currentSlide === 0;
+  document.getElementById('slider-next').disabled = currentSlide === sliderImages.length - 1;
+
+  // 도트 업데이트
+  dots.querySelectorAll('.slider-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === currentSlide);
+  });
+}
+
+function slideTo(index) {
+  currentSlide = Math.max(0, Math.min(index, sliderImages.length - 1));
+  renderSlider();
+}
+
+function slidePrev() { slideTo(currentSlide - 1); }
+function slideNext() { slideTo(currentSlide + 1); }
+
+// 터치/스와이프 지원
+let touchStartX = 0;
+function onTouchStart(e) { touchStartX = e.touches[0].clientX; }
+function onTouchEnd(e) {
+  const diff = touchStartX - e.changedTouches[0].clientX;
+  if (Math.abs(diff) > 50) { diff > 0 ? slideNext() : slidePrev(); }
+}
+
+// 키보드 지원
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') slidePrev();
+  if (e.key === 'ArrowRight') slideNext();
+});
+
+// ─── 데이터 로드 ───────────────────────────────────────────────
 async function loadPost() {
   const params = new URLSearchParams(location.search);
   const id = parseInt(params.get('id'));
@@ -115,13 +190,59 @@ async function loadPost() {
 }
 
 function renderPost(post) {
-  const dateStr = post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+  const dateStr = post.createdAt
+    ? new Date(post.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+    : '';
   document.title = `${post.title} — REAGE 갤러리`;
   document.getElementById('breadcrumb-title').textContent = post.title;
 
-  const coverHtml = post.coverImageUrl
-    ? `<div class="detail-cover"><img src="${post.coverImageUrl}" alt="${post.title}" /></div>`
-    : `<div class="detail-cover"><div class="detail-cover-placeholder">📸</div></div>`;
+  // 이미지 목록 구성: 커버 이미지 + 추가 이미지들
+  const allImages = [];
+  if (post.coverImageUrl) allImages.push({ url: post.coverImageUrl, alt: post.title });
+  if (post.images && post.images.length > 0) {
+    post.images.forEach(img => {
+      // 커버와 중복 방지
+      if (img.imageUrl !== post.coverImageUrl) {
+        allImages.push({ url: img.imageUrl, alt: img.caption || post.title });
+      }
+    });
+  }
+
+  // 이미지 섹션 HTML 생성
+  let imageHtml = '';
+  if (allImages.length === 0) {
+    imageHtml = `<div class="single-cover" style="min-height:300px;display:flex;align-items:center;justify-content:center;font-size:64px;">📸</div>`;
+  } else if (allImages.length === 1) {
+    // 단일 이미지 - 슬라이더 없음
+    imageHtml = `
+      <div class="single-cover">
+        <img src="${allImages[0].url}" alt="${escapeHtml(allImages[0].alt)}" />
+      </div>
+    `;
+  } else {
+    // 다중 이미지 - 슬라이더
+    const slides = allImages.map((img, i) => `
+      <div class="slide">
+        <img src="${img.url}" alt="${escapeHtml(img.alt)}" loading="${i === 0 ? 'eager' : 'lazy'}" />
+      </div>
+    `).join('');
+
+    const dots = allImages.map((_, i) => `
+      <button class="slider-dot${i === 0 ? ' active' : ''}" onclick="slideTo(${i})" aria-label="슬라이드 ${i + 1}"></button>
+    `).join('');
+
+    imageHtml = `
+      <div class="slider-section">
+        <div class="slider-wrap" id="slider-wrap" ontouchstart="onTouchStart(event)" ontouchend="onTouchEnd(event)">
+          <div class="slider-track" id="slider-track">${slides}</div>
+          <button class="slider-btn prev" id="slider-prev" onclick="slidePrev()" aria-label="이전">&#8249;</button>
+          <button class="slider-btn next" id="slider-next" onclick="slideNext()" aria-label="다음">&#8250;</button>
+          <div class="slider-counter" id="slider-counter">1 / ${allImages.length}</div>
+        </div>
+        <div class="slider-dots" id="slider-dots">${dots}</div>
+      </div>
+    `;
+  }
 
   const contentHtml = post.content
     ? `<div class="detail-content">${escapeHtml(post.content)}</div>`
@@ -131,7 +252,7 @@ function renderPost(post) {
     <div class="detail-tag">GALLERY</div>
     <h1 class="detail-title">${escapeHtml(post.title)}</h1>
     <div class="detail-date">${dateStr}</div>
-    ${coverHtml}
+    ${imageHtml}
     ${contentHtml}
     <hr class="divider" />
     <div class="post-nav">
@@ -141,6 +262,11 @@ function renderPost(post) {
       </button>
     </div>
   `;
+
+  // 다중 이미지인 경우 슬라이더 초기화
+  if (allImages.length > 1) {
+    initSlider(allImages);
+  }
 }
 
 function renderError(msg) {

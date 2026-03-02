@@ -97,8 +97,12 @@ export async function sendOrderConfirmSms(params: {
     `주문상품: ${params.orderName}\n` +
     `결제금액: ${amount}원\n` +
     `\n` +
-    `배송 준비가 완료되면 운송장 번호를 안내드립니다.\n` +
-    `문의: 마이페이지 > 1:1 문의`;
+    `주문 확인 후 영업일 기준 1-2일 내\n` +
+    `배송이 시작되며, 운송장 번호는\n` +
+    `별도 문자로 안내드립니다.\n` +
+    `\n` +
+    `문의: 010-9679-9498\n` +
+    `(평일 10:00-18:00, 토·일·공휴일 휴무)`;
 
   return sendSms({
     receiver: params.recipientPhone.replace(/-/g, ""),
@@ -120,19 +124,52 @@ export async function sendNewOrderAlertSms(params: {
 }): Promise<boolean> {
   const amount = Number(params.totalAmount).toLocaleString("ko-KR");
   const msg =
-    `[REAGE 관리자] 새 주문이 접수되었습니다.\n` +
+    `[REAGE] 새 주문이 접수되었습니다.\n` +
     `\n` +
     `주문번호: ${params.orderId}\n` +
     `주문상품: ${params.orderName}\n` +
     `결제금액: ${amount}원\n` +
     `수령인: ${params.recipientName}\n` +
     `\n` +
-    `관리자 페이지에서 확인해주세요.`;
+    `관리자 페이지에서 확인 후\n` +
+    `배송 준비를 진행해주세요.`;
 
   return sendSms({
     receiver: params.adminPhone.replace(/-/g, ""),
     msg,
     msgType: "LMS",
     title: "[REAGE] 신규 주문 알림",
+  });
+}
+
+/**
+ * 배송 운송장 등록 문자 발송 (고객용)
+ */
+export async function sendShippingNoticeSms(params: {
+  recipientPhone: string;
+  recipientName: string;
+  orderId: string;
+  orderName: string;
+  courierName: string;
+  trackingNumber: string;
+}): Promise<boolean> {
+  const msg =
+    `[REAGE] 주문하신 상품이 발송되었습니다.\n` +
+    `\n` +
+    `주문번호: ${params.orderId}\n` +
+    `주문상품: ${params.orderName}\n` +
+    `택배사: ${params.courierName}\n` +
+    `운송장번호: ${params.trackingNumber}\n` +
+    `\n` +
+    `배송조회는 해당 택배사 홈페이지 또는 앱에서\n` +
+    `운송장번호로 확인하실 수 있습니다.\n` +
+    `\n` +
+    `문의: 010-9679-9498 (평일 10:00-18:00)`;
+
+  return sendSms({
+    receiver: params.recipientPhone.replace(/-/g, ""),
+    msg,
+    msgType: "LMS",
+    title: "[REAGE] 배송 출발 안내",
   });
 }
