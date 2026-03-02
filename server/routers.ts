@@ -70,6 +70,30 @@ import {
   getSalesStats,
   getProductSalesStats,
   getCustomerStats,
+  // Shipping
+  updateOrderShipping,
+  getOrdersByShippingStatus,
+  // Cancellations
+  getCancellations,
+  createCancellation,
+  updateCancellation,
+  // Exchanges
+  getExchanges,
+  createExchange,
+  updateExchange,
+  // Returns
+  getReturns,
+  createReturn,
+  updateReturn,
+  // Refunds
+  getRefunds,
+  createRefund,
+  updateRefund,
+  // Card Cancellations
+  getCardCancellations,
+  createCardCancellation,
+  // Dashboard
+  getOrderDashboardSummary,
 } from "./db";
 import { storagePut } from "./storage";
 
@@ -680,6 +704,220 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         return deletePopup(input.id);
+      }),
+
+    // ─── Shipping Management ──────────────────────────────────────────────────
+    ordersByShippingStatus: protectedProcedure
+      .input(z.object({
+        shippingStatus: z.enum(["pending_payment", "ready", "hold", "shipping", "delivered"]),
+        page: z.number().default(1),
+        limit: z.number().default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getOrdersByShippingStatus(input.shippingStatus, { page: input.page, limit: input.limit });
+      }),
+
+    updateShipping: protectedProcedure
+      .input(z.object({
+        orderId: z.string(),
+        shippingStatus: z.enum(["pending_payment", "ready", "hold", "shipping", "delivered", "none"]).optional(),
+        courierCode: z.string().nullable().optional(),
+        courierName: z.string().nullable().optional(),
+        trackingNumber: z.string().nullable().optional(),
+        shippedAt: z.date().nullable().optional(),
+        deliveredAt: z.date().nullable().optional(),
+        recipientName: z.string().nullable().optional(),
+        recipientPhone: z.string().nullable().optional(),
+        shippingAddress: z.string().nullable().optional(),
+        shippingZipCode: z.string().nullable().optional(),
+        shippingMemo: z.string().nullable().optional(),
+        adminMemo: z.string().nullable().optional(),
+        paymentMethod: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { orderId, ...data } = input;
+        await updateOrderShipping(orderId, data);
+        return { success: true };
+      }),
+
+    orderDashboardSummary: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getOrderDashboardSummary();
+      }),
+
+    // ─── Cancellations ────────────────────────────────────────────────────────
+    cancellations: protectedProcedure
+      .input(z.object({
+        status: z.string().optional(),
+        cancelType: z.string().optional(),
+        page: z.number().default(1),
+        limit: z.number().default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getCancellations(input);
+      }),
+
+    createCancellation: protectedProcedure
+      .input(z.object({
+        orderId: z.number(),
+        cancelType: z.enum(["pre_payment", "post_payment"]).default("post_payment"),
+        reason: z.string().optional(),
+        reasonDetail: z.string().optional(),
+        cancelAmount: z.string().optional(),
+        adminMemo: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createCancellation({ ...input, status: "requested" });
+      }),
+
+    updateCancellation: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["requested", "processing", "completed", "rejected"]).optional(),
+        adminMemo: z.string().optional(),
+        completedAt: z.date().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        await updateCancellation(id, data);
+        return { success: true };
+      }),
+
+    // ─── Exchanges ────────────────────────────────────────────────────────────
+    exchanges: protectedProcedure
+      .input(z.object({ status: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getExchanges(input);
+      }),
+
+    createExchange: protectedProcedure
+      .input(z.object({
+        orderId: z.number(),
+        reason: z.string().optional(),
+        reasonDetail: z.string().optional(),
+        adminMemo: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createExchange({ ...input, status: "requested" });
+      }),
+
+    updateExchange: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["requested", "processing", "ready", "completed", "rejected"]).optional(),
+        courierName: z.string().nullable().optional(),
+        trackingNumber: z.string().nullable().optional(),
+        adminMemo: z.string().nullable().optional(),
+        completedAt: z.date().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        await updateExchange(id, data);
+        return { success: true };
+      }),
+
+    // ─── Returns ──────────────────────────────────────────────────────────────
+    returns: protectedProcedure
+      .input(z.object({ status: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getReturns(input);
+      }),
+
+    createReturn: protectedProcedure
+      .input(z.object({
+        orderId: z.number(),
+        reason: z.string().optional(),
+        reasonDetail: z.string().optional(),
+        adminMemo: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createReturn({ ...input, status: "requested" });
+      }),
+
+    updateReturn: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["requested", "processing", "completed", "rejected", "hold"]).optional(),
+        courierName: z.string().nullable().optional(),
+        trackingNumber: z.string().nullable().optional(),
+        adminMemo: z.string().nullable().optional(),
+        completedAt: z.date().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        await updateReturn(id, data);
+        return { success: true };
+      }),
+
+    // ─── Refunds ──────────────────────────────────────────────────────────────
+    refunds: protectedProcedure
+      .input(z.object({ status: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getRefunds(input);
+      }),
+
+    createRefund: protectedProcedure
+      .input(z.object({
+        orderId: z.number(),
+        refundMethod: z.enum(["card", "bank", "point", "deposit", "mixed"]).default("card"),
+        refundType: z.enum(["full", "partial"]).default("full"),
+        refundAmount: z.string(),
+        refundAccount: z.string().nullable().optional(),
+        refundBank: z.string().nullable().optional(),
+        adminNote: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createRefund({ ...input, status: "pending" });
+      }),
+
+    updateRefund: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["pending", "completed", "hold"]).optional(),
+        completedAt: z.date().nullable().optional(),
+        adminMemo: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        await updateRefund(id, data);
+        return { success: true };
+      }),
+
+    // ─── Card Cancellations ───────────────────────────────────────────────────
+    cardCancellations: protectedProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getCardCancellations(input);
+      }),
+
+    createCardCancellation: protectedProcedure
+      .input(z.object({
+        orderId: z.number(),
+        tid: z.string().optional(),
+        cancelAmount: z.string(),
+        cancelType: z.enum(["full", "partial"]).default("full"),
+        cancelledBy: z.string().optional(),
+        adminMemo: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createCardCancellation({ ...input, cancelledAt: new Date() });
       }),
 
     // ─── Stats ─────────────────────────────────────────────────────────────────

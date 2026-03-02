@@ -110,3 +110,23 @@
 - [x] 팝업 목록 (이미지 미리보기, 상태, 노출기간, 수정/삭제)
 - [x] 팝업 등록/수정 (종류: PC/모바일/PC+모바일, 이미지 업로드, 링크 URL, 노출위치, 노출기간, 하단문구)
 - [x] 홈페이지 팝업 렌더링 (메인 페이지에 활성 팝업 표시)
+
+## 주문 관리 카페24 구조 업그레이드 (3PL 연동 포함)
+
+- [x] orders 테이블에 배송 상태 컬럼 추가 (shippingStatus: pending_payment/ready/hold/shipping/delivered)
+- [x] orders 테이블에 3PL 관련 필드 추가 (courierName, trackingNumber, externalOrderId, shippingAddress 등)
+- [x] orderCancellations 테이블 (입금전취소/취소 관리)
+- [x] orderExchanges 테이블 (교환 관리)
+- [x] orderReturns 테이블 (반품 관리)
+- [x] orderRefunds 테이블 (환불 관리)
+- [x] cardCancellations 테이블 (카드 취소 조회)
+- [x] thirdPartyLogs 테이블 (3PL 웹훅 로그)
+- [x] 배송 상태 관리 API (ordersByShippingStatus, updateShipping)
+- [x] 취소/교환/반품/환불/카드취소 CRUD API
+- [x] 3PL 웹훅 엔드포인트 (POST /api/webhooks/3pl/shipping-update)
+- [x] 3PL 수동 주문 등록 API (POST /api/webhooks/3pl/register-order)
+- [x] 관리자 페이지 배송준비중/대기/배송중/완료 관리 페이지
+- [x] 관리자 페이지 취소/교환/반품/환불/카드취소/관리자환불 관리 페이지
+- [x] 주문 대시보드 실시간 매출현황 테이블
+- [x] 주문 대시보드 오늘의 할 일 (입금전/배송준비중/취소신청/교환신청/반품신청/환불전)
+- [x] 주문 대시보드 오늘 처리한 일 (배송완료/취소완료/교환완료/반품완료/환불완료)

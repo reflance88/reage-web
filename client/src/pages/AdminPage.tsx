@@ -107,7 +107,13 @@ const NAV: NavItem[] = [
       { id: "order-waiting", label: "배송 대기 관리" },
       { id: "order-shipping", label: "배송 중 관리" },
       { id: "order-done", label: "배송 완료 조회" },
-      { id: "order-cancel", label: "취소/교환/반품/환불" },
+      { id: "order-cancel-pre", label: "입금전 취소 관리" },
+      { id: "order-cancel", label: "취소 관리" },
+      { id: "order-exchange", label: "교환 관리" },
+      { id: "order-return", label: "반품 관리" },
+      { id: "order-refund", label: "환불 관리" },
+      { id: "order-card-cancel", label: "카드 취소 조회" },
+      { id: "order-admin-refund", label: "관리자 환불 관리" },
     ],
   },
   {
@@ -430,53 +436,451 @@ function DashboardSection() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: ORDER
 // ═══════════════════════════════════════════════════════════════════════════════
+// ─── Shipping Status Badge ────────────────────────────────────────────────────
+function ShippingBadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    pending_payment: { bg: "#FEF3C7", color: "#B45309", label: "입금전" },
+    ready:           { bg: "#DBEAFE", color: "#1D4ED8", label: "배송준비" },
+    hold:            { bg: "#FEE2E2", color: "#991B1B", label: "배송보류" },
+    shipping:        { bg: "#D1FAE5", color: "#065F46", label: "배송중" },
+    delivered:       { bg: "#DCFCE7", color: "#166534", label: "배송완료" },
+    none:            { bg: "#F3F4F6", color: "#374151", label: "해당없음" },
+  };
+  const s = map[status] ?? { bg: "#F3F4F6", color: "#374151", label: status };
+  return <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: "999px", background: s.bg, color: s.color, fontSize: "11px", fontWeight: 700 }}>{s.label}</span>;
+}
+
+// ─── CS Status Badge ──────────────────────────────────────────────────────────
+function CsBadge({ status }: { status: string }) {
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    requested:  { bg: "#FEF3C7", color: "#B45309", label: "신청" },
+    processing: { bg: "#DBEAFE", color: "#1D4ED8", label: "처리중" },
+    completed:  { bg: "#DCFCE7", color: "#166534", label: "완료" },
+    rejected:   { bg: "#FEE2E2", color: "#991B1B", label: "거부/철회" },
+    ready:      { bg: "#D1FAE5", color: "#065F46", label: "준비" },
+    hold:       { bg: "#F3F4F6", color: "#374151", label: "보류" },
+    pending:    { bg: "#FEF3C7", color: "#B45309", label: "환불전" },
+  };
+  const s = map[status] ?? { bg: "#F3F4F6", color: "#374151", label: status };
+  return <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: "999px", background: s.bg, color: s.color, fontSize: "11px", fontWeight: 700 }}>{s.label}</span>;
+}
+
+// ─── Shipping Detail Modal ────────────────────────────────────────────────────
+function ShippingDetailModal({ order, onClose, onSave }: { order: any; onClose: () => void; onSave: (data: any) => void }) {
+  const [form, setForm] = useState({
+    shippingStatus: order?.shippingStatus ?? "ready",
+    courierName: order?.courierName ?? "",
+    trackingNumber: order?.trackingNumber ?? "",
+    recipientName: order?.recipientName ?? "",
+    recipientPhone: order?.recipientPhone ?? "",
+    shippingAddress: order?.shippingAddress ?? "",
+    shippingMemo: order?.shippingMemo ?? "",
+    adminMemo: order?.adminMemo ?? "",
+  });
+  if (!order) return null;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
+      <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "600px", maxHeight: "85vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
+          <h3 style={{ fontSize: "17px", fontWeight: 800 }}>배송 정보 관리</h3>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ display: "grid", gap: "12px", fontSize: "13px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문번호</span><span style={{ fontFamily: "monospace" }}>{order.orderId}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문명</span><span>{order.orderName}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>결제금액</span><span style={{ fontWeight: 700 }}>{krw(order.totalAmount)}</span></div>
+        </div>
+        <div style={{ display: "grid", gap: "12px" }}>
+          <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted }}>배송 상태
+            <select value={form.shippingStatus} onChange={e => setForm(f => ({ ...f, shippingStatus: e.target.value }))}
+              style={{ display: "block", width: "100%", marginTop: "4px", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", fontSize: "13px" }}>
+              <option value="pending_payment">입금전</option>
+              <option value="ready">배송준비중</option>
+              <option value="hold">배송보류</option>
+              <option value="shipping">배송중</option>
+              <option value="delivered">배송완료</option>
+            </select>
+          </label>
+          {["courierName:운송사", "trackingNumber:송장번호", "recipientName:수령인이름", "recipientPhone:수령인연락처", "shippingAddress:배송주소", "shippingMemo:배송메모", "adminMemo:관리자메모"].map(kv => {
+            const [key, label] = kv.split(":");
+            return (
+              <label key={key} style={{ fontSize: "12px", fontWeight: 600, color: C.muted }}>{label}
+                <input value={(form as any)[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                  style={{ display: "block", width: "100%", marginTop: "4px", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", fontSize: "13px", boxSizing: "border-box" }} />
+              </label>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: "20px", display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+          <Btn size="sm" onClick={() => onSave(form)}>저장</Btn>
+          <Btn size="sm" variant="outline" onClick={onClose}>닫기</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Order Dashboard ─────────────────────────────────────────────────────────
+function OrderDashboard() {
+  const dashboard = trpc.admin.dashboard.useQuery();
+  const d = dashboard.data;
+  return (
+    <div>
+      <SectionHeader title="주문 대시보드" />
+      {/* 실시간 매출 현황 */}
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, padding: "24px", marginBottom: "20px" }}>
+        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px", color: C.text }}>실시간 매출 현황</div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+              <th style={{ padding: "8px 12px", textAlign: "left", color: C.muted, fontWeight: 600 }}>구분</th>
+              <th style={{ padding: "8px 12px", textAlign: "right", color: C.muted, fontWeight: 600 }}>오늘</th>
+              <th style={{ padding: "8px 12px", textAlign: "right", color: C.muted, fontWeight: 600 }}>이번 달</th>
+              <th style={{ padding: "8px 12px", textAlign: "right", color: C.muted, fontWeight: 600 }}>바로가기</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+              <td style={{ padding: "12px" }}>총 주문 금액</td>
+              <td style={{ padding: "12px", textAlign: "right", color: C.blue, fontWeight: 700 }}>{krw(d?.todayRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.todayOrders ?? 0}건</span></td>
+              <td style={{ padding: "12px", textAlign: "right", color: C.primary, fontWeight: 700 }}>{krw(d?.totalPaidAmount ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.totalOrders ?? 0}건</span></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline">주문조회</Btn></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {/* 오늘의 할 일 */}
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, padding: "24px", marginBottom: "20px" }}>
+        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>오늘의 할 일</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "12px" }}>
+          {[
+            { label: "입금전", value: d?.pendingOrders ?? 0, color: C.orange },
+            { label: "배송준비중", value: d?.readyToShip ?? 0, color: C.blue },
+            { label: "배송대기", value: 0, color: C.muted },
+            { label: "배송중", value: d?.shippingOrders ?? 0, color: C.green },
+            { label: "취소신청", value: d?.cancelRequested ?? 0, color: C.primary },
+            { label: "교환신청", value: d?.exchangeRequested ?? 0, color: C.primary },
+            { label: "반품신청", value: d?.returnRequested ?? 0, color: C.primary },
+            { label: "환불전", value: d?.refundPending ?? 0, color: C.primary },
+          ].map(item => (
+            <div key={item.label} style={{ textAlign: "center", padding: "12px", background: C.bg, borderRadius: "8px" }}>
+              <div style={{ fontSize: "11px", color: C.muted, marginBottom: "4px" }}>{item.label}</div>
+              <div style={{ fontSize: "20px", fontWeight: 800, color: item.value > 0 ? item.color : C.muted }}>{item.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* 오늘 처리한 일 */}
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, padding: "24px" }}>
+        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>오늘 처리한 일</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "12px" }}>
+          {[
+            { label: "배송완료", value: d?.deliveredOrders ?? 0 },
+            { label: "취소완료", value: d?.cancelCompleted ?? 0 },
+            { label: "교환완료", value: d?.exchangeCompleted ?? 0 },
+            { label: "반품완료", value: d?.returnCompleted ?? 0 },
+            { label: "환불완료", value: d?.refundCompleted ?? 0 },
+          ].map(item => (
+            <div key={item.label} style={{ textAlign: "center", padding: "12px", background: C.bg, borderRadius: "8px" }}>
+              <div style={{ fontSize: "11px", color: C.muted, marginBottom: "4px" }}>{item.label}</div>
+              <div style={{ fontSize: "20px", fontWeight: 800, color: C.text }}>{item.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Order Section ────────────────────────────────────────────────────────────
 function OrderSection({ subPage }: { subPage: string }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [shippingModalOpen, setShippingModalOpen] = useState(false);
+  const [csTab, setCsTab] = useState("all");
 
-  const statusMap: Record<string, string | undefined> = {
-    "order-unpaid": "created",
-    "order-preparing": "paid",
-    "order-done": "paid",
-    "order-cancel": "cancelled",
+  // ─── Shipping status pages ──────────────────────────────────────────────────
+  const shippingStatusMap: Record<string, "pending_payment" | "ready" | "hold" | "shipping" | "delivered"> = {
+    "order-preparing": "ready",
+    "order-waiting": "hold",
+    "order-shipping": "shipping",
+    "order-done": "delivered",
   };
+  const isShippingPage = subPage in shippingStatusMap;
+  const shippingStatus = shippingStatusMap[subPage];
 
-  const effectiveStatus = statusMap[subPage] ?? (statusFilter !== "all" ? statusFilter : undefined);
+  const shippingOrders = trpc.admin.ordersByShippingStatus.useQuery(
+    { shippingStatus: shippingStatus ?? "ready", page: 1, limit: 50 },
+    { enabled: isShippingPage }
+  );
 
-  const orders = trpc.admin.searchOrders.useQuery({
-    search: search || undefined,
-    status: effectiveStatus as any,
-    page: 1,
-    limit: 50,
+  const updateShipping = trpc.admin.updateShipping.useMutation({
+    onSuccess: () => { toast.success("배송 정보가 저장되었습니다."); shippingOrders.refetch(); setShippingModalOpen(false); },
   });
 
+  // ─── CS pages ────────────────────────────────────────────────────────────────
+  const isCsPage = ["order-cancel-pre", "order-cancel", "order-exchange", "order-return", "order-refund", "order-card-cancel", "order-admin-refund"].includes(subPage);
+
+  const cancellations = trpc.admin.cancellations.useQuery(
+    { cancelType: subPage === "order-cancel-pre" ? "pre_payment" : subPage === "order-cancel" ? "post_payment" : undefined, page: 1, limit: 50 },
+    { enabled: ["order-cancel-pre", "order-cancel"].includes(subPage) }
+  );
+  const exchanges = trpc.admin.exchanges.useQuery({ page: 1, limit: 50 }, { enabled: subPage === "order-exchange" });
+  const returns = trpc.admin.returns.useQuery({ page: 1, limit: 50 }, { enabled: subPage === "order-return" });
+  const refunds = trpc.admin.refunds.useQuery({ page: 1, limit: 50 }, { enabled: ["order-refund", "order-admin-refund"].includes(subPage) });
+  const cardCancellations = trpc.admin.cardCancellations.useQuery({ page: 1, limit: 50 }, { enabled: subPage === "order-card-cancel" });
+
+  const updateCancellation = trpc.admin.updateCancellation.useMutation({ onSuccess: () => { toast.success("업데이트 완료"); cancellations.refetch(); } });
+  const updateExchange = trpc.admin.updateExchange.useMutation({ onSuccess: () => { toast.success("업데이트 완료"); exchanges.refetch(); } });
+  const updateReturn = trpc.admin.updateReturn.useMutation({ onSuccess: () => { toast.success("업데이트 완료"); returns.refetch(); } });
+  const updateRefund = trpc.admin.updateRefund.useMutation({ onSuccess: () => { toast.success("업데이트 완료"); refunds.refetch(); } });
+
+  // ─── General order pages ─────────────────────────────────────────────────────
+  const effectiveStatus = subPage === "order-unpaid" ? "created" : statusFilter !== "all" ? statusFilter : undefined;
+  const orders = trpc.admin.searchOrders.useQuery(
+    { search: search || undefined, status: effectiveStatus as any, page: 1, limit: 50 },
+    { enabled: !isShippingPage && !isCsPage }
+  );
   const updateStatus = trpc.admin.updateOrderStatus.useMutation({
     onSuccess: () => { toast.success("주문 상태가 변경되었습니다."); orders.refetch(); },
   });
 
-  const title = subPage === "order-dashboard" ? "주문 대시보드"
-    : subPage === "order-all" ? "전체 주문 조회"
-    : subPage === "order-unpaid" ? "입금전 관리"
-    : subPage === "order-preparing" ? "배송 준비중 관리"
-    : subPage === "order-waiting" ? "배송 대기 관리"
-    : subPage === "order-shipping" ? "배송 중 관리"
-    : subPage === "order-done" ? "배송 완료 조회"
-    : subPage === "order-cancel" ? "취소/교환/반품/환불" : "주문 관리";
-
+  // ─── Order Dashboard ─────────────────────────────────────────────────────────
   if (subPage === "order-dashboard") {
-    const orderDashboard = trpc.admin.dashboard.useQuery();
+    return <OrderDashboard />;
+  }
+
+  // ─── Shipping pages ───────────────────────────────────────────────────────────
+  const shippingTitleMap: Record<string, string> = {
+    "order-preparing": "배송 준비중 관리",
+    "order-waiting": "배송 대기 관리",
+    "order-shipping": "배송 중 관리",
+    "order-done": "배송 완료 조회",
+  };
+
+  if (isShippingPage) {
+    const rows = shippingOrders.data?.rows ?? [];
     return (
       <div>
-        <SectionHeader title="주문 대시보드" />
-        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-          <SummaryCard label="오늘 주문" value={orderDashboard.data?.todayOrders ?? "—"} color={C.green} />
-          <SummaryCard label="누적 매출" value={orderDashboard.data ? krw(orderDashboard.data.totalPaidAmount) : "—"} color={C.primary} />
+        <SectionHeader title={shippingTitleMap[subPage]} />
+        <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <Table
+            headers={["주문일/주문번호", "주문자", "송장번호", "운송정보", "상품명", "결제금액", "배송상태", "관리"]}
+            rows={rows.map((o: any) => [
+              <div><div style={{ fontSize: "11px", color: C.muted }}>{fmtDateTime(o.createdAt)}</div><div style={{ fontFamily: "monospace", fontSize: "11px" }}>{o.orderId}</div></div>,
+              <span style={{ fontWeight: 600 }}>{o.orderName ?? "—"}</span>,
+              <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{o.trackingNumber ?? "—"}</span>,
+              <span>{o.courierName ?? "—"}</span>,
+              <span>{o.orderName ?? "—"}</span>,
+              krw(o.totalAmount),
+              <ShippingBadge status={o.shippingStatus ?? "none"} />,
+              <Btn size="sm" variant="outline" onClick={() => { setSelectedOrder(o); setShippingModalOpen(true); }}>송장입력</Btn>,
+            ])}
+          />
+          {rows.length === 0 && <div style={{ padding: "40px", textAlign: "center", color: C.muted }}>검색된 주문내역이 없습니다.</div>}
+        </div>
+        {shippingModalOpen && selectedOrder && (
+          <ShippingDetailModal
+            order={selectedOrder}
+            onClose={() => setShippingModalOpen(false)}
+            onSave={(data) => updateShipping.mutate({ orderId: selectedOrder.orderId, ...data })}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // ─── CS pages ────────────────────────────────────────────────────────────────
+  if (["order-cancel-pre", "order-cancel"].includes(subPage)) {
+    const title = subPage === "order-cancel-pre" ? "입금전 취소 관리" : "취소 관리";
+    const rows = cancellations.data?.rows ?? [];
+    return (
+      <div>
+        <SectionHeader title={title} />
+        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          {["전체", "취소신청", "취소처리중", "취소완료", "접수거부/철회"].map((t, i) => {
+            const vals = ["all", "requested", "processing", "completed", "rejected"];
+            return <button key={t} onClick={() => setCsTab(vals[i])} style={{ padding: "6px 14px", borderRadius: "6px", border: `1.5px solid ${csTab === vals[i] ? C.primary : C.border}`, background: csTab === vals[i] ? C.primary : "#fff", color: csTab === vals[i] ? "#fff" : C.text, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>{t}</button>;
+          })}
+        </div>
+        <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <Table
+            headers={["취소신청일", "주문번호/취소번호", "주문자", "상품명/옵션", "취소금액", "결제수단", "주문상태", "취소처리", "메모"]}
+            rows={(rows.filter((r: any) => csTab === "all" || r.orderCancellations?.status === csTab)).map((r: any) => {
+              const c = r.orderCancellations;
+              const o = r.orders;
+              return [
+                fmtDate(c?.createdAt),
+                <div><div style={{ fontFamily: "monospace", fontSize: "11px" }}>{o?.orderId ?? "—"}</div></div>,
+                <span>{o?.orderName ?? "—"}</span>,
+                <span>{o?.orderName ?? "—"}</span>,
+                krw(c?.cancelAmount),
+                <span>{o?.paymentMethod ?? "—"}</span>,
+                <CsBadge status={c?.status ?? "requested"} />,
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {c?.status === "requested" && <Btn size="sm" onClick={() => updateCancellation.mutate({ id: c.id, status: "processing" })}>취소처리</Btn>}
+                  {c?.status === "processing" && <Btn size="sm" onClick={() => updateCancellation.mutate({ id: c.id, status: "completed" })}>취소완료</Btn>}
+                </div>,
+                <span style={{ fontSize: "11px", color: C.muted }}>{c?.adminNote ?? "—"}</span>,
+              ];
+            })}
+          />
+          {rows.length === 0 && <div style={{ padding: "40px", textAlign: "center", color: C.muted }}>검색된 주문내역이 없습니다.</div>}
         </div>
       </div>
     );
   }
+
+  if (subPage === "order-exchange") {
+    const rows = exchanges.data?.rows ?? [];
+    return (
+      <div>
+        <SectionHeader title="교환 관리" />
+        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          {["전체", "교환신청", "교환처리중", "교환완료", "접수거부/철회"].map((t, i) => {
+            const vals = ["all", "requested", "processing", "completed", "rejected"];
+            return <button key={t} onClick={() => setCsTab(vals[i])} style={{ padding: "6px 14px", borderRadius: "6px", border: `1.5px solid ${csTab === vals[i] ? C.primary : C.border}`, background: csTab === vals[i] ? C.primary : "#fff", color: csTab === vals[i] ? "#fff" : C.text, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>{t}</button>;
+          })}
+        </div>
+        <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <Table
+            headers={["교환신청일", "주문번호/교환번호", "주문자", "상품명/옵션", "주문상태", "교환처리", "메모"]}
+            rows={(rows.filter((r: any) => csTab === "all" || r.orderExchanges?.status === csTab)).map((r: any) => {
+              const ex = r.orderExchanges;
+              const o = r.orders;
+              return [
+                fmtDate(ex?.createdAt),
+                <div style={{ fontFamily: "monospace", fontSize: "11px" }}>{o?.orderId ?? "—"}</div>,
+                <span>{o?.orderName ?? "—"}</span>,
+                <span>{o?.orderName ?? "—"}</span>,
+                <CsBadge status={ex?.status ?? "requested"} />,
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {ex?.status === "requested" && <Btn size="sm" onClick={() => updateExchange.mutate({ id: ex.id, status: "processing" })}>교환처리</Btn>}
+                  {ex?.status === "processing" && <Btn size="sm" onClick={() => updateExchange.mutate({ id: ex.id, status: "completed" })}>교환완료</Btn>}
+                </div>,
+                <span style={{ fontSize: "11px", color: C.muted }}>{ex?.adminMemo ?? "—"}</span>,
+              ];
+            })}
+          />
+          {rows.length === 0 && <div style={{ padding: "40px", textAlign: "center", color: C.muted }}>검색된 주문내역이 없습니다.</div>}
+        </div>
+      </div>
+    );
+  }
+
+  if (subPage === "order-return") {
+    const rows = returns.data?.rows ?? [];
+    return (
+      <div>
+        <SectionHeader title="반품 관리" />
+        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          {["전체", "반품신청", "반품처리중", "반품완료", "접수거부/철회"].map((t, i) => {
+            const vals = ["all", "requested", "processing", "completed", "rejected"];
+            return <button key={t} onClick={() => setCsTab(vals[i])} style={{ padding: "6px 14px", borderRadius: "6px", border: `1.5px solid ${csTab === vals[i] ? C.primary : C.border}`, background: csTab === vals[i] ? C.primary : "#fff", color: csTab === vals[i] ? "#fff" : C.text, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>{t}</button>;
+          })}
+        </div>
+        <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <Table
+            headers={["반품신청일", "주문번호/취소번호", "주문자", "상품명/옵션", "운송정보", "주문상태", "반품처리", "메모"]}
+            rows={(rows.filter((r: any) => csTab === "all" || r.orderReturns?.status === csTab)).map((r: any) => {
+              const ret = r.orderReturns;
+              const o = r.orders;
+              return [
+                fmtDate(ret?.createdAt),
+                <div style={{ fontFamily: "monospace", fontSize: "11px" }}>{o?.orderId ?? "—"}</div>,
+                <span>{o?.orderName ?? "—"}</span>,
+                <span>{o?.orderName ?? "—"}</span>,
+                <span style={{ fontSize: "11px" }}>{ret?.returnCourierName ? `${ret.returnCourierName} ${ret.returnTrackingNumber ?? ""}` : "—"}</span>,
+                <CsBadge status={ret?.status ?? "requested"} />,
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {ret?.status === "requested" && <Btn size="sm" onClick={() => updateReturn.mutate({ id: ret.id, status: "processing" })}>반품처리</Btn>}
+                  {ret?.status === "processing" && <Btn size="sm" onClick={() => updateReturn.mutate({ id: ret.id, status: "completed" })}>반품완료</Btn>}
+                </div>,
+                <span style={{ fontSize: "11px", color: C.muted }}>{ret?.adminMemo ?? "—"}</span>,
+              ];
+            })}
+          />
+          {rows.length === 0 && <div style={{ padding: "40px", textAlign: "center", color: C.muted }}>검색된 주문내역이 없습니다.</div>}
+        </div>
+      </div>
+    );
+  }
+
+  if (["order-refund", "order-admin-refund"].includes(subPage)) {
+    const title = subPage === "order-admin-refund" ? "관리자 환불 관리" : "환불 관리";
+    const rows = refunds.data?.rows ?? [];
+    return (
+      <div>
+        <SectionHeader title={title} />
+        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          {["전체", "환불전", "환불완료", "환불보류", "환불철회"].map((t, i) => {
+            const vals = ["all", "pending", "completed", "hold", "rejected"];
+            return <button key={t} onClick={() => setCsTab(vals[i])} style={{ padding: "6px 14px", borderRadius: "6px", border: `1.5px solid ${csTab === vals[i] ? C.primary : C.border}`, background: csTab === vals[i] ? C.primary : "#fff", color: csTab === vals[i] ? "#fff" : C.text, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>{t}</button>;
+          })}
+        </div>
+        <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <Table
+            headers={["주문일", "환불접수일", "주문번호/환불번호", "주문자", "총수량", "총환불액", "사용한적립금/예치금", "결제수단", "환불수단", "처리상태", "환불처리", "메모"]}
+            rows={(rows.filter((r: any) => csTab === "all" || r.orderRefunds?.status === csTab)).map((r: any) => {
+              const ref = r.orderRefunds;
+              const o = r.orders;
+              return [
+                fmtDate(o?.createdAt),
+                fmtDate(ref?.createdAt),
+                <div style={{ fontFamily: "monospace", fontSize: "11px" }}>{o?.orderId ?? "—"}</div>,
+                <span>{o?.orderName ?? "—"}</span>,
+                "—",
+                krw(ref?.refundAmount),
+                "0/0",
+                <span>{o?.paymentMethod ?? "—"}</span>,
+                <span>{ref?.refundMethod ?? "—"}</span>,
+                <CsBadge status={ref?.status ?? "pending"} />,
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {ref?.status === "pending" && <Btn size="sm" onClick={() => updateRefund.mutate({ id: ref.id, status: "completed", completedAt: new Date() })}>환불완료</Btn>}
+                </div>,
+                <span style={{ fontSize: "11px", color: C.muted }}>{ref?.adminNote ?? "—"}</span>,
+              ];
+            })}
+          />
+          {rows.length === 0 && <div style={{ padding: "40px", textAlign: "center", color: C.muted }}>검색된 환불내역이 없습니다.</div>}
+        </div>
+      </div>
+    );
+  }
+
+  if (subPage === "order-card-cancel") {
+    const rows = cardCancellations.data?.rows ?? [];
+    return (
+      <div>
+        <SectionHeader title="카드 취소 조회" />
+        <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <Table
+            headers={["결제일(취소일)", "주문번호", "주문자", "TID(거래번호)", "취소금액", "취소구분", "취소처리자", "메모"]}
+            rows={rows.map((r: any) => {
+              const cc = r.cardCancellations;
+              const o = r.orders;
+              return [
+                fmtDate(cc?.cancelledAt),
+                <div style={{ fontFamily: "monospace", fontSize: "11px" }}>{o?.orderId ?? "—"}</div>,
+                <span>{o?.orderName ?? "—"}</span>,
+                <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{cc?.tid ?? "—"}</span>,
+                krw(cc?.cancelAmount),
+                <span>{cc?.cancelType === "full" ? "전체취소" : "부분취소"}</span>,
+                <span>{cc?.cancelledBy ?? "—"}</span>,
+                <span style={{ fontSize: "11px", color: C.muted }}>{cc?.adminMemo ?? "—"}</span>,
+              ];
+            })}
+          />
+          {rows.length === 0 && <div style={{ padding: "40px", textAlign: "center", color: C.muted }}>검색된 카드취소 내역이 없습니다.</div>}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── General order list ───────────────────────────────────────────────────────
+  const title = subPage === "order-all" ? "전체 주문 조회"
+    : subPage === "order-unpaid" ? "입금전 관리" : "주문 관리";
 
   return (
     <div>
@@ -495,7 +899,7 @@ function OrderSection({ subPage }: { subPage: string }) {
       </div>
       <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
         <Table
-          headers={["주문번호", "회원", "주문명", "금액", "상태", "결제일", "관리"]}
+          headers={["주문번호", "회원", "주문명", "금액", "결제상태", "배송상태", "결제일", "관리"]}
           rows={(orders.data?.items ?? []).map((item: any) => {
             const o = item.o;
             return [
@@ -504,41 +908,18 @@ function OrderSection({ subPage }: { subPage: string }) {
               o.orderName ?? "—",
               krw(o.totalAmount),
               <StatusBadge status={o.status} />,
+              <ShippingBadge status={o.shippingStatus ?? "none"} />,
               fmtDate(o.paidAt),
-              <Btn size="sm" variant="outline" onClick={() => { setSelectedOrder(item); setDetailOpen(true); }}>상세</Btn>,
+              <div style={{ display: "flex", gap: "4px" }}>
+                <Btn size="sm" variant="outline" onClick={() => { setSelectedOrder(item); }}>상세</Btn>
+                {o.status !== "cancelled" && (
+                  <Btn size="sm" variant="danger" onClick={() => updateStatus.mutate({ orderId: o.orderId, status: "cancelled" })}>취소</Btn>
+                )}
+              </div>,
             ];
           })}
         />
       </div>
-
-      {detailOpen && selectedOrder && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
-          <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "560px", maxHeight: "80vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
-              <h3 style={{ fontSize: "17px", fontWeight: 800 }}>주문 상세</h3>
-              <button onClick={() => setDetailOpen(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer" }}>✕</button>
-            </div>
-            <div style={{ display: "grid", gap: "12px", fontSize: "13px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문번호</span><span style={{ fontFamily: "monospace" }}>{selectedOrder.o.orderId}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>회원</span><span>{selectedOrder.userName} ({selectedOrder.userEmail})</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문명</span><span>{selectedOrder.o.orderName}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>결제금액</span><span style={{ fontWeight: 700 }}>{krw(selectedOrder.o.totalAmount)}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>상태</span><StatusBadge status={selectedOrder.o.status} /></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>결제일</span><span>{fmtDateTime(selectedOrder.o.paidAt)}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문일</span><span>{fmtDateTime(selectedOrder.o.createdAt)}</span></div>
-            </div>
-            <div style={{ marginTop: "20px", display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-              {selectedOrder.o.status !== "cancelled" && (
-                <Btn size="sm" variant="danger" onClick={() => {
-                  updateStatus.mutate({ orderId: selectedOrder.o.orderId, status: "cancelled" });
-                  setDetailOpen(false);
-                }}>주문 취소</Btn>
-              )}
-              <Btn size="sm" variant="outline" onClick={() => setDetailOpen(false)}>닫기</Btn>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

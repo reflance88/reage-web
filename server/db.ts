@@ -1,4 +1,4 @@
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   AdminAuditLog,
@@ -7,13 +7,25 @@ import {
   InsertBusinessVerification,
   InsertOrder,
   InsertOrderItem,
+  InsertOrderCancellation,
+  InsertOrderExchange,
+  InsertOrderReturn,
+  InsertOrderRefund,
+  InsertCardCancellation,
+  InsertThirdPartyLog,
   InsertUser,
   Order,
   adminAuditLogs,
   businessVerifications,
+  cardCancellations,
+  orderCancellations,
+  orderExchanges,
   orderItems,
+  orderRefunds,
+  orderReturns,
   orders,
   products,
+  thirdPartyLogs,
   users,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -434,11 +446,45 @@ export async function getDashboardSummary() {
     .from(orders)
     .where(eq(orders.status, "paid"));
 
+  // 배송 상태별 주문 수
+  const [pendingOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.status, "created"));
+  const [readyToShip] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "ready"));
+  const [shippingOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "shipping"));
+  const [deliveredOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "delivered"));
+  const [totalOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders);
+  const [todayRevenue] = await db.select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`));
+
+  // CS 신청 건수 (requested 상태)
+  const [cancelRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(eq(orderCancellations.status, "requested"));
+  const [exchangeRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(eq(orderExchanges.status, "requested"));
+  const [returnRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(eq(orderReturns.status, "requested"));
+  const [refundPending] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(eq(orderRefunds.status, "pending"));
+
+  // 오늘 처리 완료 건수
+  const [cancelCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(and(eq(orderCancellations.status, "completed"), sql`${orderCancellations.processedAt} >= ${today}`));
+  const [exchangeCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(and(eq(orderExchanges.status, "completed"), sql`${orderExchanges.processedAt} >= ${today}`));
+  const [returnCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(and(eq(orderReturns.status, "completed"), sql`${orderReturns.processedAt} >= ${today}`));
+  const [refundCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${today}`));
+
   return {
     pendingVerifications: Number(pendingVerifs?.count ?? 0),
     totalUsers: Number(totalUsers?.count ?? 0),
     todayOrders: Number(todayOrders?.count ?? 0),
     totalPaidAmount: Number(totalPaid?.total ?? 0),
+    pendingOrders: Number(pendingOrders?.count ?? 0),
+    readyToShip: Number(readyToShip?.count ?? 0),
+    shippingOrders: Number(shippingOrders?.count ?? 0),
+    deliveredOrders: Number(deliveredOrders?.count ?? 0),
+    totalOrders: Number(totalOrders?.count ?? 0),
+    todayRevenue: Number(todayRevenue?.total ?? 0),
+    cancelRequested: Number(cancelRequested?.count ?? 0),
+    exchangeRequested: Number(exchangeRequested?.count ?? 0),
+    returnRequested: Number(returnRequested?.count ?? 0),
+    refundPending: Number(refundPending?.count ?? 0),
+    cancelCompleted: Number(cancelCompleted?.count ?? 0),
+    exchangeCompleted: Number(exchangeCompleted?.count ?? 0),
+    returnCompleted: Number(returnCompleted?.count ?? 0),
+    refundCompleted: Number(refundCompleted?.count ?? 0),
   };
 }
 
@@ -846,5 +892,281 @@ export async function getCustomerStats() {
     byMemberRole: (byMemberRoleRows[0] as unknown as any[]).map((r: any) => ({ role: r.member_role, count: Number(r.cnt) })),
     byDayOfWeek: (byDowRows[0] as unknown as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
     byHour: (byHourRows[0] as unknown as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
+  };
+}
+
+// ─── Shipping Status & 3PL Helpers ───────────────────────────────────────────
+export async function updateOrderShipping(
+  orderId: string,
+  data: {
+    shippingStatus?: "pending_payment" | "ready" | "hold" | "shipping" | "delivered" | "none";
+    courierCode?: string | null;
+    courierName?: string | null;
+    trackingNumber?: string | null;
+    shippedAt?: Date | null;
+    deliveredAt?: Date | null;
+    recipientName?: string | null;
+    recipientPhone?: string | null;
+    shippingAddress?: string | null;
+    shippingZipCode?: string | null;
+    shippingMemo?: string | null;
+    externalOrderId?: string | null;
+    thirdPartyStatus?: "none" | "synced" | "error";
+    thirdPartySyncedAt?: Date | null;
+    adminMemo?: string | null;
+    paymentMethod?: string | null;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(orders).set(data as any).where(eq(orders.orderId, orderId));
+}
+
+export async function getOrdersByShippingStatus(
+  shippingStatus: "pending_payment" | "ready" | "hold" | "shipping" | "delivered",
+  opts: { page?: number; limit?: number; search?: string; dateFrom?: Date; dateTo?: Date } = {}
+) {
+  const db = await getDb();
+  if (!db) return { rows: [], total: 0 };
+  const { page = 1, limit = 20 } = opts;
+  const offset = (page - 1) * limit;
+  const rows = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.shippingStatus, shippingStatus))
+    .orderBy(desc(orders.createdAt))
+    .limit(limit)
+    .offset(offset);
+  return { rows, total: rows.length };
+}
+
+// ─── Order Cancellations ─────────────────────────────────────────────────────
+
+export async function getCancellations(opts: {
+  status?: string;
+  cancelType?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  dateFrom?: Date;
+  dateTo?: Date;
+} = {}) {
+  const db = await getDb();
+  if (!db) return { rows: [], total: 0 };
+  const { page = 1, limit = 20 } = opts;
+  const offset = (page - 1) * limit;
+  const rows = await db
+    .select()
+    .from(orderCancellations)
+    .leftJoin(orders, eq(orderCancellations.orderId, orders.id))
+    .orderBy(desc(orderCancellations.createdAt))
+    .limit(limit)
+    .offset(offset);
+  return { rows, total: rows.length };
+}
+
+export async function createCancellation(data: InsertOrderCancellation) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(orderCancellations).values(data);
+  const result = await db.select().from(orderCancellations)
+    .where(eq(orderCancellations.orderId, data.orderId))
+    .orderBy(desc(orderCancellations.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function updateCancellation(id: number, data: Partial<InsertOrderCancellation>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(orderCancellations).set(data as any).where(eq(orderCancellations.id, id));
+}
+
+// ─── Order Exchanges ──────────────────────────────────────────────────────────
+export async function getExchanges(opts: { status?: string; page?: number; limit?: number } = {}) {
+  const db = await getDb();
+  if (!db) return { rows: [], total: 0 };
+  const { page = 1, limit = 20 } = opts;
+  const offset = (page - 1) * limit;
+  const rows = await db
+    .select()
+    .from(orderExchanges)
+    .leftJoin(orders, eq(orderExchanges.orderId, orders.id))
+    .orderBy(desc(orderExchanges.createdAt))
+    .limit(limit)
+    .offset(offset);
+  return { rows, total: rows.length };
+}
+
+export async function createExchange(data: InsertOrderExchange) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(orderExchanges).values(data);
+  const result = await db.select().from(orderExchanges)
+    .where(eq(orderExchanges.orderId, data.orderId))
+    .orderBy(desc(orderExchanges.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function updateExchange(id: number, data: Partial<InsertOrderExchange>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(orderExchanges).set(data as any).where(eq(orderExchanges.id, id));
+}
+
+// ─── Order Returns ────────────────────────────────────────────────────────────
+export async function getReturns(opts: { status?: string; page?: number; limit?: number } = {}) {
+  const db = await getDb();
+  if (!db) return { rows: [], total: 0 };
+  const { page = 1, limit = 20 } = opts;
+  const offset = (page - 1) * limit;
+  const rows = await db
+    .select()
+    .from(orderReturns)
+    .leftJoin(orders, eq(orderReturns.orderId, orders.id))
+    .orderBy(desc(orderReturns.createdAt))
+    .limit(limit)
+    .offset(offset);
+  return { rows, total: rows.length };
+}
+
+export async function createReturn(data: InsertOrderReturn) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(orderReturns).values(data);
+  const result = await db.select().from(orderReturns)
+    .where(eq(orderReturns.orderId, data.orderId))
+    .orderBy(desc(orderReturns.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function updateReturn(id: number, data: Partial<InsertOrderReturn>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(orderReturns).set(data as any).where(eq(orderReturns.id, id));
+}
+
+// ─── Order Refunds ────────────────────────────────────────────────────────────
+export async function getRefunds(opts: { status?: string; page?: number; limit?: number } = {}) {
+  const db = await getDb();
+  if (!db) return { rows: [], total: 0 };
+  const { page = 1, limit = 20 } = opts;
+  const offset = (page - 1) * limit;
+  const rows = await db
+    .select()
+    .from(orderRefunds)
+    .leftJoin(orders, eq(orderRefunds.orderId, orders.id))
+    .orderBy(desc(orderRefunds.createdAt))
+    .limit(limit)
+    .offset(offset);
+  return { rows, total: rows.length };
+}
+
+export async function createRefund(data: InsertOrderRefund) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(orderRefunds).values(data);
+  const result = await db.select().from(orderRefunds)
+    .where(eq(orderRefunds.orderId, data.orderId))
+    .orderBy(desc(orderRefunds.createdAt)).limit(1);
+  return result[0];
+}
+
+export async function updateRefund(id: number, data: Partial<InsertOrderRefund>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(orderRefunds).set(data as any).where(eq(orderRefunds.id, id));
+}
+
+// ─── Card Cancellations ───────────────────────────────────────────────────────
+export async function getCardCancellations(opts: { page?: number; limit?: number } = {}) {
+  const db = await getDb();
+  if (!db) return { rows: [], total: 0 };
+  const { page = 1, limit = 20 } = opts;
+  const offset = (page - 1) * limit;
+  const rows = await db
+    .select()
+    .from(cardCancellations)
+    .leftJoin(orders, eq(cardCancellations.orderId, orders.id))
+    .orderBy(desc(cardCancellations.cancelledAt))
+    .limit(limit)
+    .offset(offset);
+  return { rows, total: rows.length };
+}
+
+export async function createCardCancellation(data: InsertCardCancellation) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(cardCancellations).values(data);
+  const result = await db.select().from(cardCancellations)
+    .where(eq(cardCancellations.orderId, data.orderId))
+    .orderBy(desc(cardCancellations.cancelledAt)).limit(1);
+  return result[0];
+}
+
+// ─── 3PL Webhook Logs ─────────────────────────────────────────────────────────
+export async function createThirdPartyLog(data: InsertThirdPartyLog) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(thirdPartyLogs).values(data);
+}
+
+export async function getThirdPartyLogs(orderId?: number, opts: { page?: number; limit?: number } = {}) {
+  const db = await getDb();
+  if (!db) return [];
+  const { limit = 50 } = opts;
+  const q = db.select().from(thirdPartyLogs).orderBy(desc(thirdPartyLogs.createdAt)).limit(limit);
+  if (orderId) {
+    return db.select().from(thirdPartyLogs)
+      .where(eq(thirdPartyLogs.orderId, orderId))
+      .orderBy(desc(thirdPartyLogs.createdAt)).limit(limit);
+  }
+  return q;
+}
+
+// ─── Order Dashboard Summary (확장) ──────────────────────────────────────────
+export async function getOrderDashboardSummary() {
+  const db = await getDb();
+  if (!db) return null;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [todayOrders, monthOrders, pendingPayment, ready, hold, shipping, delivered,
+    cancelRequested, exchangeRequested, returnRequested, refundPending] = await Promise.all([
+    db.select().from(orders).where(and(eq(orders.status, "paid"), gte(orders.paidAt, todayStart))),
+    db.select().from(orders).where(and(eq(orders.status, "paid"), gte(orders.paidAt, monthStart))),
+    db.select().from(orders).where(eq(orders.shippingStatus, "pending_payment")),
+    db.select().from(orders).where(eq(orders.shippingStatus, "ready")),
+    db.select().from(orders).where(eq(orders.shippingStatus, "hold")),
+    db.select().from(orders).where(eq(orders.shippingStatus, "shipping")),
+    db.select().from(orders).where(eq(orders.shippingStatus, "delivered")),
+    db.select().from(orderCancellations).where(eq(orderCancellations.status, "requested")),
+    db.select().from(orderExchanges).where(eq(orderExchanges.status, "requested")),
+    db.select().from(orderReturns).where(eq(orderReturns.status, "requested")),
+    db.select().from(orderRefunds).where(eq(orderRefunds.status, "pending")),
+  ]);
+
+  const todaySales = todayOrders.reduce((s, o) => s + Number(o.totalAmount), 0);
+  const monthSales = monthOrders.reduce((s, o) => s + Number(o.totalAmount), 0);
+
+  return {
+    today: { orders: todayOrders.length, sales: todaySales },
+    month: { orders: monthOrders.length, sales: monthSales },
+    shipping: {
+      pendingPayment: pendingPayment.length,
+      ready: ready.length,
+      hold: hold.length,
+      shipping: shipping.length,
+      delivered: delivered.length,
+    },
+    cs: {
+      cancelRequested: cancelRequested.length,
+      exchangeRequested: exchangeRequested.length,
+      returnRequested: returnRequested.length,
+      refundPending: refundPending.length,
+    },
   };
 }
