@@ -142,3 +142,20 @@
 - [x] VITE_TOSS_CLIENT_KEY 환경변수 등록
 - [x] TOSS_SECRET_KEY 환경변수 등록
 - [x] 결제 흐름 코드 점검 (CheckoutPage, PaymentSuccessPage, 서버 confirmPayment)
+
+## 결제 시스템 고도화
+
+### 배송지 입력 필드
+- [x] CheckoutPage에 수령인 이름쀌연락처쀌주소쀌상세주소쀌우편번호 입력 필드 추가
+- [x] 주문 생성 시 배송지 정보를 orders 테이블에 저장
+- [x] 배송지 미입력 시 결제 버튼 비활성화 처리
+
+### 라이브 API 키 전환
+- [x] 라이브 VITE_TOSS_CLIENT_KEY 등록
+- [x] 라이브 TOSS_SECRET_KEY 등록
+
+### 결제 취소 기능
+- [x] 서버: cancelTossPayment 함수 구현 (토스 취소 API 호출)
+- [x] 서버: order.cancel tRPC 프로시저 구현 (관리자 전용)
+- [x] 관리자 페이지: 전체 주문 조회에서 결제완료 주문 취소 버튼 연결
+- [x] 관리자 페이지: 취소 확인 다이얼로그 구현

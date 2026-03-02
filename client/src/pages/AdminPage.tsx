@@ -647,6 +647,11 @@ function OrderSection({ subPage }: { subPage: string }) {
   const updateStatus = trpc.admin.updateOrderStatus.useMutation({
     onSuccess: () => { toast.success("주문 상태가 변경되었습니다."); orders.refetch(); },
   });
+  const cancelOrder = trpc.order.cancel.useMutation({
+    onSuccess: () => { toast.success("결제가 취소되었습니다."); orders.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const [cancelConfirm, setCancelConfirm] = useState<string | null>(null); // orderId
 
   // ─── Order Dashboard ─────────────────────────────────────────────────────────
   if (subPage === "order-dashboard") {
@@ -916,9 +921,9 @@ function OrderSection({ subPage }: { subPage: string }) {
               <ShippingBadge status={o.shippingStatus ?? "none"} />,
               fmtDate(o.paidAt),
               <div style={{ display: "flex", gap: "4px" }}>
-                <Btn size="sm" variant="outline" onClick={() => { setSelectedOrder(item); }}>상세</Btn>
+                <Btn size="sm" variant="outline" onClick={() => setDetailOrderId(o.orderId)}>상세</Btn>
                 {o.status !== "cancelled" && (
-                  <Btn size="sm" variant="danger" onClick={() => updateStatus.mutate({ orderId: o.orderId, status: "cancelled" })}>취소</Btn>
+                  <Btn size="sm" variant="danger" onClick={() => setCancelConfirm(o.orderId)}>취소</Btn>
                 )}
               </div>,
             ];
@@ -927,6 +932,24 @@ function OrderSection({ subPage }: { subPage: string }) {
       </div>
       {detailOrderId && (
         <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} />
+      )}
+      {cancelConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", padding: "28px 24px", maxWidth: "360px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "10px", color: "#1a1a1a" }}>결제 취소 확인</h3>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "20px" }}>주문번호 <strong>{cancelConfirm}</strong>의 결제를 취소하시겠습니까?<br />결제완료 주문은 토스페이먼츠 취소 API를 통해 환불 처리됩니다.</p>
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <button onClick={() => setCancelConfirm(null)} style={{ padding: "8px 16px", borderRadius: "8px", border: "1.5px solid #E5E7EB", background: "#fff", cursor: "pointer", fontSize: "14px" }}>아니오</button>
+              <button
+                onClick={() => { cancelOrder.mutate({ orderId: cancelConfirm, cancelReason: "관리자 취소" }); setCancelConfirm(null); }}
+                disabled={cancelOrder.isPending}
+                style={{ padding: "8px 16px", borderRadius: "8px", background: "#DC2626", color: "#fff", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 600 }}
+              >
+                {cancelOrder.isPending ? "취소 중..." : "취소 확인"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

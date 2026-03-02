@@ -152,6 +152,8 @@ export const orders = mysqlTable("orders", {
   recipientPhone: varchar("recipientPhone", { length: 30 }),
   /** 배송지 주소 */
   shippingAddress: text("shippingAddress"),
+  /** 배송지 상세주소 */
+  shippingAddressDetail: text("shippingAddressDetail"),
   /** 배송지 우편번호 */
   shippingZipCode: varchar("shippingZipCode", { length: 10 }),
   /** 배송 메모 */

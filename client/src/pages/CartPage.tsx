@@ -19,14 +19,6 @@ export default function CartPage() {
   const { data: user } = trpc.user.me.useQuery(undefined, { enabled: !!authUser });
   const isPro = user?.memberRole === "professional" && user?.proVerificationStatus === "approved";
 
-  const createOrder = trpc.order.create.useMutation({
-    onSuccess: (data) => {
-      localStorage.setItem("pendingOrder", JSON.stringify(data));
-      navigate("/checkout");
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
   useEffect(() => {
     try {
       const raw = localStorage.getItem("reage_cart");
@@ -56,7 +48,8 @@ export default function CartPage() {
   const handleCheckout = () => {
     if (!authUser) { window.location.href = getLoginUrl(); return; }
     if (cartItems.length === 0) { toast.error("장바구니가 비어있습니다."); return; }
-    createOrder.mutate({ items: cartItems.map((i) => ({ productId: i.productId, quantity: i.quantity })) });
+    // 상품 정보를 localStorage에 저장하고 결제 페이지로 이동 (배송지 입력 후 주문 생성)
+    navigate("/checkout");
   };
 
   if (loading) {
@@ -116,10 +109,9 @@ export default function CartPage() {
               </div>
               <button
                 onClick={handleCheckout}
-                disabled={createOrder.isPending}
-                className="w-full py-3 bg-[#C9A96E] text-white rounded-xl font-medium hover:bg-[#b8965e] transition-colors disabled:opacity-50"
+                className="w-full py-3 bg-[#C9A96E] text-white rounded-xl font-medium hover:bg-[#b8965e] transition-colors"
               >
-                {createOrder.isPending ? "주문 생성 중..." : "주문하기"}
+                주문하기
               </button>
               {!authUser && (
                 <p className="text-xs text-center text-gray-400 mt-2">주문하려면 로그인이 필요합니다.</p>

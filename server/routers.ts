@@ -102,6 +102,7 @@ import { storagePut } from "./storage";
 
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY ?? "";
 const TOSS_CONFIRM_URL = "https://api.tosspayments.com/v1/payments/confirm";
+const TOSS_CANCEL_URL = (paymentKey: string) => `https://api.tosspayments.com/v1/payments/${paymentKey}/cancel`;
 
 async function confirmTossPayment(paymentKey: string, orderId: string, amount: number) {
   const credentials = Buffer.from(`${TOSS_SECRET_KEY}:`).toString("base64");
@@ -113,6 +114,20 @@ async function confirmTossPayment(paymentKey: string, orderId: string, amount: n
   if (!response.ok) {
     const err = await response.json().catch(() => ({})) as { message?: string };
     throw new TRPCError({ code: "BAD_REQUEST", message: err.message ?? "토스페이먼츠 결제 승인 실패" });
+  }
+  return response.json();
+}
+
+async function cancelTossPayment(paymentKey: string, cancelReason: string) {
+  const credentials = Buffer.from(`${TOSS_SECRET_KEY}:`).toString("base64");
+  const response = await fetch(TOSS_CANCEL_URL(paymentKey), {
+    method: "POST",
+    headers: { Authorization: `Basic ${credentials}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ cancelReason }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({})) as { message?: string };
+    throw new TRPCError({ code: "BAD_REQUEST", message: err.message ?? "토스페이먼츠 결제 취소 실패" });
   }
   return response.json();
 }
@@ -979,6 +994,12 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         items: z.array(z.object({ productId: z.number(), quantity: z.number().min(1) })),
+        recipientName: z.string().min(1, "수령인 이름을 입력해주세요."),
+        recipientPhone: z.string().min(1, "연락처를 입력해주세요."),
+        shippingZipCode: z.string().min(1, "우편번호를 입력해주세요."),
+        shippingAddress: z.string().min(1, "주소를 입력해주세요."),
+        shippingAddressDetail: z.string().optional(),
+        shippingMemo: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const user = await getUserById(ctx.user.id);
@@ -1001,7 +1022,17 @@ export const appRouter = router({
         const orderName = resolvedItems.length === 1 ? resolvedItems[0].productName : `${resolvedItems[0].productName} 외 ${resolvedItems.length - 1}건`;
 
         const order = await createOrder(
-          { orderId, userId: user.id, userRoleSnapshot: isPro ? "professional" : "consumer", proStatusSnapshot: user.proVerificationStatus, totalAmount: String(totalAmount), status: "created", orderName },
+          {
+            orderId, userId: user.id, userRoleSnapshot: isPro ? "professional" : "consumer",
+            proStatusSnapshot: user.proVerificationStatus, totalAmount: String(totalAmount),
+            status: "created", orderName,
+            recipientName: input.recipientName,
+            recipientPhone: input.recipientPhone,
+            shippingZipCode: input.shippingZipCode,
+            shippingAddress: input.shippingAddress,
+            shippingAddressDetail: input.shippingAddressDetail,
+            shippingMemo: input.shippingMemo,
+          },
           resolvedItems.map((i) => ({ ...i, orderId: 0, unitPrice: String(i.unitPrice), subtotal: String(i.subtotal) }))
         );
 
@@ -1029,6 +1060,21 @@ export const appRouter = router({
         if (!order) throw new TRPCError({ code: "NOT_FOUND" });
         if (order.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
         if (order.status !== "paid") await updateOrderStatus(input.orderId, { status: "failed" });
+        return { success: true };
+      }),
+
+    cancel: protectedProcedure
+      .input(z.object({ orderId: z.string(), cancelReason: z.string().default("관리자 취소") }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "관리자만 취소할 수 있습니다." });
+        const order = await getOrderByOrderId(input.orderId);
+        if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "주문을 찾을 수 없습니다." });
+        if (order.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 취소된 주문입니다." });
+        // 결제완료 상태이면 토스 취소 API 호출
+        if (order.status === "paid" && order.paymentKey) {
+          await cancelTossPayment(order.paymentKey, input.cancelReason);
+        }
+        await updateOrderStatus(input.orderId, { status: "cancelled" });
         return { success: true };
       }),
 
