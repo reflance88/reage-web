@@ -1170,3 +1170,63 @@ export async function getOrderDashboardSummary() {
     },
   };
 }
+
+// ─── Order Detail (Full) ──────────────────────────────────────────────────────
+export async function getOrderDetailFull(orderId: string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // 주문 기본 정보
+  const orderResult = await db.select().from(orders).where(eq(orders.orderId, orderId)).limit(1);
+  if (!orderResult.length) return null;
+  const order = orderResult[0];
+
+  // 주문자 정보
+  const userResult = await db.select().from(users).where(eq(users.id, order.userId)).limit(1);
+  const user = userResult.length ? userResult[0] : null;
+
+  // 주문 상품 목록
+  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+
+  // 취소 내역
+  const cancellations = await db.select().from(orderCancellations).where(eq(orderCancellations.orderId, order.id));
+
+  // 교환 내역
+  const exchanges = await db.select().from(orderExchanges).where(eq(orderExchanges.orderId, order.id));
+
+  // 반품 내역
+  const returns = await db.select().from(orderReturns).where(eq(orderReturns.orderId, order.id));
+
+  // 환불 내역
+  const refunds = await db.select().from(orderRefunds).where(eq(orderRefunds.orderId, order.id));
+
+  return {
+    order,
+    user,
+    items,
+    cancellations,
+    exchanges,
+    returns,
+    refunds,
+  };
+}
+
+// ─── Update Order Admin Memo ──────────────────────────────────────────────────
+export async function updateOrderAdminMemo(orderId: string, adminMemo: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(orders).set({ adminMemo }).where(eq(orders.orderId, orderId));
+}
+
+// ─── Update Order Shipping Info ───────────────────────────────────────────────
+export async function updateOrderShippingInfo(orderId: string, data: {
+  recipientName?: string;
+  recipientPhone?: string;
+  shippingAddress?: string;
+  shippingZipCode?: string;
+  shippingMemo?: string;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(orders).set(data).where(eq(orders.orderId, orderId));
+}

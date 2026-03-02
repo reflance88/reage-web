@@ -21,6 +21,9 @@ import {
   getDailySignupStats,
   getVerificationStatusStats,
   getLatestVerification,
+  getOrderDetailFull,
+  updateOrderAdminMemo,
+  updateOrderShippingInfo,
   getOrderByOrderId,
   getOrderItems,
   getProductById,
@@ -509,10 +512,33 @@ export const appRouter = router({
       .input(z.object({ orderId: z.string() }))
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const order = await getOrderByOrderId(input.orderId);
-        if (!order) throw new TRPCError({ code: "NOT_FOUND" });
-        const items = await getOrderItems(order.id);
-        return { order, items };
+        const detail = await getOrderDetailFull(input.orderId);
+        if (!detail) throw new TRPCError({ code: "NOT_FOUND" });
+        return detail;
+      }),
+
+    updateOrderAdminMemo: protectedProcedure
+      .input(z.object({ orderId: z.string(), adminMemo: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await updateOrderAdminMemo(input.orderId, input.adminMemo);
+        return { success: true };
+      }),
+
+    updateOrderShippingInfo: protectedProcedure
+      .input(z.object({
+        orderId: z.string(),
+        recipientName: z.string().optional(),
+        recipientPhone: z.string().optional(),
+        shippingAddress: z.string().optional(),
+        shippingZipCode: z.string().optional(),
+        shippingMemo: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { orderId, ...data } = input;
+        await updateOrderShippingInfo(orderId, data);
+        return { success: true };
       }),
 
     // ─── Set user professional manually ───────────────────────────────────

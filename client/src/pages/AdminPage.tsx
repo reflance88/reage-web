@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo, useRef } from "react";
+import OrderDetailModal from "@/components/OrderDetailModal";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import {
@@ -599,6 +600,7 @@ function OrderSection({ subPage }: { subPage: string }) {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [shippingModalOpen, setShippingModalOpen] = useState(false);
   const [csTab, setCsTab] = useState("all");
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
 
   // ─── Shipping status pages ──────────────────────────────────────────────────
   const shippingStatusMap: Record<string, "pending_payment" | "ready" | "hold" | "shipping" | "delivered"> = {
@@ -903,7 +905,10 @@ function OrderSection({ subPage }: { subPage: string }) {
           rows={(orders.data?.items ?? []).map((item: any) => {
             const o = item.o;
             return [
-              <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{o.orderId}</span>,
+              <button
+                style={{ fontFamily: "monospace", fontSize: "11px", color: C.blue, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                onClick={() => setDetailOrderId(o.orderId)}
+              >{o.orderId}</button>,
               <div><div style={{ fontWeight: 600 }}>{item.userName ?? "—"}</div><div style={{ fontSize: "11px", color: C.muted }}>{item.userEmail ?? "—"}</div></div>,
               o.orderName ?? "—",
               krw(o.totalAmount),
@@ -920,6 +925,9 @@ function OrderSection({ subPage }: { subPage: string }) {
           })}
         />
       </div>
+      {detailOrderId && (
+        <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} />
+      )}
     </div>
   );
 }
