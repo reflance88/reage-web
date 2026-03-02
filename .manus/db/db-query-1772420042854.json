@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, email, name, role, openId, passwordHash FROM users WHERE role = 'admin' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LapUck6vdQaed1i.root --database AerFeijbfzRzRoaKj4KqTe --execute SELECT id, email, name, role, openId, passwordHash FROM users WHERE role = 'admin' LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "email": "reflance88@gmail.com",
+      "name": "플런스 리",
+      "role": "admin",
+      "openId": "gdFeHfycoXR23BVAXU2d7r",
+      "passwordHash": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\trole\topenId\tpasswordHash\n1\treflance88@gmail.com\t플런스 리\tadmin\tgdFeHfycoXR23BVAXU2d7r\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1630
+}

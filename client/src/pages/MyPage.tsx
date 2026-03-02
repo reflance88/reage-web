@@ -22,7 +22,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function MyPage() {
-  const { user: authUser, loading: authLoading } = useAuth();
+  const { user: authUser, loading: authLoading, logout } = useAuth();
   const [tab, setTab] = useState<Tab>("info");
 
   const { data: user, refetch: refetchUser } = trpc.user.me.useQuery(undefined, { enabled: !!authUser });
@@ -106,7 +106,15 @@ export default function MyPage() {
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <a href="/index-main.html" className="text-lg font-semibold tracking-widest text-[#1a1a1a]">REAGE</a>
-          <a href="/index-main.html" className="text-sm text-gray-500 hover:text-gray-800 transition-colors">← 홈으로</a>
+          <div className="flex items-center gap-3">
+            <a href="/index-main.html" className="text-sm text-gray-500 hover:text-gray-800 transition-colors">← 홈으로</a>
+            <button
+              onClick={() => { logout(); window.location.href = '/index-main.html'; }}
+              className="text-sm text-red-500 hover:text-red-700 transition-colors font-medium"
+            >
+              로그아웃
+            </button>
+          </div>
         </div>
       </header>
 

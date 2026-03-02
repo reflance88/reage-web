@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO users (openId, name, email, loginMethod, role, passwordHash, createdAt, updatedAt, lastSignedIn)\nVALUES (\n  'demo-admin-reage',\n  '관리자',\n  'admin@reage.kr',\n  'email',\n  'admin',\n  '$2b$10$d9eXctybTg6rJP5luqlAr.//QuNA9Y99vMFfVL1UDDmEkKL/1z5D2',\n  NOW(),\n  NOW(),\n  NOW()\n)\nON DUPLICATE KEY UPDATE role = 'admin';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LapUck6vdQaed1i.root --database AerFeijbfzRzRoaKj4KqTe --execute INSERT INTO users (openId, name, email, loginMethod, role, passwordHash, createdAt, updatedAt, lastSignedIn)\nVALUES (\n  'demo-admin-reage',\n  '관리자',\n  'admin@reage.kr',\n  'email',\n  'admin',\n  '$2b$10$d9eXctybTg6rJP5luqlAr.//QuNA9Y99vMFfVL1UDDmEkKL/1z5D2',\n  NOW(),\n  NOW(),\n  NOW()\n)\nON DUPLICATE KEY UPDATE role = 'admin';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1644
+}
