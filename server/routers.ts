@@ -105,7 +105,12 @@ import {
   deleteReview,
 } from "./db";
 import { storagePut } from "./storage";
-import { sendOrderConfirmSms, sendNewOrderAlertSms, sendShippingNoticeSms } from "./_core/sms";
+import {
+  sendOrderCompleteAlimtalk,
+  sendAdminNewOrderAlimtalk,
+  sendShippingStartedAlimtalk,
+  sendOrderCancelledAlimtalk,
+} from "./_core/kakao";
 
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY ?? "";
 const TOSS_CONFIRM_URL = "https://api.tosspayments.com/v1/payments/confirm";
@@ -870,14 +875,14 @@ export const appRouter = router({
         if (isNewTracking && data.trackingNumber) {
           const order = await getOrderByOrderId(orderId);
           if (order?.recipientPhone) {
-            sendShippingNoticeSms({
-              recipientPhone: order.recipientPhone,
-              recipientName: order.recipientName ?? "고객",
-              orderId: order.orderId,
-              orderName: order.orderName ?? "",
+            sendShippingStartedAlimtalk({
+              phone: order.recipientPhone,
+              name: order.recipientName ?? "고객",
+              orderNumber: order.orderId,
+              productName: order.orderName ?? "",
               courierName: data.courierName ?? order.courierName ?? "택배사",
               trackingNumber: data.trackingNumber,
-            }).catch((e) => console.warn("[SMS] 배송 출발 문자 발송 실패:", e));
+            }).catch((e: unknown) => console.warn("[Alimtalk] 배송 시작 알림톡 발송 실패:", e));
           }
         }
         return { success: true };
@@ -1151,30 +1156,29 @@ export const appRouter = router({
         await confirmTossPayment(input.paymentKey, input.orderId, input.amount);
         await updateOrderStatus(input.orderId, { status: "paid", paymentKey: input.paymentKey, paidAt: new Date() });
 
-        // 주문 완료 SMS 발송 (비동기, 실패해도 결제 처리에 영향 없음)
+        // 주문 완료 알림톡 발송 (비동기, 실패해도 결제 처리에 영향 없음)
         const updatedOrder = await getOrderByOrderId(input.orderId);
         if (updatedOrder) {
-          const adminPhone = process.env.ADMIN_PHONE;
-          // 고객 문자 발송
+          const orderDate = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+          // 고객 알림톡 발송
           if (updatedOrder.recipientPhone) {
-            sendOrderConfirmSms({
-              recipientPhone: updatedOrder.recipientPhone,
-              recipientName: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
-              orderId: input.orderId,
-              orderName: updatedOrder.orderName ?? "",
+            sendOrderCompleteAlimtalk({
+              phone: updatedOrder.recipientPhone,
+              name: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
+              orderId: updatedOrder.id,
+              orderNumber: input.orderId,
+              productName: updatedOrder.orderName ?? "",
               totalAmount: Number(updatedOrder.totalAmount),
-            }).catch((e) => console.warn("[SMS] 고객 문자 발송 실패:", e));
+              orderDate,
+            }).catch((e: unknown) => console.warn("[Alimtalk] 고객 알림톡 발송 실패:", e));
           }
-          // 관리자 알림 문자 발송
-          if (adminPhone) {
-            sendNewOrderAlertSms({
-              adminPhone,
-              orderId: input.orderId,
-              orderName: updatedOrder.orderName ?? "",
-              totalAmount: Number(updatedOrder.totalAmount),
-              recipientName: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
-            }).catch((e) => console.warn("[SMS] 관리자 알림 문자 발송 실패:", e));
-          }
+          // 관리자 SMS 알림 발송
+          sendAdminNewOrderAlimtalk({
+            orderNumber: input.orderId,
+            productName: updatedOrder.orderName ?? "",
+            totalAmount: Number(updatedOrder.totalAmount),
+            recipientName: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
+          }).catch((e: unknown) => console.warn("[Alimtalk] 관리자 알림 발송 실패:", e));
         }
 
         return { success: true };
@@ -1202,6 +1206,16 @@ export const appRouter = router({
           await cancelTossPayment(order.paymentKey, input.cancelReason);
         }
         await updateOrderStatus(input.orderId, { status: "cancelled" });
+        // 취소 알림톡 발송 (비동기)
+        if (order.recipientPhone) {
+          sendOrderCancelledAlimtalk({
+            phone: order.recipientPhone,
+            name: order.recipientName ?? "고객",
+            orderId: order.id,
+            orderNumber: input.orderId,
+            productName: order.orderName ?? "",
+          }).catch((e: unknown) => console.warn("[Alimtalk] 취소 알림톡 발송 실패:", e));
+        }
         return { success: true };
       }),
 
@@ -1223,6 +1237,16 @@ export const appRouter = router({
           await cancelTossPayment(order.paymentKey, input.cancelReason);
         }
         await updateOrderStatus(input.orderId, { status: "cancelled" });
+        // 취소 알림톡 발송 (비동기)
+        if (order.recipientPhone) {
+          sendOrderCancelledAlimtalk({
+            phone: order.recipientPhone,
+            name: order.recipientName ?? ctx.user.name ?? "고객",
+            orderId: order.id,
+            orderNumber: input.orderId,
+            productName: order.orderName ?? "",
+          }).catch((e: unknown) => console.warn("[Alimtalk] 취소 알림톡 발송 실패:", e));
+        }
         return { success: true };
       }),
 
