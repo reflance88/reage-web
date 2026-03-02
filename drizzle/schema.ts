@@ -452,3 +452,38 @@ export const thirdPartyLogs = mysqlTable("third_party_logs", {
 
 export type ThirdPartyLog = typeof thirdPartyLogs.$inferSelect;
 export type InsertThirdPartyLog = typeof thirdPartyLogs.$inferInsert;
+
+// ─── Reviews (후기 관리) ──────────────────────────────────────────────────────
+export const reviews = mysqlTable("reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 카테고리: before_after | device | education | event | etc */
+  category: mysqlEnum("category", [
+    "before_after",
+    "device",
+    "education",
+    "event",
+    "etc",
+  ])
+    .default("etc")
+    .notNull(),
+  /** 카테고리 표시명 (자유 입력 가능) */
+  categoryLabel: varchar("categoryLabel", { length: 100 }),
+  /** 이미지 S3 URL */
+  imageUrl: text("imageUrl").notNull(),
+  /** 이미지 S3 Key */
+  imageKey: varchar("imageKey", { length: 500 }),
+  /** 제목 또는 설명 */
+  title: varchar("title", { length: 200 }),
+  /** 추가 설명 */
+  description: text("description"),
+  /** 정렬 순서 */
+  sortOrder: int("sortOrder").default(0).notNull(),
+  /** 공개 여부 */
+  isPublished: boolean("isPublished").default(true).notNull(),
+  /** 등록자 */
+  authorId: int("authorId").references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Review = typeof reviews.$inferSelect;
+export type InsertReview = typeof reviews.$inferInsert;

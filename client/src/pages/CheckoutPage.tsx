@@ -10,7 +10,25 @@ declare global {
     TossPayments: (clientKey: string) => {
       requestPayment: (method: string, options: Record<string, unknown>) => Promise<void>;
     };
+    daum: {
+      Postcode: new (options: {
+        oncomplete: (data: DaumPostcodeResult) => void;
+        onclose?: () => void;
+        width?: string | number;
+        height?: string | number;
+      }) => { open: () => void };
+    };
   }
+}
+
+interface DaumPostcodeResult {
+  zonecode: string;       // 우편번호
+  roadAddress: string;    // 도로명 주소
+  jibunAddress: string;   // 지번 주소
+  autoRoadAddress?: string;
+  autoJibunAddress?: string;
+  buildingName?: string;
+  apartment?: string;
 }
 
 const TOSS_CLIENT_KEY = import.meta.env.VITE_TOSS_CLIENT_KEY ?? "";
@@ -33,6 +51,7 @@ export default function CheckoutPage() {
   const [, navigate] = useLocation();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [tossLoaded, setTossLoaded] = useState(false);
+  const [daumLoaded, setDaumLoaded] = useState(false);
   const [shipping, setShipping] = useState<ShippingForm>({
     recipientName: "",
     recipientPhone: "",
@@ -47,7 +66,6 @@ export default function CheckoutPage() {
 
   const createOrder = trpc.order.create.useMutation({
     onSuccess: async (data) => {
-      // 주문 생성 성공 후 토스 결제 요청
       if (!tossLoaded) { toast.error("결제 모듈을 불러오는 중입니다. 잠시 후 다시 시도해주세요."); return; }
       if (!TOSS_CLIENT_KEY) { toast.error("결제 설정이 완료되지 않았습니다. 관리자에게 문의해주세요."); return; }
       try {
@@ -90,6 +108,7 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
+  // 토스페이먼츠 SDK 로드
   useEffect(() => {
     if (typeof window.TossPayments !== "undefined") { setTossLoaded(true); return; }
     const script = document.createElement("script");
@@ -97,6 +116,39 @@ export default function CheckoutPage() {
     script.onload = () => setTossLoaded(true);
     document.head.appendChild(script);
   }, []);
+
+  // 카카오 주소 검색 SDK 로드
+  useEffect(() => {
+    if (typeof window.daum !== "undefined" && window.daum.Postcode) { setDaumLoaded(true); return; }
+    const script = document.createElement("script");
+    script.src = "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.onload = () => setDaumLoaded(true);
+    document.head.appendChild(script);
+  }, []);
+
+  const openAddressSearch = () => {
+    if (!daumLoaded || typeof window.daum === "undefined") {
+      toast.error("주소 검색 모듈을 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    new window.daum.Postcode({
+      oncomplete: (data: DaumPostcodeResult) => {
+        // 도로명 주소 우선, 없으면 지번 주소 사용
+        const address = data.roadAddress || data.jibunAddress;
+        setShipping(prev => ({
+          ...prev,
+          shippingZipCode: data.zonecode,
+          shippingAddress: address,
+          shippingAddressDetail: "",
+        }));
+        // 상세주소 입력 필드로 포커스 이동
+        setTimeout(() => {
+          const detailInput = document.getElementById("shippingAddressDetail");
+          if (detailInput) detailInput.focus();
+        }, 100);
+      },
+    }).open();
+  };
 
   const getPrice = (item: CartItem) => isPro ? item.pricePro : item.priceConsumer;
   const total = cartItems.reduce((sum, item) => sum + getPrice(item) * item.quantity, 0);
@@ -132,7 +184,7 @@ export default function CheckoutPage() {
   const inputStyle: React.CSSProperties = {
     width: "100%", padding: "10px 12px", borderRadius: "8px",
     border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none",
-    boxSizing: "border-box",
+    boxSizing: "border-box", background: "#fff",
   };
   const labelStyle: React.CSSProperties = {
     fontSize: "13px", fontWeight: 600, color: "#374151", marginBottom: "6px", display: "block",
@@ -193,32 +245,49 @@ export default function CheckoutPage() {
               </div>
             </div>
 
+            {/* 우편번호 + 주소 검색 버튼 */}
             <div>
               <label style={labelStyle}>우편번호{requiredMark}</label>
-              <input
-                style={{ ...inputStyle, maxWidth: "160px" }}
-                placeholder="12345"
-                value={shipping.shippingZipCode}
-                onChange={setField("shippingZipCode")}
-                maxLength={5}
-              />
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  style={{ ...inputStyle, maxWidth: "140px" }}
+                  placeholder="12345"
+                  value={shipping.shippingZipCode}
+                  onChange={setField("shippingZipCode")}
+                  readOnly
+                />
+                <button
+                  type="button"
+                  onClick={openAddressSearch}
+                  style={{
+                    padding: "10px 16px", borderRadius: "8px",
+                    background: "#1a1a1a", color: "#fff",
+                    border: "none", cursor: "pointer", fontSize: "13px",
+                    fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0,
+                  }}
+                >
+                  {daumLoaded ? "주소 검색" : "로딩 중..."}
+                </button>
+              </div>
             </div>
 
             <div>
               <label style={labelStyle}>주소{requiredMark}</label>
               <input
-                style={inputStyle}
-                placeholder="서울특별시 강남구 테헤란로 123"
+                style={{ ...inputStyle, background: shipping.shippingAddress ? "#F9FAFB" : "#fff" }}
+                placeholder="주소 검색 버튼을 눌러 주소를 입력해주세요"
                 value={shipping.shippingAddress}
                 onChange={setField("shippingAddress")}
+                readOnly={!!shipping.shippingAddress}
               />
             </div>
 
             <div>
               <label style={labelStyle}>상세주소</label>
               <input
+                id="shippingAddressDetail"
                 style={inputStyle}
-                placeholder="101동 202호"
+                placeholder="동/호수, 층 등 상세 주소 입력"
                 value={shipping.shippingAddressDetail}
                 onChange={setField("shippingAddressDetail")}
               />
@@ -265,9 +334,9 @@ export default function CheckoutPage() {
           {createOrder.isPending ? "주문 생성 중..." : !tossLoaded ? "결제 모듈 로딩 중..." : `${formatPrice(total)} 결제하기`}
         </button>
         {!isShippingValid && (
-          <p className="text-xs text-center text-[#C9A96E]">배송지 정보(수령인·연락처·주소·우편번호)를 모두 입력해야 결제할 수 있습니다.</p>
+          <p className="text-xs text-center text-[#C9A96E]">배송지 정보(수령인·연락처·주소)를 모두 입력해야 결제할 수 있습니다.</p>
         )}
-        <p className="text-xs text-center text-gray-400">토스페이먼츠를 통해 안전하게 결제됩니다.</p>
+        <p className="text-xs text-center text-gray-400 pb-8">토스페이먼츠를 통해 안전하게 결제됩니다.</p>
       </main>
     </div>
   );

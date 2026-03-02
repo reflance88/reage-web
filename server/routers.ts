@@ -97,8 +97,15 @@ import {
   createCardCancellation,
   // Dashboard
   getOrderDashboardSummary,
+  // Reviews
+  getReviews,
+  getReviewById,
+  createReview,
+  updateReview,
+  deleteReview,
 } from "./db";
 import { storagePut } from "./storage";
+import { sendOrderConfirmSms, sendNewOrderAlertSms } from "./_core/sms";
 
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY ?? "";
 const TOSS_CONFIRM_URL = "https://api.tosspayments.com/v1/payments/confirm";
@@ -277,6 +284,22 @@ export const appRouter = router({
         const post = await getMagazinePostById(input.id);
         if (!post) throw new TRPCError({ code: "NOT_FOUND" });
         return post;
+      }),
+  }),
+
+  // ─── Public Reviews ────────────────────────────────────────────────────────
+  review: router({
+    list: publicProcedure
+      .input(z.object({ category: z.string().optional(), page: z.number().default(1), limit: z.number().default(100) }).optional())
+      .query(async ({ input }) => {
+        return getReviews({ category: input?.category, publishedOnly: true, page: input?.page ?? 1, limit: input?.limit ?? 100 });
+      }),
+    byId: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const r = await getReviewById(input.id);
+        if (!r) throw new TRPCError({ code: "NOT_FOUND" });
+        return r;
       }),
   }),
 
@@ -675,6 +698,66 @@ export const appRouter = router({
         return deleteMagazinePost(input.id);
       }),
 
+    // ─── Reviews ────────────────────────────────────────────────────────────
+    reviewList: protectedProcedure
+      .input(z.object({ category: z.string().optional(), page: z.number().default(1), limit: z.number().default(100) }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getReviews({ category: input?.category, page: input?.page ?? 1, limit: input?.limit ?? 100 });
+      }),
+
+    createReview: protectedProcedure
+      .input(z.object({
+        category: z.enum(["before_after", "device", "education", "event", "etc"]).default("etc"),
+        categoryLabel: z.string().optional(),
+        imageUrl: z.string(),
+        imageKey: z.string().optional(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        sortOrder: z.number().default(0),
+        isPublished: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createReview({ ...input, authorId: ctx.user.id });
+      }),
+
+    updateReview: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        isPublished: z.boolean().optional(),
+        sortOrder: z.number().optional(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        return updateReview(id, data);
+      }),
+
+    deleteReview: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return deleteReview(input.id);
+      }),
+
+    uploadReviewImage: protectedProcedure
+      .input(z.object({
+        fileBase64: z.string(),
+        fileName: z.string(),
+        fileMimeType: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const buffer = Buffer.from(input.fileBase64, "base64");
+        const ext = input.fileName.split(".").pop() ?? "jpg";
+        const key = `reviews/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.fileMimeType);
+        return { url, key };
+      }),
+
     // ─── Image Upload ──────────────────────────────────────────────────────────
     uploadPostImage: protectedProcedure
       .input(z.object({
@@ -1050,6 +1133,33 @@ export const appRouter = router({
 
         await confirmTossPayment(input.paymentKey, input.orderId, input.amount);
         await updateOrderStatus(input.orderId, { status: "paid", paymentKey: input.paymentKey, paidAt: new Date() });
+
+        // 주문 완료 SMS 발송 (비동기, 실패해도 결제 처리에 영향 없음)
+        const updatedOrder = await getOrderByOrderId(input.orderId);
+        if (updatedOrder) {
+          const adminPhone = process.env.ADMIN_PHONE;
+          // 고객 문자 발송
+          if (updatedOrder.recipientPhone) {
+            sendOrderConfirmSms({
+              recipientPhone: updatedOrder.recipientPhone,
+              recipientName: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
+              orderId: input.orderId,
+              orderName: updatedOrder.orderName ?? "",
+              totalAmount: Number(updatedOrder.totalAmount),
+            }).catch((e) => console.warn("[SMS] 고객 문자 발송 실패:", e));
+          }
+          // 관리자 알림 문자 발송
+          if (adminPhone) {
+            sendNewOrderAlertSms({
+              adminPhone,
+              orderId: input.orderId,
+              orderName: updatedOrder.orderName ?? "",
+              totalAmount: Number(updatedOrder.totalAmount),
+              recipientName: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
+            }).catch((e) => console.warn("[SMS] 관리자 알림 문자 발송 실패:", e));
+          }
+        }
+
         return { success: true };
       }),
 
@@ -1072,6 +1182,27 @@ export const appRouter = router({
         if (order.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 취소된 주문입니다." });
         // 결제완료 상태이면 토스 취소 API 호출
         if (order.status === "paid" && order.paymentKey) {
+          await cancelTossPayment(order.paymentKey, input.cancelReason);
+        }
+        await updateOrderStatus(input.orderId, { status: "cancelled" });
+        return { success: true };
+      }),
+
+    cancelByUser: protectedProcedure
+      .input(z.object({ orderId: z.string(), cancelReason: z.string().default("고객 취소 요청") }))
+      .mutation(async ({ ctx, input }) => {
+        const order = await getOrderByOrderId(input.orderId);
+        if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "주문을 찾을 수 없습니다." });
+        if (order.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "본인의 주문만 취소할 수 있습니다." });
+        if (order.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 취소된 주문입니다." });
+        if (order.status !== "paid") throw new TRPCError({ code: "BAD_REQUEST", message: "결제 완료된 주문만 취소할 수 있습니다." });
+        // 24시간 이내 취소 가능 여부 확인
+        if (!order.paidAt) throw new TRPCError({ code: "BAD_REQUEST", message: "결제 시간 정보가 없습니다." });
+        const paidAt = new Date(order.paidAt);
+        const now = new Date();
+        const diffHours = (now.getTime() - paidAt.getTime()) / (1000 * 60 * 60);
+        if (diffHours > 24) throw new TRPCError({ code: "BAD_REQUEST", message: "결제 후 24시간이 지나 취소가 불가능합니다. 고객센터(1:1 문의)로 연락해주세요." });
+        if (order.paymentKey) {
           await cancelTossPayment(order.paymentKey, input.cancelReason);
         }
         await updateOrderStatus(input.orderId, { status: "cancelled" });

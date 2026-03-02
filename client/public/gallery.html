@@ -578,7 +578,8 @@ async function loadGalleryFromDB() {
       item.setAttribute('data-category', 'db');
       item.setAttribute('data-id', post.id);
       item.style.transitionDelay = (i * 0.05) + 's';
-      item.setAttribute('onclick', 'openLightbox(this)');
+      // DB 게시물은 상세 페이지로 이동
+      item.setAttribute('onclick', `window.location.href='/gallery-detail.html?id=${post.id}'`);
       if (post.coverImageUrl) {
         item.innerHTML = `
           <div class="gallery-item-img" style="background-image:url('${post.coverImageUrl}');background-size:cover;background-position:center;">&nbsp;</div>

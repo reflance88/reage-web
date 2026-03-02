@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>갤러리 상세 — REAGE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --wine: #6B0F1A;
+      --gold: #C8A26A;
+      --charcoal: #1A1412;
+      --offwhite: #F7F5F2;
+      --light-gray: #EEEBE6;
+      --text: #2C2420;
+      --muted: #8A7F78;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--offwhite); color: var(--text); }
+    a { text-decoration: none; color: inherit; }
+
+    /* Header */
+    #header { position: sticky; top: 0; z-index: 1000; background: #fff; border-bottom: 1px solid var(--light-gray); }
+    #header .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 72px; }
+    .logo { font-family: 'Noto Serif KR', serif; font-size: 22px; font-weight: 700; color: var(--charcoal); letter-spacing: .08em; }
+    .logo span { color: var(--wine); }
+
+    /* Breadcrumb */
+    .breadcrumb { background: var(--charcoal); padding: 12px 0; }
+    .breadcrumb .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(247,245,242,.5); }
+    .breadcrumb a { color: rgba(247,245,242,.5); transition: color .2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb .sep { opacity: .4; }
+    .breadcrumb .current { color: var(--gold); }
+
+    /* Detail */
+    .detail-wrap { max-width: 900px; margin: 60px auto; padding: 0 32px 80px; }
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-bottom: 32px; cursor: pointer; transition: color .2s; border: none; background: none; }
+    .back-btn:hover { color: var(--wine); }
+    .detail-tag { font-size: 11px; font-weight: 700; letter-spacing: .15em; color: var(--gold); margin-bottom: 12px; text-transform: uppercase; }
+    .detail-title { font-family: 'Noto Serif KR', serif; font-size: 32px; font-weight: 700; color: var(--charcoal); line-height: 1.4; margin-bottom: 16px; }
+    .detail-date { font-size: 13px; color: var(--muted); margin-bottom: 40px; }
+    .detail-cover { width: 100%; border-radius: 16px; overflow: hidden; margin-bottom: 40px; background: var(--light-gray); min-height: 400px; display: flex; align-items: center; justify-content: center; }
+    .detail-cover img { width: 100%; height: auto; display: block; object-fit: cover; }
+    .detail-cover-placeholder { font-size: 80px; }
+    .detail-content { font-size: 16px; line-height: 1.9; color: var(--text); white-space: pre-wrap; }
+    .detail-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 40px; }
+    .detail-images img { width: 100%; border-radius: 10px; object-fit: cover; aspect-ratio: 4/3; }
+    .divider { border: none; border-top: 1px solid var(--light-gray); margin: 48px 0; }
+
+    /* Nav between posts */
+    .post-nav { display: flex; justify-content: space-between; gap: 16px; margin-top: 48px; }
+    .post-nav-btn { flex: 1; padding: 16px 20px; border: 1px solid var(--light-gray); border-radius: 10px; background: #fff; cursor: pointer; transition: border-color .2s, background .2s; }
+    .post-nav-btn:hover { border-color: var(--wine); background: var(--offwhite); }
+    .post-nav-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+    .post-nav-title { font-size: 14px; font-weight: 600; color: var(--charcoal); }
+
+    /* Loading */
+    .loading { display: flex; align-items: center; justify-content: center; min-height: 300px; }
+    .spinner { width: 36px; height: 36px; border: 3px solid var(--light-gray); border-top-color: var(--wine); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 640px) {
+      .detail-title { font-size: 24px; }
+      .detail-wrap { padding: 0 16px 60px; margin-top: 40px; }
+    }
+  </style>
+</head>
+<body>
+
+<header id="header">
+  <div class="inner">
+    <a href="/index-main.html" class="logo">RE<span>AGE</span></a>
+    <div id="header-auth-area"></div>
+  </div>
+</header>
+
+<div class="breadcrumb">
+  <div class="inner">
+    <a href="/index-main.html">홈</a>
+    <span class="sep">›</span>
+    <a href="/gallery.html">갤러리</a>
+    <span class="sep">›</span>
+    <span class="current" id="breadcrumb-title">상세보기</span>
+  </div>
+</div>
+
+<div class="detail-wrap">
+  <button class="back-btn" onclick="history.back()">← 갤러리 목록으로</button>
+  <div id="detail-content">
+    <div class="loading"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<script src="/header-auth.js"></script>
+<script>
+async function loadPost() {
+  const params = new URLSearchParams(location.search);
+  const id = parseInt(params.get('id'));
+  if (!id) { renderError('게시물 ID가 없습니다.'); return; }
+
+  try {
+    const input = encodeURIComponent(JSON.stringify({ "0": { json: { id } } }));
+    const res = await fetch(`/api/trpc/gallery.byId?batch=1&input=${input}`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Not found');
+    const data = await res.json();
+    const post = data[0]?.result?.data?.json;
+    if (!post) throw new Error('Post not found');
+    renderPost(post);
+  } catch(e) {
+    renderError('게시물을 불러올 수 없습니다.');
+  }
+}
+
+function renderPost(post) {
+  const dateStr = post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+  document.title = `${post.title} — REAGE 갤러리`;
+  document.getElementById('breadcrumb-title').textContent = post.title;
+
+  const coverHtml = post.coverImageUrl
+    ? `<div class="detail-cover"><img src="${post.coverImageUrl}" alt="${post.title}" /></div>`
+    : `<div class="detail-cover"><div class="detail-cover-placeholder">📸</div></div>`;
+
+  const contentHtml = post.content
+    ? `<div class="detail-content">${escapeHtml(post.content)}</div>`
+    : '';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="detail-tag">GALLERY</div>
+    <h1 class="detail-title">${escapeHtml(post.title)}</h1>
+    <div class="detail-date">${dateStr}</div>
+    ${coverHtml}
+    ${contentHtml}
+    <hr class="divider" />
+    <div class="post-nav">
+      <button class="post-nav-btn" onclick="history.back()">
+        <div class="post-nav-label">← 이전으로</div>
+        <div class="post-nav-title">갤러리 목록</div>
+      </button>
+    </div>
+  `;
+}
+
+function renderError(msg) {
+  document.getElementById('detail-content').innerHTML = `<p style="color:var(--muted);text-align:center;padding:60px 0;">${msg}</p>`;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadPost();
+</script>
+</body>
+</html>

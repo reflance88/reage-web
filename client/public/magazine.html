@@ -572,13 +572,17 @@ async function loadMagazineFromDB() {
       card.className = 'article-card stagger-card';
       card.setAttribute('data-category', 'db');
       card.style.transitionDelay = (i * 0.1) + 's';
+      card.style.cursor = 'pointer';
+      card.onclick = () => { window.location.href = `/magazine-detail.html?id=${post.id}`; };
       const dateStr = post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace('.', '') : '';
+      // 초반 부분 텍스트 추출 (100자)
+      const excerpt = post.content ? post.content.substring(0, 100) + (post.content.length > 100 ? '...' : '') : '';
       card.innerHTML = `
         <div class="article-img" style="${post.coverImageUrl ? `background-image:url('${post.coverImageUrl}');background-size:cover;background-position:center;` : ''}">${post.coverImageUrl ? '' : '📝'}</div>
         <div class="article-body">
           <span class="article-category">MAGAZINE</span>
           <h3 class="article-title">${post.title}</h3>
-          ${post.subtitle ? `<p class="article-excerpt">${post.subtitle}</p>` : ''}
+          ${post.subtitle ? `<p class="article-excerpt">${post.subtitle}</p>` : (excerpt ? `<p class="article-excerpt">${excerpt}</p>` : '')}
           <div class="article-meta"><span class="article-date">${dateStr}</span><span class="article-read">읽기 →</span></div>
         </div>`;
       fragment.appendChild(card);

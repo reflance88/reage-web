@@ -21,13 +21,47 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.color}`}>{s.label}</span>;
 }
 
+function OrderStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; color: string }> = {
+    pending: { label: "결제대기", color: "bg-gray-100 text-gray-600" },
+    paid: { label: "결제완료", color: "bg-green-100 text-green-700" },
+    preparing: { label: "배송준비중", color: "bg-blue-100 text-blue-700" },
+    shipping: { label: "배송중", color: "bg-indigo-100 text-indigo-700" },
+    delivered: { label: "배송완료", color: "bg-purple-100 text-purple-700" },
+    cancelled: { label: "취소완료", color: "bg-red-100 text-red-600" },
+    refunded: { label: "환불완료", color: "bg-orange-100 text-orange-700" },
+  };
+  const s = map[status] ?? { label: status, color: "bg-gray-100 text-gray-600" };
+  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.color}`}>{s.label}</span>;
+}
+
+/** 결제 후 24시간 이내인지 확인 */
+function isCancellable(order: { status: string; paidAt?: Date | null }): boolean {
+  if (order.status !== "paid") return false;
+  if (!order.paidAt) return false;
+  const paidAt = new Date(order.paidAt);
+  const diffHours = (Date.now() - paidAt.getTime()) / (1000 * 60 * 60);
+  return diffHours <= 24;
+}
+
+/** 취소 가능 시간 남은 시간 표시 */
+function remainingCancelTime(paidAt: Date | null | undefined): string {
+  if (!paidAt) return "";
+  const diff = 24 * 60 * 60 * 1000 - (Date.now() - new Date(paidAt).getTime());
+  if (diff <= 0) return "취소 기간 만료";
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  return `취소 가능 시간: ${hours}시간 ${minutes}분 남음`;
+}
+
 export default function MyPage() {
   const { user: authUser, loading: authLoading, logout } = useAuth();
   const [tab, setTab] = useState<Tab>("info");
+  const [cancelConfirmOrderId, setCancelConfirmOrderId] = useState<string | null>(null);
 
   const { data: user, refetch: refetchUser } = trpc.user.me.useQuery(undefined, { enabled: !!authUser });
   const { data: verification, refetch: refetchVerification } = trpc.verification.get.useQuery(undefined, { enabled: !!authUser });
-  const { data: orders } = trpc.order.myOrders.useQuery(undefined, { enabled: !!authUser });
+  const { data: orders, refetch: refetchOrders } = trpc.order.myOrders.useQuery(undefined, { enabled: !!authUser });
 
   const updateProfile = trpc.user.updateProfile.useMutation({
     onSuccess: () => { toast.success("프로필이 저장되었습니다."); refetchUser(); },
@@ -37,6 +71,18 @@ export default function MyPage() {
   const submitVerification = trpc.verification.submit.useMutation({
     onSuccess: () => { toast.success("사업자 인증 서류가 제출되었습니다. 심사 후 결과를 안내드립니다."); refetchUser(); refetchVerification(); },
     onError: (e) => toast.error(e.message),
+  });
+
+  const cancelByUser = trpc.order.cancelByUser.useMutation({
+    onSuccess: () => {
+      toast.success("주문이 취소되었습니다. 환불은 3~5 영업일 내 처리됩니다.");
+      setCancelConfirmOrderId(null);
+      refetchOrders();
+    },
+    onError: (e) => {
+      toast.error(e.message);
+      setCancelConfirmOrderId(null);
+    },
   });
 
   const [name, setName] = useState("");
@@ -184,29 +230,66 @@ export default function MyPage() {
                 <a href="/shop.html" className="mt-3 inline-block text-[#C9A96E] text-sm hover:underline">쇼핑하러 가기</a>
               </div>
             ) : (
-              orders.map((order) => (
-                <div key={order.id} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleDateString("ko-KR")}</p>
-                      <p className="font-medium text-[#1a1a1a] mt-0.5">{order.orderName}</p>
-                    </div>
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">결제완료</span>
-                  </div>
-                  <div className="border-t border-gray-50 pt-3 space-y-1">
-                    {order.items.map((item) => (
-                      <div key={item.id} className="flex justify-between text-sm">
-                        <span className="text-gray-600">{item.productName} × {item.quantity}</span>
-                        <span className="text-[#1a1a1a]">{formatPrice(item.subtotal)}</span>
+              orders.map((order) => {
+                const cancellable = isCancellable(order);
+                return (
+                  <div key={order.id} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleDateString("ko-KR")}</p>
+                        <p className="font-medium text-[#1a1a1a] mt-0.5">{order.orderName}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">주문번호: {order.orderId}</p>
                       </div>
-                    ))}
+                      <OrderStatusBadge status={order.status} />
+                    </div>
+
+                    {/* 배송지 정보 */}
+                    {order.recipientName && (
+                      <div className="bg-gray-50 rounded-lg p-3 mb-3 text-xs text-gray-600 space-y-0.5">
+                        <p className="font-medium text-gray-700">배송지</p>
+                        <p>{order.recipientName} · {order.recipientPhone}</p>
+                        <p>{order.shippingAddress} {order.shippingAddressDetail}</p>
+                        {order.shippingMemo && <p className="text-gray-400">메모: {order.shippingMemo}</p>}
+                      </div>
+                    )}
+
+                    <div className="border-t border-gray-50 pt-3 space-y-1">
+                      {order.items.map((item) => (
+                        <div key={item.id} className="flex justify-between text-sm">
+                          <span className="text-gray-600">{item.productName} × {item.quantity}</span>
+                          <span className="text-[#1a1a1a]">{formatPrice(item.subtotal)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-gray-100 mt-3 pt-3 flex justify-between items-center">
+                      <span className="text-sm text-gray-500">합계</span>
+                      <span className="font-semibold text-[#C9A96E]">{formatPrice(order.totalAmount)}</span>
+                    </div>
+
+                    {/* 취소 버튼 (결제완료 + 24시간 이내) */}
+                    {cancellable && (
+                      <div className="mt-3 pt-3 border-t border-gray-50">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-400">{remainingCancelTime(order.paidAt)}</p>
+                          <button
+                            onClick={() => setCancelConfirmOrderId(order.orderId)}
+                            className="text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors font-medium"
+                          >
+                            주문 취소
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 취소 완료 안내 */}
+                    {order.status === "cancelled" && (
+                      <div className="mt-3 pt-3 border-t border-gray-50">
+                        <p className="text-xs text-red-400">취소된 주문입니다. 환불은 3~5 영업일 내 처리됩니다.</p>
+                      </div>
+                    )}
                   </div>
-                  <div className="border-t border-gray-100 mt-3 pt-3 flex justify-between">
-                    <span className="text-sm text-gray-500">합계</span>
-                    <span className="font-semibold text-[#C9A96E]">{formatPrice(order.totalAmount)}</span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
@@ -248,7 +331,7 @@ export default function MyPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">상호명 <span className="text-red-400">*</span></label>
-                  <input value={bizName} onChange={(e) => setBizName(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A96E]/30" placeholder="상호명을 입력하세요" />
+                  <input value={bizName} onChange={(e) => setBizName(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A96E]/30" placeholder="상호명 입력" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">담당자 연락처</label>
@@ -280,6 +363,36 @@ export default function MyPage() {
           </div>
         )}
       </main>
+
+      {/* 주문 취소 확인 다이얼로그 */}
+      {cancelConfirmOrderId && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: "16px", padding: "28px 24px", maxWidth: "360px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px", color: "#1a1a1a" }}>주문 취소</h3>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "6px" }}>
+              주문번호 <strong style={{ color: "#1a1a1a" }}>{cancelConfirmOrderId}</strong>을 취소하시겠습니까?
+            </p>
+            <p style={{ fontSize: "13px", color: "#9CA3AF", marginBottom: "20px" }}>
+              결제 금액은 3~5 영업일 내 카드사 환불 처리됩니다.
+            </p>
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setCancelConfirmOrderId(null)}
+                style={{ padding: "9px 18px", borderRadius: "8px", border: "1.5px solid #E5E7EB", background: "#fff", cursor: "pointer", fontSize: "14px" }}
+              >
+                돌아가기
+              </button>
+              <button
+                onClick={() => cancelByUser.mutate({ orderId: cancelConfirmOrderId })}
+                disabled={cancelByUser.isPending}
+                style={{ padding: "9px 18px", borderRadius: "8px", background: "#DC2626", color: "#fff", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 600 }}
+              >
+                {cancelByUser.isPending ? "처리 중..." : "취소 확인"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

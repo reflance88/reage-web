@@ -14,6 +14,7 @@ import {
   InsertCardCancellation,
   InsertThirdPartyLog,
   InsertUser,
+  InsertReview,
   Order,
   adminAuditLogs,
   businessVerifications,
@@ -25,6 +26,7 @@ import {
   orderReturns,
   orders,
   products,
+  reviews,
   thirdPartyLogs,
   users,
 } from "../drizzle/schema";
@@ -1229,4 +1231,68 @@ export async function updateOrderShippingInfo(orderId: string, data: {
   const db = await getDb();
   if (!db) return;
   await db.update(orders).set(data).where(eq(orders.orderId, orderId));
+}
+
+// ─── Reviews (후기 관리) ──────────────────────────────────────────────────────
+export async function getReviews(opts?: {
+  category?: string;
+  publishedOnly?: boolean;
+  page?: number;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const page = opts?.page ?? 1;
+  const limit = opts?.limit ?? 100;
+  const offset = (page - 1) * limit;
+
+  const conditions = [];
+  if (opts?.category) conditions.push(eq(reviews.category, opts.category as any));
+  if (opts?.publishedOnly) conditions.push(eq(reviews.isPublished, true));
+
+  const items = await db
+    .select()
+    .from(reviews)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(reviews.sortOrder, desc(reviews.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(reviews)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+  return { items, total: Number(countRow?.count ?? 0) };
+}
+
+export async function getReviewById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(reviews).where(eq(reviews.id, id));
+  return row ?? null;
+}
+
+export async function createReview(data: InsertReview) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(reviews).values(data);
+  const [row] = await db
+    .select()
+    .from(reviews)
+    .orderBy(desc(reviews.createdAt))
+    .limit(1);
+  return row;
+}
+
+export async function updateReview(id: number, data: Partial<InsertReview>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(reviews).set(data).where(eq(reviews.id, id));
+}
+
+export async function deleteReview(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(reviews).where(eq(reviews.id, id));
 }

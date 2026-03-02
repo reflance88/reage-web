@@ -141,6 +141,7 @@ const NAV: NavItem[] = [
     id: "board", label: "게시판",
     children: [
       { id: "board-dashboard", label: "게시판 대시보드" },
+      { id: "board-review", label: "후기 관리" },
       { id: "board-gallery", label: "갤러리 관리" },
       { id: "board-magazine", label: "매거진 관리" },
     ],
@@ -168,7 +169,7 @@ const NAV: NavItem[] = [
 function Sidebar({ active, onSelect }: { active: string; onSelect: (id: string) => void }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
-    NAV.forEach(n => { if (n.children) init[n.id] = true; });
+    NAV.forEach(n => { if (n.children) init[n.id] = false; }); // 초기상태: 모두 닫힐
     return init;
   });
 
@@ -1328,6 +1329,154 @@ function PostEditor({
   );
 }
 
+// ─── Review Section ──────────────────────────────────────────────────────────
+const REVIEW_CATEGORIES = [
+  { value: "before_after", label: "비포 & 애프터" },
+  { value: "device", label: "디바이스 후기" },
+  { value: "education", label: "교육 후기" },
+  { value: "event", label: "이벤트 후기" },
+  { value: "etc", label: "기타" },
+];
+
+function ReviewSection() {
+  const [selectedCategory, setSelectedCategory] = useState("before_after");
+  const [deleteConfirm, setDeleteConfirm] = useState<null | number>(null);
+  const [uploading, setUploading] = useState(false);
+  const [titleInput, setTitleInput] = useState("");
+  const [descInput, setDescInput] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const reviews = trpc.admin.reviewList.useQuery({ category: selectedCategory, page: 1, limit: 100 });
+  const uploadImage = trpc.admin.uploadReviewImage.useMutation();
+  const createReview = trpc.admin.createReview.useMutation({
+    onSuccess: () => { toast.success("후기 사진이 등록되었습니다."); reviews.refetch(); setTitleInput(""); setDescInput(""); },
+  });
+  const deleteReview = trpc.admin.deleteReview.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다."); reviews.refetch(); setDeleteConfirm(null); },
+  });
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = ev => resolve((ev.target?.result as string).split(",")[1]);
+        reader.readAsDataURL(file);
+      });
+      const { url, key } = await uploadImage.mutateAsync({
+        fileBase64: base64,
+        fileName: file.name,
+        fileMimeType: file.type,
+      });
+      const catLabel = REVIEW_CATEGORIES.find(c => c.value === selectedCategory)?.label ?? selectedCategory;
+      await createReview.mutateAsync({
+        category: selectedCategory as any,
+        categoryLabel: catLabel,
+        imageUrl: url,
+        imageKey: key,
+        title: titleInput || undefined,
+        description: descInput || undefined,
+        isPublished: true,
+      });
+    } catch(err) {
+      toast.error("업로드 실패. 다시 시도해주세요.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const currentCatLabel = REVIEW_CATEGORIES.find(c => c.value === selectedCategory)?.label ?? selectedCategory;
+
+  return (
+    <div>
+      <SectionHeader title="후기 관리" />
+
+      {/* 카테고리 탭 */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "24px" }}>
+        {REVIEW_CATEGORIES.map(cat => (
+          <button
+            key={cat.value}
+            onClick={() => setSelectedCategory(cat.value)}
+            style={{
+              padding: "8px 18px", borderRadius: "20px", border: `1.5px solid ${selectedCategory === cat.value ? C.primary : C.border}`,
+              background: selectedCategory === cat.value ? C.primary : C.white,
+              color: selectedCategory === cat.value ? "#fff" : C.text,
+              fontSize: "13px", fontWeight: 600, cursor: "pointer",
+            }}
+          >{cat.label}</button>
+        ))}
+      </div>
+
+      {/* 업로드 폼 */}
+      <div style={{ background: C.white, borderRadius: "12px", padding: "24px", border: `1px solid ${C.border}`, marginBottom: "24px" }}>
+        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>{currentCatLabel} 사진 업로드</div>
+        <div style={{ display: "grid", gap: "12px" }}>
+          <div>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>제목 (선택)</label>
+            <input value={titleInput} onChange={e => setTitleInput(e.target.value)} placeholder="후기 제목을 입력하세요"
+              style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", boxSizing: "border-box" as any }} />
+          </div>
+          <div>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>설명 (선택)</label>
+            <textarea value={descInput} onChange={e => setDescInput(e.target.value)} placeholder="간단한 설명을 입력하세요" rows={2}
+              style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", resize: "none", boxSizing: "border-box" as any, fontFamily: "inherit" }} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleUpload} style={{ display: "none" }} />
+            <Btn onClick={() => fileRef.current?.click()} disabled={uploading}>
+              {uploading ? "업로드 중..." : "+ 사진 업로드"}
+            </Btn>
+            <span style={{ fontSize: "12px", color: C.muted }}>JPG, PNG, WebP / 10MB 이하</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 사진 목록 */}
+      <div style={{ background: C.white, borderRadius: "12px", padding: "24px", border: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>
+          {currentCatLabel} 사진 목록 ({reviews.data?.total ?? 0}장)
+        </div>
+        {reviews.isLoading ? (
+          <div style={{ textAlign: "center", padding: "40px", color: C.muted }}>로딩 중...</div>
+        ) : (reviews.data?.items ?? []).length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px", color: C.muted }}>등록된 사진이 없습니다.</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "16px" }}>
+            {(reviews.data?.items ?? []).map((r: any) => (
+              <div key={r.id} style={{ position: "relative", borderRadius: "10px", overflow: "hidden", border: `1px solid ${C.border}` }}>
+                <img src={r.imageUrl} alt={r.title ?? ""} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
+                {r.title && (
+                  <div style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600, color: C.text, background: C.white }}>{r.title}</div>
+                )}
+                <div style={{ padding: "4px 10px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", background: C.white }}>
+                  <span style={{ fontSize: "11px", color: C.muted }}>{fmtDate(r.createdAt)}</span>
+                  <button
+                    onClick={() => setDeleteConfirm(r.id)}
+                    style={{ fontSize: "11px", color: "#991B1B", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+                  >삭제</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ConfirmModal
+        open={!!deleteConfirm}
+        title="사진 삭제"
+        message="이 사진을 삭제하시겠습니까?"
+        onConfirm={() => { if (deleteConfirm) deleteReview.mutate({ id: deleteConfirm }); }}
+        onCancel={() => setDeleteConfirm(null)}
+        loading={deleteReview.isPending}
+        danger
+      />
+    </div>
+  );
+}
+
 function BoardSection({ subPage }: { subPage: string }) {
   const [view, setView] = useState<"list" | "create" | "edit">("list");
   const [editPost, setEditPost] = useState<any>(null);
@@ -1360,6 +1509,10 @@ function BoardSection({ subPage }: { subPage: string }) {
   const type = isGallery ? "gallery" : "magazine";
   const posts = isGallery ? galleryPosts.data?.items : magazinePosts.data?.items;
   const title = subPage === "board-dashboard" ? "게시판 대시보드" : isGallery ? "갤러리 관리" : "매거진 관리";
+
+  if (subPage === "board-review") {
+    return <ReviewSection />;
+  }
 
   if (subPage === "board-dashboard") {
     return (
