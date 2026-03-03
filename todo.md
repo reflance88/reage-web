@@ -264,3 +264,19 @@
 - [x] instructor.html 목록 페이지 신규 구현 (4열 정사각형 그리드, 클릭 시 상세 이동)
 - [x] instructor-detail.html 상세 페이지 신규 구현 (갤러리 상세 스타일)
 - [x] 전체 HTML 헤더 갤러리 드롭다운 링크를 instructor.html로 교체
+
+## 프로모션 카테고리 구현 (2026-03-03)
+
+- [x] DB 스키마: coupons, discountCodes, remindAlerts 테이블 추가
+- [x] DB 마이그레이션 실행
+- [x] server/db.ts: 쿠폰/할인코드/리마인드 CRUD 함수 추가
+- [x] server/routers.ts: 쿠폰/할인코드/리마인드 admin API 추가
+- [x] 관리자 사이드바에 프로모션 카테고리 추가 (게시판 아래, 통계 위)
+- [x] 프로모션 대시보드 구현
+- [x] 쿠폰 만들기 페이지 구현 (카페24 스타일)
+- [x] 쿠폰 발급/조회 페이지 구현
+- [x] 할인코드 등록 페이지 구현
+- [x] 할인코드 조회 페이지 구현
+- [x] 리마인드 Me 알림 등록 페이지 구현
+- [x] 리마인드 Me 알림 관리 페이지 구현
+- [x] TypeScript 오류 0개 확인

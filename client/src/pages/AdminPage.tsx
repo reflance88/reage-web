@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import PromotionSection from "./PromotionSection";
 import { useState, useMemo, useRef } from "react";
 import OrderDetailModal from "@/components/OrderDetailModal";
 import { toast } from "sonner";
@@ -146,6 +147,17 @@ const NAV: NavItem[] = [
       { id: "board-gallery", label: "갤러리 관리" },
       { id: "board-instructor", label: "인증강사 관리" },
       { id: "board-magazine", label: "매거진 관리" },
+    ],
+  },
+  {
+    id: "promotion", label: "프로모션",
+    children: [
+      { id: "promotion-dashboard", label: "프로모션 대시보드" },
+      { id: "promotion-coupon-create", label: "쿠폰 만들기" },
+      { id: "promotion-coupon-list", label: "쿠폰 발급/조회" },
+      { id: "promotion-discount-create", label: "할인코드 등록" },
+      { id: "promotion-discount-list", label: "할인코드 조회" },
+      { id: "promotion-remind", label: "리마인드 Me" },
     ],
   },
   {
@@ -2406,6 +2418,7 @@ export default function AdminPage() {
     if (activePage.startsWith("board-") || activePage === "board") return <BoardSection subPage={activePage} />;
     if (activePage.startsWith("stats-") || activePage === "stats") return <StatsSection subPage={activePage} />;
     if (activePage.startsWith("popup-") || activePage === "popup") return <PopupSection subPage={activePage} onNavigate={setActivePage} />;
+    if (activePage.startsWith("promotion-") || activePage === "promotion") return <PromotionSection subPage={activePage} onNavigate={setActivePage} />;
     return <DashboardSection />;
   };
 

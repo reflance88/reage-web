@@ -512,3 +512,194 @@ export const certifiedInstructors = mysqlTable("certified_instructors", {
 });
 export type CertifiedInstructor = typeof certifiedInstructors.$inferSelect;
 export type InsertCertifiedInstructor = typeof certifiedInstructors.$inferInsert;
+
+// ─── Coupons (쿠폰 관리) ─────────────────────────────────────────────────────
+export const coupons = mysqlTable("coupons", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 쿠폰 이름 */
+  name: varchar("name", { length: 200 }).notNull(),
+  /** 쿠폰 설명 */
+  description: text("description"),
+  /** 혜택구분: discount_amount(할인금액), discount_rate(할인율), point_amount(적립금액), point_rate(적립율), free_basic_shipping(기본배송비할인), free_all_shipping(전체배송비할인), instant_point(즉시적립) */
+  benefitType: varchar("benefitType", { length: 50 }).notNull().default("discount_rate"),
+  /** 혜택 값 (금액 또는 %) */
+  benefitValue: int("benefitValue").default(0).notNull(),
+  /** 발급구분: target(대상자 지정), conditional_auto(조건부 자동), customer_download(고객 다운로드), periodic_auto(정기 자동) */
+  issueType: varchar("issueType", { length: 50 }).notNull().default("customer_download"),
+  /** 대상 회원: all(전체), specific(특정 회원) */
+  targetMember: varchar("targetMember", { length: 20 }).notNull().default("all"),
+  /** 노출시점: immediate(즉시), scheduled(지정 시점) */
+  displayTiming: varchar("displayTiming", { length: 20 }).notNull().default("immediate"),
+  /** 노출 예정 시각 (지정 시점인 경우) */
+  scheduledAt: timestamp("scheduledAt"),
+  /** 사용 시작일 */
+  startDate: timestamp("startDate"),
+  /** 사용 종료일 */
+  endDate: timestamp("endDate"),
+  /** 기간 유형: fixed(기간 설정), days_from_issue(발급일로부터 N일) */
+  periodType: varchar("periodType", { length: 30 }).notNull().default("fixed"),
+  /** 발급일로부터 유효 일수 */
+  validDays: int("validDays"),
+  /** 사용 범위: PC쇼핑몰 */
+  usePc: boolean("usePc").default(true).notNull(),
+  /** 사용 범위: 모바일쇼핑몰 */
+  useMobile: boolean("useMobile").default(true).notNull(),
+  /** 적용 범위: order(주문서 쿠폰), product(상품 쿠폰) */
+  applyScope: varchar("applyScope", { length: 20 }).notNull().default("order"),
+  /** 쿠폰 적용 상품: all(전체상품), specific(특정상품), exclude(제외상품) */
+  productScope: varchar("productScope", { length: 20 }).notNull().default("all"),
+  /** 사용가능 기준금액: none(제한없음), order_amount(주문금액 기준), product_amount(상품금액 기준) */
+  minAmountType: varchar("minAmountType", { length: 30 }).notNull().default("none"),
+  /** 최소 주문/상품 금액 */
+  minAmount: int("minAmount").default(0).notNull(),
+  /** 적용 계산 기준: before_discount(할인 적용 전), after_discount(할인 적용 후) */
+  calcBasis: varchar("calcBasis", { length: 30 }).notNull().default("before_discount"),
+  /** 동일 쿠폰 주문당 사용 가능 수 */
+  maxUsagePerOrder: int("maxUsagePerOrder").default(1).notNull(),
+  /** 사용가능 결제수단: none(제한없음), specific(결제수단 선택) */
+  paymentMethodLimit: varchar("paymentMethodLimit", { length: 20 }).notNull().default("none"),
+  /** 개별 이미지 설정: default(기본 이미지), custom(직접 업로드) */
+  imageType: varchar("imageType", { length: 20 }).notNull().default("default"),
+  /** 개별 이미지 URL */
+  imageUrl: text("imageUrl"),
+  /** 로그인 시 쿠폰 발급 알림: true=사용함 */
+  notifyOnLogin: boolean("notifyOnLogin").default(false).notNull(),
+  /** 쿠폰 발급 SMS 발송: true=발송함 */
+  sendSms: boolean("sendSms").default(false).notNull(),
+  /** 쿠폰 발급 이메일 발송: true=발송함 */
+  sendEmail: boolean("sendEmail").default(false).notNull(),
+  /** 상태: active(발급중), paused(발급중지), expired(만료) */
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  /** 총 발급 수 */
+  totalIssued: int("totalIssued").default(0).notNull(),
+  /** 등록자 */
+  authorId: int("authorId").references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Coupon = typeof coupons.$inferSelect;
+export type InsertCoupon = typeof coupons.$inferInsert;
+
+// ─── Coupon Issues (쿠폰 발급 내역) ─────────────────────────────────────────
+export const couponIssues = mysqlTable("coupon_issues", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 쿠폰 번호 (16자리 숫자) */
+  couponNumber: varchar("couponNumber", { length: 30 }).notNull().unique(),
+  /** 쿠폰 ID */
+  couponId: int("couponId").notNull().references(() => coupons.id),
+  /** 발급 대상 회원 ID */
+  userId: int("userId").references(() => users.id),
+  /** 사용 여부 */
+  isUsed: boolean("isUsed").default(false).notNull(),
+  /** 사용 일시 */
+  usedAt: timestamp("usedAt"),
+  /** 사용된 주문 ID */
+  orderId: int("orderId"),
+  /** 삭제 여부 */
+  isDeleted: boolean("isDeleted").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CouponIssue = typeof couponIssues.$inferSelect;
+export type InsertCouponIssue = typeof couponIssues.$inferInsert;
+
+// ─── Discount Codes (할인코드) ───────────────────────────────────────────────
+export const discountCodes = mysqlTable("discount_codes", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 할인코드 이름 */
+  name: varchar("name", { length: 200 }).notNull(),
+  /** 입력 코드 (고객이 입력하는 코드) */
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  /** 할인율 (%) */
+  discountRate: int("discountRate").default(0).notNull(),
+  /** 절사단위: none(절사안함), 10(10원), 100(100원), 1000(1000원) */
+  truncateUnit: int("truncateUnit").default(0).notNull(),
+  /** 상품당 최대 할인금액 */
+  maxDiscountPerProduct: int("maxDiscountPerProduct"),
+  /** 사용 시작일 */
+  startDate: timestamp("startDate"),
+  /** 사용 종료일 */
+  endDate: timestamp("endDate"),
+  /** 적용범위: all(전체 상품), specific(특정 상품), category(특정 분류) */
+  applyScope: varchar("applyScope", { length: 20 }).notNull().default("all"),
+  /** 사용가능 최소 주문금액 제한: none(제한없음), limited(제한함) */
+  minOrderAmountType: varchar("minOrderAmountType", { length: 20 }).notNull().default("none"),
+  /** 최소 주문금액 */
+  minOrderAmount: int("minOrderAmount").default(0).notNull(),
+  /** 최대 사용 가능 횟수 제한: none(제한없음), limited(제한함) */
+  maxUsageType: varchar("maxUsageType", { length: 20 }).notNull().default("none"),
+  /** 최대 사용 횟수 */
+  maxUsageCount: int("maxUsageCount"),
+  /** 사용가능 대상: none(제한없음), member_only(회원만) */
+  targetType: varchar("targetType", { length: 20 }).notNull().default("none"),
+  /** 동일인 사용 가능 횟수 제한: none(제한없음), limited(제한함) */
+  samePersonLimitType: varchar("samePersonLimitType", { length: 20 }).notNull().default("none"),
+  /** 동일인 사용 가능 횟수 */
+  samePersonLimitCount: int("samePersonLimitCount"),
+  /** 현재 사용 횟수 */
+  usedCount: int("usedCount").default(0).notNull(),
+  /** 등록자 */
+  authorId: int("authorId").references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DiscountCode = typeof discountCodes.$inferSelect;
+export type InsertDiscountCode = typeof discountCodes.$inferInsert;
+
+// ─── Remind Alerts (리마인드 Me 알림) ────────────────────────────────────────
+export const remindAlerts = mysqlTable("remind_alerts", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 알림 이름 (관리자용) */
+  name: varchar("name", { length: 200 }).notNull(),
+  /** 알림 유형: viewed(최근 조회 상품), purchased(구매 후 추천), cart(장바구니), wishlist(관심상품), point(적립금), coupon(쿠폰), login(로그인 유도), dormant(휴면 예정) */
+  alertType: varchar("alertType", { length: 50 }).notNull().default("cart"),
+  /** 사용 여부 */
+  isActive: boolean("isActive").default(true).notNull(),
+  /** 알림 수단: email(이메일), sms(SMS) */
+  channel: varchar("channel", { length: 10 }).notNull().default("email"),
+  /** 알림 기간 시작일 */
+  startDate: timestamp("startDate"),
+  /** 알림 기간 종료일 (null이면 기간 한없음) */
+  endDate: timestamp("endDate"),
+  /** 알림 주기: daily(매일), weekly(매주), monthly(매월) */
+  frequency: varchar("frequency", { length: 20 }).notNull().default("weekly"),
+  /** 발송 요일 (weekly인 경우, 0=일~6=토) */
+  sendDayOfWeek: int("sendDayOfWeek").default(5).notNull(),
+  /** 발송 시각 (0~23) */
+  sendHour: int("sendHour").default(9).notNull(),
+  /** 수신 대상: all(전체), dormant_N_days(N일 전 휴면 예정) */
+  targetType: varchar("targetType", { length: 50 }).notNull().default("all"),
+  /** 수신 대상 일수 (dormant_N_days인 경우) */
+  targetDays: int("targetDays").default(30).notNull(),
+  /** 수신거부 회원 발송 여부 */
+  sendToOptOut: boolean("sendToOptOut").default(false).notNull(),
+  /** 특별관리회원 발송 여부 */
+  sendToSpecial: boolean("sendToSpecial").default(true).notNull(),
+  /** 불량회원 발송 여부 */
+  sendToBad: boolean("sendToBad").default(true).notNull(),
+  /** 보내는 사람 이름 */
+  senderName: varchar("senderName", { length: 100 }),
+  /** 보내는 이메일 주소 */
+  senderEmail: varchar("senderEmail", { length: 200 }),
+  /** 메일 제목 */
+  emailSubject: varchar("emailSubject", { length: 300 }),
+  /** 메일 내용 (HTML) */
+  emailBody: text("emailBody"),
+  /** 혜택 설정 사용 여부 */
+  benefitEnabled: boolean("benefitEnabled").default(false).notNull(),
+  /** 혜택 기간 (일) */
+  benefitDays: int("benefitDays").default(30).notNull(),
+  /** 혜택 지급 시점: order_complete(주문완료 시), login(로그인 시) */
+  benefitTrigger: varchar("benefitTrigger", { length: 30 }).notNull().default("order_complete"),
+  /** 혜택 내용: coupon(쿠폰 발급) */
+  benefitContent: varchar("benefitContent", { length: 30 }).notNull().default("coupon"),
+  /** 연결된 쿠폰 ID */
+  benefitCouponId: int("benefitCouponId").references(() => coupons.id),
+  /** 총 발송 수 */
+  totalSent: int("totalSent").default(0).notNull(),
+  /** 등록자 */
+  authorId: int("authorId").references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type RemindAlert = typeof remindAlerts.$inferSelect;
+export type InsertRemindAlert = typeof remindAlerts.$inferInsert;

@@ -109,6 +109,30 @@ import {
   createCertifiedInstructor,
   updateCertifiedInstructor,
   deleteCertifiedInstructor,
+  // Coupons
+  getCoupons,
+  getCouponById,
+  createCoupon,
+  updateCoupon,
+  deleteCoupon,
+  getCouponIssues,
+  issueCouponToUser,
+  deleteCouponIssue,
+  // Discount Codes
+  getDiscountCodes,
+  getDiscountCodeById,
+  getDiscountCodeByCode,
+  createDiscountCode,
+  updateDiscountCode,
+  deleteDiscountCode,
+  // Remind Alerts
+  getRemindAlerts,
+  getRemindAlertById,
+  createRemindAlert,
+  updateRemindAlert,
+  deleteRemindAlert,
+  // Promotion Stats
+  getPromotionStats,
 } from "./db";
 import { storagePut } from "./storage";
 import {
@@ -1367,6 +1391,243 @@ export const appRouter = router({
           targetId: input.userId,
           note: JSON.stringify({ grade: input.membershipGrade, discountRate: input.discountRate }),
         });
+        return { success: true };
+      }),
+
+    // ─── Promotion: Stats ─────────────────────────────────────────────────────
+    getPromotionStats: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await getPromotionStats();
+      }),
+
+    // ─── Promotion: Coupons ───────────────────────────────────────────────────
+    getCoupons: protectedProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20), status: z.string().optional() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await getCoupons(input);
+      }),
+
+    getCouponById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await getCouponById(input.id);
+      }),
+
+    createCoupon: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        benefitType: z.string(),
+        benefitValue: z.number(),
+        issueType: z.string(),
+        targetMember: z.string(),
+        displayTiming: z.string(),
+        scheduledAt: z.date().optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        periodType: z.string(),
+        validDays: z.number().optional(),
+        usePc: z.boolean().default(true),
+        useMobile: z.boolean().default(true),
+        applyScope: z.string(),
+        productScope: z.string(),
+        minAmountType: z.string(),
+        minAmount: z.number().default(0),
+        calcBasis: z.string(),
+        maxUsagePerOrder: z.number().default(1),
+        paymentMethodLimit: z.string(),
+        imageType: z.string(),
+        imageUrl: z.string().optional(),
+        notifyOnLogin: z.boolean().default(false),
+        sendSms: z.boolean().default(false),
+        sendEmail: z.boolean().default(false),
+        status: z.string().default("active"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await createCoupon({ ...input, authorId: ctx.user.id });
+      }),
+
+    updateCoupon: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        benefitType: z.string().optional(),
+        benefitValue: z.number().optional(),
+        issueType: z.string().optional(),
+        targetMember: z.string().optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        applyScope: z.string().optional(),
+        minAmountType: z.string().optional(),
+        minAmount: z.number().optional(),
+        calcBasis: z.string().optional(),
+        status: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        await updateCoupon(id, data);
+        return { success: true };
+      }),
+
+    deleteCoupon: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await deleteCoupon(input.id);
+        return { success: true };
+      }),
+
+    getCouponIssues: protectedProcedure
+      .input(z.object({ couponId: z.number().optional(), userId: z.number().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await getCouponIssues(input);
+      }),
+
+    issueCouponToUser: protectedProcedure
+      .input(z.object({ couponId: z.number(), userId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await issueCouponToUser(input.couponId, input.userId);
+      }),
+
+    deleteCouponIssue: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await deleteCouponIssue(input.id);
+        return { success: true };
+      }),
+
+    // ─── Promotion: Discount Codes ────────────────────────────────────────────
+    getDiscountCodes: protectedProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await getDiscountCodes(input);
+      }),
+
+    createDiscountCode: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        code: z.string(),
+        discountRate: z.number(),
+        truncateUnit: z.number().default(0),
+        maxDiscountPerProduct: z.number().optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        applyScope: z.string().default("all"),
+        minOrderAmountType: z.string().default("none"),
+        minOrderAmount: z.number().default(0),
+        maxUsageType: z.string().default("none"),
+        maxUsageCount: z.number().optional(),
+        targetType: z.string().default("none"),
+        samePersonLimitType: z.string().default("none"),
+        samePersonLimitCount: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await createDiscountCode({ ...input, authorId: ctx.user.id });
+      }),
+
+    updateDiscountCode: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        code: z.string().optional(),
+        discountRate: z.number().optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        maxUsageType: z.string().optional(),
+        maxUsageCount: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        await updateDiscountCode(id, data);
+        return { success: true };
+      }),
+
+    deleteDiscountCode: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await deleteDiscountCode(input.id);
+        return { success: true };
+      }),
+
+    // ─── Promotion: Remind Alerts ─────────────────────────────────────────────
+    getRemindAlerts: protectedProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await getRemindAlerts(input);
+      }),
+
+    createRemindAlert: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        alertType: z.string(),
+        isActive: z.boolean().default(true),
+        channel: z.string().default("email"),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        frequency: z.string().default("weekly"),
+        sendDayOfWeek: z.number().default(5),
+        sendHour: z.number().default(9),
+        targetType: z.string().default("all"),
+        targetDays: z.number().default(30),
+        sendToOptOut: z.boolean().default(false),
+        sendToSpecial: z.boolean().default(true),
+        sendToBad: z.boolean().default(true),
+        senderName: z.string().optional(),
+        senderEmail: z.string().optional(),
+        emailSubject: z.string().optional(),
+        emailBody: z.string().optional(),
+        benefitEnabled: z.boolean().default(false),
+        benefitDays: z.number().default(30),
+        benefitTrigger: z.string().default("order_complete"),
+        benefitContent: z.string().default("coupon"),
+        benefitCouponId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return await createRemindAlert({ ...input, authorId: ctx.user.id });
+      }),
+
+    updateRemindAlert: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        isActive: z.boolean().optional(),
+        alertType: z.string().optional(),
+        channel: z.string().optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        frequency: z.string().optional(),
+        emailSubject: z.string().optional(),
+        emailBody: z.string().optional(),
+        benefitEnabled: z.boolean().optional(),
+        benefitCouponId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        await updateRemindAlert(id, data);
+        return { success: true };
+      }),
+
+    deleteRemindAlert: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await deleteRemindAlert(input.id);
         return { success: true };
       }),
   }),

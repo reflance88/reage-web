@@ -29,6 +29,20 @@ import {
   reviews,
   thirdPartyLogs,
   users,
+  InsertCertifiedInstructor,
+  certifiedInstructors,
+  Coupon,
+  InsertCoupon,
+  CouponIssue,
+  InsertCouponIssue,
+  DiscountCode,
+  InsertDiscountCode,
+  RemindAlert,
+  InsertRemindAlert,
+  coupons,
+  couponIssues,
+  discountCodes,
+  remindAlerts,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1299,11 +1313,6 @@ export async function deleteReview(id: number) {
 
 
 // ─── Certified Instructors (인증강사 갤러리) ──────────────────────────────────
-import {
-  certifiedInstructors,
-  CertifiedInstructor,
-  InsertCertifiedInstructor,
-} from "../drizzle/schema";
 
 export async function getCertifiedInstructors(opts: { publishedOnly?: boolean; page?: number; limit?: number } = {}) {
   const db = await getDb();
@@ -1343,4 +1352,186 @@ export async function deleteCertifiedInstructor(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(certifiedInstructors).where(eq(certifiedInstructors.id, id));
+}
+
+// ─── Coupons (쿠폰 관리) ─────────────────────────────────────────────────────
+
+export async function getCoupons(opts: { page?: number; limit?: number; status?: string } = {}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const limit = opts.limit ?? 20;
+  const offset = ((opts.page ?? 1) - 1) * limit;
+  const conditions = opts.status ? [eq(coupons.status, opts.status)] : [];
+  const items = conditions.length
+    ? await db.select().from(coupons).where(and(...conditions)).orderBy(desc(coupons.createdAt)).limit(limit).offset(offset)
+    : await db.select().from(coupons).orderBy(desc(coupons.createdAt)).limit(limit).offset(offset);
+  const [countRow] = conditions.length
+    ? await db.select({ count: sql<number>`COUNT(*)` }).from(coupons).where(and(...conditions))
+    : await db.select({ count: sql<number>`COUNT(*)` }).from(coupons);
+  return { items, total: Number(countRow?.count ?? 0) };
+}
+
+export async function getCouponById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(coupons).where(eq(coupons.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createCoupon(data: InsertCoupon) {
+  const db = await getDb();
+  if (!db) return undefined;
+  await db.insert(coupons).values(data);
+  const [row] = await db.select().from(coupons).orderBy(desc(coupons.createdAt)).limit(1);
+  return row;
+}
+
+export async function updateCoupon(id: number, data: Partial<InsertCoupon>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(coupons).set({ ...data, updatedAt: new Date() }).where(eq(coupons.id, id));
+}
+
+export async function deleteCoupon(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(coupons).where(eq(coupons.id, id));
+}
+
+// ─── Coupon Issues (쿠폰 발급 내역) ─────────────────────────────────────────
+
+export async function getCouponIssues(opts: { couponId?: number; userId?: number; page?: number; limit?: number } = {}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const limit = opts.limit ?? 20;
+  const offset = ((opts.page ?? 1) - 1) * limit;
+  const conditions: ReturnType<typeof eq>[] = [];
+  if (opts.couponId) conditions.push(eq(couponIssues.couponId, opts.couponId));
+  if (opts.userId) conditions.push(eq(couponIssues.userId, opts.userId));
+  const items = conditions.length
+    ? await db.select().from(couponIssues).where(and(...conditions)).orderBy(desc(couponIssues.createdAt)).limit(limit).offset(offset)
+    : await db.select().from(couponIssues).orderBy(desc(couponIssues.createdAt)).limit(limit).offset(offset);
+  const [countRow] = conditions.length
+    ? await db.select({ count: sql<number>`COUNT(*)` }).from(couponIssues).where(and(...conditions))
+    : await db.select({ count: sql<number>`COUNT(*)` }).from(couponIssues);
+  return { items, total: Number(countRow?.count ?? 0) };
+}
+
+export async function issueCouponToUser(couponId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  // 16자리 쿠폰 번호 생성
+  const couponNumber = Date.now().toString().slice(-10) + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+  await db.insert(couponIssues).values({ couponId, userId, couponNumber });
+  // totalIssued 증가
+  await db.update(coupons).set({ totalIssued: sql`totalIssued + 1` }).where(eq(coupons.id, couponId));
+  const [row] = await db.select().from(couponIssues).orderBy(desc(couponIssues.createdAt)).limit(1);
+  return row;
+}
+
+export async function deleteCouponIssue(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(couponIssues).set({ isDeleted: true }).where(eq(couponIssues.id, id));
+}
+
+// ─── Discount Codes (할인코드) ───────────────────────────────────────────────
+
+export async function getDiscountCodes(opts: { page?: number; limit?: number } = {}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const limit = opts.limit ?? 20;
+  const offset = ((opts.page ?? 1) - 1) * limit;
+  const items = await db.select().from(discountCodes).orderBy(desc(discountCodes.createdAt)).limit(limit).offset(offset);
+  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(discountCodes);
+  return { items, total: Number(countRow?.count ?? 0) };
+}
+
+export async function getDiscountCodeById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(discountCodes).where(eq(discountCodes.id, id)).limit(1);
+  return result[0];
+}
+
+export async function getDiscountCodeByCode(code: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(discountCodes).where(eq(discountCodes.code, code)).limit(1);
+  return result[0];
+}
+
+export async function createDiscountCode(data: InsertDiscountCode) {
+  const db = await getDb();
+  if (!db) return undefined;
+  await db.insert(discountCodes).values(data);
+  const [row] = await db.select().from(discountCodes).orderBy(desc(discountCodes.createdAt)).limit(1);
+  return row;
+}
+
+export async function updateDiscountCode(id: number, data: Partial<InsertDiscountCode>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(discountCodes).set({ ...data, updatedAt: new Date() }).where(eq(discountCodes.id, id));
+}
+
+export async function deleteDiscountCode(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(discountCodes).where(eq(discountCodes.id, id));
+}
+
+// ─── Remind Alerts (리마인드 Me) ─────────────────────────────────────────────
+
+export async function getRemindAlerts(opts: { page?: number; limit?: number } = {}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const limit = opts.limit ?? 20;
+  const offset = ((opts.page ?? 1) - 1) * limit;
+  const items = await db.select().from(remindAlerts).orderBy(desc(remindAlerts.createdAt)).limit(limit).offset(offset);
+  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(remindAlerts);
+  return { items, total: Number(countRow?.count ?? 0) };
+}
+
+export async function getRemindAlertById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(remindAlerts).where(eq(remindAlerts.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createRemindAlert(data: InsertRemindAlert) {
+  const db = await getDb();
+  if (!db) return undefined;
+  await db.insert(remindAlerts).values(data);
+  const [row] = await db.select().from(remindAlerts).orderBy(desc(remindAlerts.createdAt)).limit(1);
+  return row;
+}
+
+export async function updateRemindAlert(id: number, data: Partial<InsertRemindAlert>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(remindAlerts).set({ ...data, updatedAt: new Date() }).where(eq(remindAlerts.id, id));
+}
+
+export async function deleteRemindAlert(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(remindAlerts).where(eq(remindAlerts.id, id));
+}
+
+// 프로모션 대시보드 통계
+export async function getPromotionStats() {
+  const db = await getDb();
+  if (!db) return { activeCoupons: 0, totalCouponIssued: 0, activeDiscountCodes: 0, activeRemindAlerts: 0 };
+  const [activeCouponsRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(coupons).where(eq(coupons.status, 'active'));
+  const [totalIssuedRow] = await db.select({ total: sql<number>`SUM(totalIssued)` }).from(coupons);
+  const [activeDiscountCodesRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(discountCodes);
+  const [activeRemindAlertsRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(remindAlerts).where(eq(remindAlerts.isActive, true));
+  return {
+    activeCoupons: Number(activeCouponsRow?.count ?? 0),
+    totalCouponIssued: Number(totalIssuedRow?.total ?? 0),
+    activeDiscountCodes: Number(activeDiscountCodesRow?.count ?? 0),
+    activeRemindAlerts: Number(activeRemindAlertsRow?.count ?? 0),
+  };
 }
