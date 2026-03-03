@@ -1025,6 +1025,180 @@ function DiscountCodeListSection({ onNavigate }: { onNavigate: (id: string) => v
 // ═══════════════════════════════════════════════════════════════════════════════
 // 리마인드 Me
 // ═══════════════════════════════════════════════════════════════════════════════
+// ─── 리마인드 알림 유형별 자동 채움 기본값 ──────────────────────────────────────
+const REMIND_TYPE_DEFAULTS: Record<string, {
+  name: string;
+  targetType: string;
+  targetDays: number;
+  sendToOptOut: boolean;
+  sendToSpecial: boolean;
+  sendToBad: boolean;
+  channel: string;
+  frequency: string;
+  sendDayOfWeek: number;
+  sendHour: number;
+  senderName: string;
+  senderEmail: string;
+  emailSubject: string;
+  emailBody: string;
+  benefitEnabled: boolean;
+  benefitDays: number;
+  benefitTrigger: string;
+}> = {
+  viewed: {
+    name: "최근 조회 상품 추천 알림",
+    targetType: "all",
+    targetDays: 30,
+    sendToOptOut: false,
+    sendToSpecial: true,
+    sendToBad: true,
+    channel: "email",
+    frequency: "weekly",
+    sendDayOfWeek: 5,
+    sendHour: 16,
+    senderName: "REAGE",
+    senderEmail: "no-reply@reage.co.kr",
+    emailSubject: "[광고] {MALL_NAME} 최근 관심 있는 상품을 확인하세요",
+    emailBody: `안녕하세요 {MALL_NAME} 입니다.\n최근 쇼핑몰을 방문하셔서 관심을 가지고 계신 상품이 있습니다.\n\n{MEMBER_NAME}({MEMBER_ID}) 고객님이 최근 관심 있으신 상품을 추천해 드립니다.\n\n○ 상품\n{MATCH_D1}\n\n혜택 본 쇼핑몰에서 구매 시 쇼핑몰에서 발행한 고객님에게 {TYPE} 이에의 혜택이 제공됩니다.\n{BENEFIT}\n※ 혜택 제공 기간: {BENEFIT_DATE}\n\n더이상 알림을 원하지 않으시면 {MEMBER_NAME}({MEMBER_ID}) 고객님의 계정으로 접속하시고 수신거부를 설정해 주세요.`,
+    benefitEnabled: true,
+    benefitDays: 7,
+    benefitTrigger: "order_complete",
+  },
+  purchased: {
+    name: "재구매 유도 알림",
+    targetType: "all",
+    targetDays: 30,
+    sendToOptOut: false,
+    sendToSpecial: true,
+    sendToBad: true,
+    channel: "email",
+    frequency: "weekly",
+    sendDayOfWeek: 5,
+    sendHour: 10,
+    senderName: "REAGE",
+    senderEmail: "no-reply@reage.co.kr",
+    emailSubject: "[광고] {MALL_NAME} 많이 구매한 상품과 관련있는 상품 정보를 알려드립니다",
+    emailBody: `안녕하세요 {MALL_NAME} 입니다.\n저번에 구매하신 상품과 관련된 상품을 추천해 드립니다.\n\n{MEMBER_NAME}({MEMBER_ID}) 고객님이 최근 관심 있으신 상품을 추천해 드립니다.\n\n○ 구매 관련 정보\n{RECOMMENDS}\n\n혜택 본 쇼핑몰에서 구매 시 쇼핑몰에서 발행한 고객님에게 {TYPE} 이에의 혜택이 제공됩니다.\n{BENEFIT}\n※ 혜택 제공 기간: {BENEFIT_DATE}\n\n더이상 알림을 원하지 않으시면 {MEMBER_NAME}({MEMBER_ID}) 고객님의 계정으로 접속하시고 수신거부를 설정해 주세요.`,
+    benefitEnabled: true,
+    benefitDays: 7,
+    benefitTrigger: "order_complete",
+  },
+  cart: {
+    name: "장바구니 이탈 알림",
+    targetType: "cart_abandon",
+    targetDays: 3,
+    sendToOptOut: false,
+    sendToSpecial: true,
+    sendToBad: false,
+    channel: "email",
+    frequency: "weekly",
+    sendDayOfWeek: 5,
+    sendHour: 9,
+    senderName: "REAGE",
+    senderEmail: "no-reply@reage.co.kr",
+    emailSubject: "[광고] {MALL_NAME} 장바구니 상품을 확인해 주세요",
+    emailBody: `안녕하세요 {MALL_NAME} 입니다.\n장바구니에 담아두신 상품이 있어 안내해 드립니다.\n\n{MEMBER_NAME}({MEMBER_ID}) 고객님이 아직 결제하지 않은 상품이 있습니다.\n\n○ 장바구니 정보\n{BASKET}\n\n혜택 본 쇼핑몰에서 구매 시 쇼핑몰에서 발행한 고객님에게 {TYPE} 이에의 혜택이 제공됩니다.\n{BENEFIT}\n※ 혜택 제공 기간: {BENEFIT_DATE}\n\n더이상 알림을 원하지 않으시면 {MEMBER_NAME}({MEMBER_ID}) 고객님의 계정으로 접속하시고 수신거부를 설정해 주세요.`,
+    benefitEnabled: true,
+    benefitDays: 3,
+    benefitTrigger: "order_complete",
+  },
+  wishlist: {
+    name: "관심상품 정보 알림",
+    targetType: "all",
+    targetDays: 30,
+    sendToOptOut: false,
+    sendToSpecial: true,
+    sendToBad: true,
+    channel: "email",
+    frequency: "weekly",
+    sendDayOfWeek: 5,
+    sendHour: 10,
+    senderName: "REAGE",
+    senderEmail: "no-reply@reage.co.kr",
+    emailSubject: "[광고] {MALL_NAME} 관심상품 가격이 변경되었습니다",
+    emailBody: `안녕하세요 {MALL_NAME} 입니다.\n최근 쇼핑몰에 관심을 가지고 계신 상품이 있습니다.\n\n{MEMBER_NAME}({MEMBER_ID}) 고객님이 최근 관심 있으신 상품을 추천해 드립니다.\n\n○ 관심상품 정보\n{WISHLIST}\n\n혜택 본 쇼핑몰에서 구매 시 쇼핑몰에서 발행한 고객님에게 {TYPE} 이에의 혜택이 제공됩니다.\n{BENEFIT}\n※ 혜택 제공 기간: {BENEFIT_DATE}\n\n더이상 알림을 원하지 않으시면 {MEMBER_NAME}({MEMBER_ID}) 고객님의 계정으로 접속하시고 수신거부를 설정해 주세요.`,
+    benefitEnabled: true,
+    benefitDays: 7,
+    benefitTrigger: "order_complete",
+  },
+  point: {
+    name: "보유 적립금 알림",
+    targetType: "all",
+    targetDays: 30,
+    sendToOptOut: false,
+    sendToSpecial: true,
+    sendToBad: false,
+    channel: "email",
+    frequency: "weekly",
+    sendDayOfWeek: 5,
+    sendHour: 10,
+    senderName: "REAGE",
+    senderEmail: "no-reply@reage.co.kr",
+    emailSubject: "[광고] {MALL_NAME} 보유 적립금을 사용하세요",
+    emailBody: `안녕하세요 {MALL_NAME} 입니다.\n아직 쇼핑몰에서 사용하지 않은 적립금이 있습니다.\n\n{MEMBER_NAME}({MEMBER_ID}) 고객님이 보유하신 적립금을 안내해 드립니다.\n\n○ 보유 적립금 현황\n{REWARD_PNT}\n\n혜택 본 쇼핑몰에서 구매 시 쇼핑몰에서 발행한 고객님에게 {TYPE} 이에의 혜택이 제공됩니다.\n{BENEFIT}\n※ 혜택 제공 기간: {BENEFIT_DATE}\n\n더이상 알림을 원하지 않으시면 {MEMBER_NAME}({MEMBER_ID}) 고객님의 계정으로 접속하시고 수신거부를 설정해 주세요.`,
+    benefitEnabled: true,
+    benefitDays: 30,
+    benefitTrigger: "order_complete",
+  },
+  coupon: {
+    name: "만료 예정 쿠폰 알림",
+    targetType: "all",
+    targetDays: 7,
+    sendToOptOut: false,
+    sendToSpecial: true,
+    sendToBad: false,
+    channel: "email",
+    frequency: "weekly",
+    sendDayOfWeek: 2,
+    sendHour: 10,
+    senderName: "REAGE",
+    senderEmail: "no-reply@reage.co.kr",
+    emailSubject: "[광고] {MALL_NAME} 만료예정 쿠폰을 알려드립니다",
+    emailBody: `안녕하세요 {MALL_NAME} 입니다.\n아직 사용하지 않은 쿠폰이 있어 안내해 드립니다.\n\n{MEMBER_NAME}({MEMBER_ID}) 고객님이 보유하신 쿠폰을 안내해 드립니다.\n\n○ 만료예정 쿠폰 정보\n{SEL_COUPON}\n{VALID}\n\n혜택 본 쇼핑몰에서 구매 시 쇼핑몰에서 발행한 고객님에게 {TYPE} 이에의 혜택이 제공됩니다.\n{BENEFIT}\n※ 혜택 제공 기간: {BENEFIT_DATE}\n\n더이상 알림을 원하지 않으시면 {MEMBER_NAME}({MEMBER_ID}) 고객님의 계정으로 접속하시고 수신거부를 설정해 주세요.`,
+    benefitEnabled: false,
+    benefitDays: 7,
+    benefitTrigger: "order_complete",
+  },
+  login: {
+    name: "쇼핑몰 소식 알림",
+    targetType: "all",
+    targetDays: 90,
+    sendToOptOut: false,
+    sendToSpecial: true,
+    sendToBad: false,
+    channel: "email",
+    frequency: "monthly",
+    sendDayOfWeek: 1,
+    sendHour: 10,
+    senderName: "REAGE",
+    senderEmail: "no-reply@reage.co.kr",
+    emailSubject: "[광고] {MALL_NAME} 쇼핑몰 소식을 알려드립니다",
+    emailBody: `안녕하세요 {MALL_NAME} 입니다.\n쇼핑몰의 새로운 소식을 알려드립니다.\n\n{MEMBER_NAME}({MEMBER_ID}) 고객님께 새로운 소식을 전해드립니다.\n\n○ 새로운 소식\n{MALL_LINK}\n\n혜택 본 쇼핑몰에서 구매 시 쇼핑몰에서 발행한 고객님에게 {TYPE} 이에의 혜택이 제공됩니다.\n{BENEFIT}\n※ 혜택 제공 기간: {BENEFIT_DATE}\n\n더이상 알림을 원하지 않으시면 {MEMBER_NAME}({MEMBER_ID}) 고객님의 계정으로 접속하시고 수신거부를 설정해 주세요.`,
+    benefitEnabled: true,
+    benefitDays: 14,
+    benefitTrigger: "order_complete",
+  },
+  dormant: {
+    name: "휴면회원 전환 알림",
+    targetType: "dormant_N_days",
+    targetDays: 30,
+    sendToOptOut: false,
+    sendToSpecial: true,
+    sendToBad: false,
+    channel: "email",
+    frequency: "weekly",
+    sendDayOfWeek: 1,
+    sendHour: 10,
+    senderName: "REAGE",
+    senderEmail: "no-reply@reage.co.kr",
+    emailSubject: "[광고] {MALL_NAME} 휴면회원 전환에 대해 알려드립니다",
+    emailBody: `안녕하세요 {MEMBER_NAME}({MEMBER_ID})님! {MALL_NAME} 입니다.\n\n회원님께서 쇼핑몰을 방문하신지 오랜 시간이 지났습니다.\n\n장기간 미접속 시 회원님의 계정은 휴면계정으로 전환될 수 있으며, 보유하신 적립금 및 쿠폰이 소멸될 수 있습니다.\n\n○ 휴면회원 전환 예정일: {DORMANT}\n\n지금 바로 로그인하시어 소중한 혜택을 유지하시기 바랍니다.\n\n{MALL_LINK}\n\n더이상 알림을 원하지 않으시면 {MEMBER_NAME}({MEMBER_ID}) 고객님의 계정으로 접속하시고 수신거부를 설정해 주세요.`,
+    benefitEnabled: false,
+    benefitDays: 7,
+    benefitTrigger: "login",
+  },
+};
+
 const REMIND_TYPES = [
   { v: "viewed", l: "최근 조회한 상품을 보여주고 구매를 유도", icon: "🖥️" },
   { v: "purchased", l: "상품을 구매한 회원에게 다른 상품을 추천", icon: "🛍️" },
@@ -1058,6 +1232,32 @@ function RemindCreateForm({ onSuccess, editAlert }: { onSuccess: () => void; edi
   const [benefitEnabled, setBenefitEnabled] = useState(editAlert?.benefitEnabled ?? false);
   const [benefitDays, setBenefitDays] = useState(editAlert?.benefitDays ?? 30);
   const [benefitTrigger, setBenefitTrigger] = useState(editAlert?.benefitTrigger ?? "order_complete");
+
+  // 알림 유형 카드 선택 시 자동 채움 함수
+  const handleAlertTypeChange = (typeValue: string) => {
+    setAlertType(typeValue);
+    // 수정 모드에서는 자동 채움 안 함
+    if (isEdit) return;
+    const defaults = REMIND_TYPE_DEFAULTS[typeValue];
+    if (!defaults) return;
+    setName(defaults.name);
+    setTargetType(defaults.targetType);
+    setTargetDays(defaults.targetDays);
+    setSendToOptOut(defaults.sendToOptOut);
+    setSendToSpecial(defaults.sendToSpecial);
+    setSendToBad(defaults.sendToBad);
+    setChannel(defaults.channel);
+    setFrequency(defaults.frequency);
+    setSendDayOfWeek(defaults.sendDayOfWeek);
+    setSendHour(defaults.sendHour);
+    setSenderName(defaults.senderName);
+    setSenderEmail(defaults.senderEmail);
+    setEmailSubject(defaults.emailSubject);
+    setEmailBody(defaults.emailBody);
+    setBenefitEnabled(defaults.benefitEnabled);
+    setBenefitDays(defaults.benefitDays);
+    setBenefitTrigger(defaults.benefitTrigger);
+  };
 
   const createAlert = trpc.adminExt.createRemindAlert.useMutation({
     onSuccess: () => { toast.success("리마인드 알림이 등록되었습니다."); onSuccess(); },
@@ -1097,7 +1297,7 @@ function RemindCreateForm({ onSuccess, editAlert }: { onSuccess: () => void; edi
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "12px" }}>
           {REMIND_TYPES.map(t => (
             <div key={t.v}
-              onClick={() => setAlertType(t.v)}
+              onClick={() => handleAlertTypeChange(t.v)}
               style={{
                 border: `2px solid ${alertType === t.v ? C.primary : C.border}`,
                 borderRadius: "10px", padding: "16px 14px", cursor: "pointer",
@@ -1110,10 +1310,17 @@ function RemindCreateForm({ onSuccess, editAlert }: { onSuccess: () => void; edi
             </div>
           ))}
         </div>
-        <div style={{ fontSize: "12px", color: C.muted, lineHeight: 1.6 }}>
-          - 원하는 알림을 선택하면, 알림 설정이 자동으로 세팅됩니다.<br />
-          - 효과적인 마케팅을 위하여 '언제 보낼 것인지, 어떤 회원에게 보낼 것인지' 등 상세 설정을 반드시 확인하시기 바랍니다.
-        </div>
+        {!isEdit && (
+          <div style={{ background: "#FFF8E1", border: "1px solid #FFD54F", borderRadius: "8px", padding: "10px 14px", fontSize: "12px", color: "#795548", lineHeight: 1.6 }}>
+            ℹ️ <strong>유형을 선택하면 알림명, 수신 대상, 발송 수단, 주기, 메일 제목/내용 등이 자동으로 채워집니다.</strong><br />
+            효과적인 마케팅을 위하여 '언제 보낼 것인지, 어떤 회원에게 보낼 것인지' 등 상세 설정을 반드시 확인하시기 바랍니다.
+          </div>
+        )}
+        {isEdit && (
+          <div style={{ background: "#E3F2FD", border: "1px solid #90CAF9", borderRadius: "8px", padding: "10px 14px", fontSize: "12px", color: "#1565C0", lineHeight: 1.6 }}>
+            ✏️ 수정 모드에서는 유형 변경 시 자동 채움이 적용되지 않습니다. 직접 수정해 주세요.
+          </div>
+        )}
       </div>
 
       {/* 기본 설정 */}
