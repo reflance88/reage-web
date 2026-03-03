@@ -280,3 +280,10 @@
 - [x] 리마인드 Me 알림 등록 페이지 구현
 - [x] 리마인드 Me 알림 관리 페이지 구현
 - [x] TypeScript 오류 0개 확인
+
+## 자체 서버용 소셜 OAuth 연동 코드 작성
+
+- [x] server/_core/socialOAuth.ts: 카카오/네이버/구글 OAuth 헬퍼 작성
+- [x] server/_core/index.ts: registerSocialOAuthRoutes 조건부 등록 (환경변수 있을 때만 활성화)
+- [x] client/src/const.ts: getSocialLoginUrl() 함수 추가
+- [x] TypeScript 에러 0개 확인

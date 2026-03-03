@@ -8,6 +8,8 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { register3PLWebhookRoutes } from "../webhooks/3pl";
+// 자체 서버 이전 시 사용: KAKAO_CLIENT_ID, NAVER_CLIENT_ID/SECRET, GOOGLE_CLIENT_ID/SECRET, APP_BASE_URL 환경변수 설정 후 활성화
+import { registerSocialOAuthRoutes } from "./socialOAuth";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -34,8 +36,14 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // OAuth callback under /api/oauth/callback
+  // Manus OAuth callback (현재 사용 중)
   registerOAuthRoutes(app);
+  // 자체 서버 소셔 OAuth 라우트 (카카오/네이버/구글)
+  // 환경변수가 설정된 경우에만 자동 활성화
+  if (process.env.KAKAO_CLIENT_ID || process.env.NAVER_CLIENT_ID || process.env.GOOGLE_CLIENT_ID) {
+    registerSocialOAuthRoutes(app);
+    console.log("[OAuth] Social login routes registered (Kakao/Naver/Google)");
+  }
   // 3PL Webhook endpoint
   register3PLWebhookRoutes(app);
   // tRPC API
