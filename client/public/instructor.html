@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>인증강사 — REAGE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { word-break: keep-all; overflow-wrap: break-word; }
+    html, body { overflow-x: hidden; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --wine: #6B0F1A; --wine-light: #8B1525;
+      --offwhite: #F7F5F2; --charcoal: #1A1412; --gold: #C8A26A;
+      --gold-light: #D4B07A; --gray: #6B6B6B; --light-gray: #E8E6E3;
+      --radius: 14px;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--offwhite); color: var(--charcoal); font-size: 16px; line-height: 1.7; overflow-x: hidden; }
+    a { text-decoration: none; color: inherit; }
+    .container { max-width: 1160px; margin: 0 auto; padding: 0 32px; }
+    #scroll-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--wine), var(--gold)); z-index: 9999; }
+    #cursor-follower { position: fixed; pointer-events: none; z-index: 9998; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); transform: translate(-50%, -50%); }
+    #cursor-ring { position: fixed; pointer-events: none; z-index: 9998; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(200,162,106,0.4); transform: translate(-50%, -50%); }
+    .fade-in { opacity: 0; transform: translateY(28px); transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1), transform 0.75s cubic-bezier(0.22,1,0.36,1); }
+    .fade-in.visible { opacity: 1; transform: none; }
+    .stagger-card { opacity: 0; transform: translateY(20px) scale(0.97); transition: opacity 0.5s cubic-bezier(0.22,1,0.36,1), transform 0.5s cubic-bezier(0.22,1,0.36,1); }
+    .stagger-card.visible { opacity: 1; transform: none; }
+    .gold-line { width: 0; height: 2px; background: var(--gold); margin: 0 auto 20px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s; }
+    .gold-line.visible { width: 48px; }
+
+    /* HEADER */
+    #header { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: rgba(247,245,242,.96); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(200,162,106,.2); }
+    #header .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 72px; }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: .18em; color: var(--wine); }
+    .logo span { color: var(--gold); }
+    nav { display: flex; align-items: stretch; }
+    .nav-item { position: relative; display: flex; align-items: center; }
+    .nav-item > a { display: flex; align-items: center; gap: 4px; padding: 0 16px; font-size: 13.5px; font-weight: 500; color: var(--charcoal); height: 72px; letter-spacing: .04em; transition: color .2s; }
+    .nav-item > a:hover, .nav-item > a.active { color: var(--wine); }
+    .arrow { display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid currentColor; margin-top: 2px; }
+    .nav-dropdown { display: none; position: absolute; top: 100%; left: 0; min-width: 160px; background: #fff; border-top: 2px solid var(--wine); border-radius: 0 0 10px 10px; box-shadow: 0 8px 32px rgba(26,20,18,.12); padding: 8px 0; z-index: 100; }
+    .nav-item:hover .nav-dropdown { display: block; }
+    .nav-dropdown a { display: block; padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--charcoal); border-bottom: 1px solid rgba(200,162,106,.12); transition: background .15s, color .15s; }
+    .nav-dropdown a:last-child { border-bottom: none; }
+    .nav-dropdown a:hover, .nav-dropdown a.active { background: rgba(107,15,26,.05); color: var(--wine); }
+    .header-cta { display: flex; gap: 10px; }
+    .btn-primary { background: var(--wine); color: #fff; border: none; padding: 9px 20px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; letter-spacing: .04em; transition: background .2s; }
+    .btn-primary:hover { background: var(--wine-light); }
+    .btn-outline { background: transparent; color: var(--wine); border: 1.5px solid var(--wine); padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; letter-spacing: .04em; transition: background .2s, color .2s; }
+    .btn-outline:hover { background: var(--wine); color: #fff; }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--charcoal); border-radius: 2px; }
+    .mobile-menu { display: none; flex-direction: column; background: rgba(247,245,242,.98); padding: 16px 28px 24px; border-bottom: 1px solid rgba(200,162,106,.2); }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a { padding: 11px 0; font-size: 14px; font-weight: 500; color: var(--charcoal); border-bottom: 1px solid rgba(200,162,106,.1); }
+    .mobile-menu a:last-child { border-bottom: none; }
+
+    /* PAGE HERO */
+    .page-hero { padding: 140px 0 60px; text-align: center; background: linear-gradient(180deg, rgba(107,15,26,.04) 0%, transparent 100%); }
+    .page-hero-tag { font-size: 11px; font-weight: 700; letter-spacing: .2em; color: var(--gold); text-transform: uppercase; margin-bottom: 16px; }
+    .page-hero-title { font-family: 'Noto Serif KR', serif; font-size: 42px; font-weight: 700; color: var(--charcoal); line-height: 1.3; margin-bottom: 16px; }
+    .page-hero-sub { font-size: 15px; color: var(--gray); max-width: 480px; margin: 0 auto; }
+
+    /* INSTRUCTOR GRID */
+    .instructor-section { padding: 60px 0 100px; }
+    .instructor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .instructor-card { border-radius: 12px; overflow: hidden; cursor: pointer; position: relative; background: var(--light-gray); transition: transform .3s, box-shadow .3s; aspect-ratio: 1/1; display: block; }
+    .instructor-card:hover { transform: translateY(-4px) scale(1.02); box-shadow: 0 16px 48px rgba(26,20,18,.18); }
+    .instructor-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .instructor-card-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 56px; background: linear-gradient(135deg, var(--light-gray) 0%, #ddd8d2 100%); }
+    .instructor-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(26,20,18,.8) 0%, rgba(26,20,18,.2) 50%, transparent 100%); opacity: 0; transition: opacity .3s; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; }
+    .instructor-card:hover .instructor-overlay { opacity: 1; }
+    .instructor-overlay-name { color: #fff; font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .instructor-overlay-desc { color: rgba(255,255,255,.75); font-size: 12px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .instructor-overlay-arrow { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 50%; background: rgba(200,162,106,.85); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; }
+
+    /* EMPTY STATE */
+    .empty-state { text-align: center; padding: 100px 0; }
+    .empty-state-icon { font-size: 56px; margin-bottom: 20px; }
+    .empty-state-title { font-size: 18px; font-weight: 600; color: var(--charcoal); margin-bottom: 8px; }
+    .empty-state-sub { font-size: 14px; color: var(--gray); }
+
+    /* LOADING */
+    .loading-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .loading-card { aspect-ratio: 1/1; border-radius: 12px; background: linear-gradient(90deg, var(--light-gray) 25%, #ddd8d2 50%, var(--light-gray) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* FOOTER */
+    footer { background: var(--charcoal); color: rgba(247,245,242,.7); padding: 60px 0 32px; margin-top: 0; }
+    .footer-inner { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 40px; margin-bottom: 48px; }
+    .footer-logo { font-size: 20px; font-weight: 700; letter-spacing: .18em; color: #fff; margin-bottom: 12px; }
+    .footer-logo span { color: var(--gold); }
+    .footer-tagline { font-size: 13px; line-height: 1.7; opacity: .7; }
+    .footer-col-title { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--gold); text-transform: uppercase; margin-bottom: 16px; }
+    .footer-col a { display: block; font-size: 13px; color: rgba(247,245,242,.6); margin-bottom: 8px; transition: color .2s; }
+    .footer-col a:hover { color: var(--gold); }
+    .footer-bottom { border-top: 1px solid rgba(247,245,242,.1); padding-top: 24px; font-size: 12px; opacity: .5; }
+    .footer-disclaimer { margin-bottom: 8px; line-height: 1.6; }
+
+    /* RESPONSIVE */
+    @media (max-width: 1024px) {
+      .instructor-grid, .loading-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .hamburger { display: flex; }
+      nav, .header-cta { display: none; }
+      .page-hero-title { font-size: 30px; }
+      .instructor-grid, .loading-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .footer-inner { grid-template-columns: 1fr; gap: 24px; }
+    }
+    @media (max-width: 480px) {
+      .instructor-grid, .loading-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+<div id="scroll-progress"></div>
+<div id="cursor-follower"></div>
+<div id="cursor-ring"></div>
+
+<header id="header">
+  <div class="inner">
+    <a href="index.html" class="logo">RE<span>A</span>GE</a>
+    <nav>
+      <div class="nav-item">
+        <a href="brand-intro.html">브랜드 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="therapy.html">레아쥬테라피</a></div>
+      <div class="nav-item">
+        <a href="reage-device.html">제품소개 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="product-s1.html">S1크림</a>
+          <a href="product-m2.html">M2크림</a>
+          <a href="product-f3.html">F3크림</a>
+          <a href="product-new1.html">신제품1</a>
+          <a href="product-new2.html">신제품2</a>
+          <a href="product-new3.html">신제품3</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="review.html">후기</a></div>
+      <div class="nav-item">
+        <a href="gallery.html">갤러리 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="gallery.html">갤러리</a>
+          <a href="magazine.html">매거진</a>
+          <a href="instructor.html" class="active">인증강사</a>
+        </div>
+      </div>
+    </nav>
+    <div class="header-cta">
+      <div id="header-auth-area" style="display:flex;gap:8px;align-items:center;"></div>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  </div>
+</header>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="brand-intro.html">브랜드소개</a>
+  <a href="brand-story.html">브랜드스토리</a>
+  <a href="therapy.html">레아쥬테라피</a>
+  <a href="reage-device.html">레아쥬기기</a>
+  <a href="product-s1.html">S1크림</a>
+  <a href="product-m2.html">M2크림</a>
+  <a href="product-f3.html">F3크림</a>
+  <a href="review.html">후기</a>
+  <a href="gallery.html">갤러리</a>
+  <a href="magazine.html">매거진</a>
+  <a href="instructor.html">인증강사</a>
+  <a href="contact.html?tab=intro">도입 상담</a>
+</div>
+
+<!-- PAGE HERO -->
+<section class="page-hero">
+  <div class="container">
+    <div class="page-hero-tag fade-in">REAGE CERTIFIED</div>
+    <h1 class="page-hero-title fade-in">인증강사</h1>
+    <div class="gold-line"></div>
+    <p class="page-hero-sub fade-in">REAGE 공식 인증을 받은 전문 강사진을 소개합니다.</p>
+  </div>
+</section>
+
+<!-- INSTRUCTOR GRID -->
+<section class="instructor-section">
+  <div class="container">
+    <div id="loadingGrid" class="loading-grid">
+      <div class="loading-card"></div>
+      <div class="loading-card"></div>
+      <div class="loading-card"></div>
+      <div class="loading-card"></div>
+      <div class="loading-card"></div>
+      <div class="loading-card"></div>
+      <div class="loading-card"></div>
+      <div class="loading-card"></div>
+    </div>
+    <div id="instructorGrid" class="instructor-grid" style="display:none;"></div>
+    <div id="emptyState" class="empty-state" style="display:none;">
+      <div class="empty-state-icon">👩‍🏫</div>
+      <div class="empty-state-title">등록된 인증강사가 없습니다</div>
+      <div class="empty-state-sub">REAGE 인증강사 정보는 순차적으로 업데이트됩니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-tagline">올핸드 미세전류 테라피<br>REAGE — 피부를 다시 젊게</div>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">브랜드</div>
+        <a href="brand-intro.html">브랜드소개</a>
+        <a href="brand-story.html">브랜드스토리</a>
+        <a href="therapy.html">레아쥬테라피</a>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">갤러리</div>
+        <a href="gallery.html">갤러리</a>
+        <a href="magazine.html">매거진</a>
+        <a href="instructor.html">인증강사</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-disclaimer">
+        본 홈페이지의 모든 내용은 테라피·관리 정보를 목적으로 하며, 의료행위·질병 치료·의학적 효능을 주장하지 않습니다. 개인에 따라 체감 효과는 다를 수 있습니다.
+      </div>
+      <div>© 2025 REAGE. All rights reserved.</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+
+  const progressBar = document.getElementById('scroll-progress');
+  window.addEventListener('scroll', () => {
+    const total = document.documentElement.scrollHeight - window.innerHeight;
+    progressBar.style.width = (window.scrollY / total * 100) + '%';
+  }, { passive: true });
+
+  // 커서 팔로워 (transform 기반)
+  const follower = document.getElementById('cursor-follower');
+  const ring = document.getElementById('cursor-ring');
+  let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
+  document.addEventListener('mousemove', e => {
+    mouseX = e.clientX; mouseY = e.clientY;
+    follower.style.transform = `translate(${mouseX - 4}px, ${mouseY - 4}px)`;
+  });
+  function animateRing() {
+    ringX += (mouseX - ringX) * 0.12;
+    ringY += (mouseY - ringY) * 0.12;
+    ring.style.transform = `translate(${ringX - 18}px, ${ringY - 18}px)`;
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
+
+  // 스크롤 애니메이션
+  const scrollObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-in').forEach(el => scrollObserver.observe(el));
+  const lineObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('.gold-line').forEach(el => lineObserver.observe(el));
+
+  // 헤더 그림자
+  window.addEventListener('scroll', () => {
+    document.getElementById('header').style.boxShadow = window.scrollY > 40 ? '0 4px 24px rgba(26,20,18,.1)' : 'none';
+  }, { passive: true });
+
+  // ─── 인증강사 데이터 로드 ───
+  async function loadInstructors() {
+    try {
+      const input = encodeURIComponent(JSON.stringify({ "0": { json: { page: 1, limit: 200 } } }));
+      const res = await fetch(`/api/trpc/certifiedInstructor.list?batch=1&input=${input}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      const result = data[0]?.result?.data?.json;
+      const items = result?.items || result || [];
+
+      document.getElementById('loadingGrid').style.display = 'none';
+
+      if (!items || items.length === 0) {
+        document.getElementById('emptyState').style.display = 'block';
+        return;
+      }
+
+      const grid = document.getElementById('instructorGrid');
+      grid.style.display = 'grid';
+
+      items.forEach((item, i) => {
+        const card = document.createElement('a');
+        card.href = `instructor-detail.html?id=${item.id}`;
+        card.className = 'instructor-card stagger-card';
+        card.innerHTML = item.imageUrl
+          ? `<img src="${item.imageUrl}" alt="${item.name || '인증강사'}" loading="lazy">
+             <div class="instructor-overlay">
+               <div class="instructor-overlay-arrow">→</div>
+               ${item.name ? `<div class="instructor-overlay-name">${item.name}</div>` : ''}
+               ${item.description ? `<div class="instructor-overlay-desc">${item.description}</div>` : ''}
+             </div>`
+          : `<div class="instructor-card-placeholder">👩‍🏫</div>
+             <div class="instructor-overlay">
+               <div class="instructor-overlay-arrow">→</div>
+               ${item.name ? `<div class="instructor-overlay-name">${item.name}</div>` : ''}
+             </div>`;
+        grid.appendChild(card);
+      });
+
+      // 스태거 애니메이션
+      const staggerObserver = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            const parent = e.target;
+            parent.querySelectorAll('.stagger-card').forEach((card, i) => {
+              setTimeout(() => card.classList.add('visible'), i * 60);
+            });
+            staggerObserver.unobserve(parent);
+          }
+        });
+      }, { threshold: 0.05 });
+      staggerObserver.observe(grid);
+
+    } catch(e) {
+      document.getElementById('loadingGrid').style.display = 'none';
+      document.getElementById('emptyState').style.display = 'block';
+      console.error('Instructor load error:', e);
+    }
+  }
+
+  loadInstructors();
+</script>
+<script src="/header-auth.js"></script>
+</body>
+</html>

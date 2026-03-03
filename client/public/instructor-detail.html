@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>인증강사 상세 — REAGE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --wine: #6B0F1A;
+      --wine-light: #8B1525;
+      --gold: #C8A26A;
+      --charcoal: #1A1412;
+      --offwhite: #F7F5F2;
+      --light-gray: #EEEBE6;
+      --text: #2C2420;
+      --muted: #8A7F78;
+      --gray: #6B6B6B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; word-break: keep-all; overflow-wrap: break-word; }
+    html, body { overflow-x: hidden; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--offwhite); color: var(--text); }
+    a { text-decoration: none; color: inherit; }
+
+    /* HEADER */
+    #header { position: sticky; top: 0; z-index: 1000; background: rgba(247,245,242,.96); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(200,162,106,.2); }
+    #header .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; height: 72px; }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: .18em; color: var(--wine); }
+    .logo span { color: var(--gold); }
+    nav { display: flex; align-items: stretch; }
+    .nav-item { position: relative; display: flex; align-items: center; }
+    .nav-item > a { display: flex; align-items: center; gap: 4px; padding: 0 16px; font-size: 13.5px; font-weight: 500; color: var(--charcoal); height: 72px; letter-spacing: .04em; transition: color .2s; }
+    .nav-item > a:hover, .nav-item > a.active { color: var(--wine); }
+    .arrow { display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid currentColor; margin-top: 2px; }
+    .nav-dropdown { display: none; position: absolute; top: 100%; left: 0; min-width: 160px; background: #fff; border-top: 2px solid var(--wine); border-radius: 0 0 10px 10px; box-shadow: 0 8px 32px rgba(26,20,18,.12); padding: 8px 0; z-index: 100; }
+    .nav-item:hover .nav-dropdown { display: block; }
+    .nav-dropdown a { display: block; padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--charcoal); border-bottom: 1px solid rgba(200,162,106,.12); transition: background .15s, color .15s; }
+    .nav-dropdown a:last-child { border-bottom: none; }
+    .nav-dropdown a:hover, .nav-dropdown a.active { background: rgba(107,15,26,.05); color: var(--wine); }
+    .header-cta { display: flex; gap: 10px; }
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; }
+    .hamburger span { display: block; width: 24px; height: 2px; background: var(--charcoal); border-radius: 2px; }
+    .mobile-menu { display: none; flex-direction: column; background: rgba(247,245,242,.98); padding: 16px 28px 24px; border-bottom: 1px solid rgba(200,162,106,.2); }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a { padding: 11px 0; font-size: 14px; font-weight: 500; color: var(--charcoal); border-bottom: 1px solid rgba(200,162,106,.1); }
+    .mobile-menu a:last-child { border-bottom: none; }
+
+    /* BREADCRUMB */
+    .breadcrumb { background: var(--charcoal); padding: 12px 0; }
+    .breadcrumb .inner { max-width: 1160px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(247,245,242,.5); }
+    .breadcrumb a { color: rgba(247,245,242,.5); transition: color .2s; }
+    .breadcrumb a:hover { color: var(--gold); }
+    .breadcrumb .sep { opacity: .4; }
+    .breadcrumb .current { color: var(--gold); }
+
+    /* DETAIL */
+    .detail-wrap { max-width: 900px; margin: 60px auto; padding: 0 32px 80px; }
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-bottom: 32px; cursor: pointer; transition: color .2s; border: none; background: none; font-family: inherit; }
+    .back-btn:hover { color: var(--wine); }
+
+    /* PROFILE SECTION */
+    .profile-section { display: flex; gap: 48px; align-items: flex-start; margin-bottom: 48px; }
+    .profile-image-wrap { flex: 0 0 320px; }
+    .profile-image { width: 100%; aspect-ratio: 1/1; border-radius: 16px; overflow: hidden; background: var(--light-gray); }
+    .profile-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .profile-image-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 80px; }
+    .profile-info { flex: 1; padding-top: 8px; }
+    .detail-tag { font-size: 11px; font-weight: 700; letter-spacing: .15em; color: var(--gold); margin-bottom: 12px; text-transform: uppercase; }
+    .detail-title { font-family: 'Noto Serif KR', serif; font-size: 36px; font-weight: 700; color: var(--charcoal); line-height: 1.3; margin-bottom: 12px; }
+    .detail-date { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+    .gold-divider { width: 48px; height: 2px; background: var(--gold); margin-bottom: 24px; }
+    .detail-description { font-size: 16px; line-height: 1.9; color: var(--text); white-space: pre-wrap; }
+
+    /* DIVIDER */
+    .divider { border: none; border-top: 1px solid var(--light-gray); margin: 48px 0; }
+
+    /* POST NAV */
+    .post-nav { display: flex; gap: 16px; }
+    .post-nav-btn { flex: 1; padding: 20px 24px; border: 1.5px solid var(--light-gray); border-radius: 12px; cursor: pointer; background: #fff; text-align: left; transition: border-color .2s, background .2s; font-family: inherit; }
+    .post-nav-btn:hover { border-color: var(--wine); background: rgba(107,15,26,.03); }
+    .post-nav-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--gold); text-transform: uppercase; margin-bottom: 4px; }
+    .post-nav-title { font-size: 14px; font-weight: 600; color: var(--charcoal); }
+
+    /* LOADING */
+    .loading-wrap { text-align: center; padding: 100px 0; }
+    .loading-spinner { width: 40px; height: 40px; border: 3px solid var(--light-gray); border-top-color: var(--wine); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* FOOTER */
+    footer { background: var(--charcoal); color: rgba(247,245,242,.7); padding: 60px 0 32px; }
+    .footer-inner { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 40px; margin-bottom: 48px; }
+    .footer-logo { font-size: 20px; font-weight: 700; letter-spacing: .18em; color: #fff; margin-bottom: 12px; }
+    .footer-logo span { color: var(--gold); }
+    .footer-tagline { font-size: 13px; line-height: 1.7; opacity: .7; }
+    .footer-col-title { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--gold); text-transform: uppercase; margin-bottom: 16px; }
+    .footer-col a { display: block; font-size: 13px; color: rgba(247,245,242,.6); margin-bottom: 8px; transition: color .2s; }
+    .footer-col a:hover { color: var(--gold); }
+    .footer-bottom { border-top: 1px solid rgba(247,245,242,.1); padding-top: 24px; font-size: 12px; opacity: .5; }
+    .footer-disclaimer { margin-bottom: 8px; line-height: 1.6; }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+      .hamburger { display: flex; }
+      nav, .header-cta { display: none; }
+      .profile-section { flex-direction: column; gap: 28px; }
+      .profile-image-wrap { flex: none; width: 100%; max-width: 320px; }
+      .detail-title { font-size: 26px; }
+      .footer-inner { grid-template-columns: 1fr; gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<header id="header">
+  <div class="inner">
+    <a href="index.html" class="logo">RE<span>A</span>GE</a>
+    <nav>
+      <div class="nav-item">
+        <a href="brand-intro.html">브랜드 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="brand-intro.html">브랜드소개</a>
+          <a href="brand-story.html">브랜드스토리</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="therapy.html">레아쥬테라피</a></div>
+      <div class="nav-item">
+        <a href="reage-device.html">제품소개 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="reage-device.html">레아쥬기기</a>
+          <a href="product-s1.html">S1크림</a>
+          <a href="product-m2.html">M2크림</a>
+          <a href="product-f3.html">F3크림</a>
+          <a href="product-new1.html">신제품1</a>
+          <a href="product-new2.html">신제품2</a>
+          <a href="product-new3.html">신제품3</a>
+        </div>
+      </div>
+      <div class="nav-item"><a href="review.html">후기</a></div>
+      <div class="nav-item">
+        <a href="gallery.html" class="active">갤러리 <span class="arrow"></span></a>
+        <div class="nav-dropdown">
+          <a href="gallery.html">갤러리</a>
+          <a href="magazine.html">매거진</a>
+          <a href="instructor.html" class="active">인증강사</a>
+        </div>
+      </div>
+    </nav>
+    <div class="header-cta">
+      <div id="header-auth-area" style="display:flex;gap:8px;align-items:center;"></div>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+  </div>
+</header>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="brand-intro.html">브랜드소개</a>
+  <a href="brand-story.html">브랜드스토리</a>
+  <a href="therapy.html">레아쥬테라피</a>
+  <a href="reage-device.html">레아쥬기기</a>
+  <a href="product-s1.html">S1크림</a>
+  <a href="product-m2.html">M2크림</a>
+  <a href="product-f3.html">F3크림</a>
+  <a href="review.html">후기</a>
+  <a href="gallery.html">갤러리</a>
+  <a href="magazine.html">매거진</a>
+  <a href="instructor.html">인증강사</a>
+  <a href="contact.html?tab=intro">도입 상담</a>
+</div>
+
+<!-- BREADCRUMB -->
+<div class="breadcrumb">
+  <div class="inner">
+    <a href="index.html">홈</a>
+    <span class="sep">›</span>
+    <a href="instructor.html">인증강사</a>
+    <span class="sep">›</span>
+    <span class="current" id="breadcrumb-title">상세보기</span>
+  </div>
+</div>
+
+<!-- DETAIL CONTENT -->
+<div class="detail-wrap">
+  <button class="back-btn" onclick="history.back()">← 목록으로 돌아가기</button>
+  <div id="detail-content">
+    <div class="loading-wrap">
+      <div class="loading-spinner"></div>
+      <p style="color:var(--muted);font-size:14px;">불러오는 중...</p>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container" style="max-width:1160px;margin:0 auto;padding:0 32px;">
+    <div class="footer-inner">
+      <div>
+        <div class="footer-logo">RE<span>A</span>GE</div>
+        <div class="footer-tagline">올핸드 미세전류 테라피<br>REAGE — 피부를 다시 젊게</div>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">브랜드</div>
+        <a href="brand-intro.html">브랜드소개</a>
+        <a href="brand-story.html">브랜드스토리</a>
+        <a href="therapy.html">레아쥬테라피</a>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col-title">갤러리</div>
+        <a href="gallery.html">갤러리</a>
+        <a href="magazine.html">매거진</a>
+        <a href="instructor.html">인증강사</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-disclaimer">
+        본 홈페이지의 모든 내용은 테라피·관리 정보를 목적으로 하며, 의료행위·질병 치료·의학적 효능을 주장하지 않습니다. 개인에 따라 체감 효과는 다를 수 있습니다.
+      </div>
+      <div>© 2025 REAGE. All rights reserved.</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+
+  function escapeHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  async function loadInstructor() {
+    const params = new URLSearchParams(location.search);
+    const id = parseInt(params.get('id'));
+    if (!id) { renderError('강사 ID가 없습니다.'); return; }
+
+    try {
+      const input = encodeURIComponent(JSON.stringify({ "0": { json: { id } } }));
+      const res = await fetch(`/api/trpc/certifiedInstructor.byId?batch=1&input=${input}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Not found');
+      const data = await res.json();
+      const item = data[0]?.result?.data?.json;
+      if (!item) throw new Error('Not found');
+      renderInstructor(item);
+    } catch(e) {
+      renderError('강사 정보를 불러올 수 없습니다.');
+    }
+  }
+
+  function renderInstructor(item) {
+    const dateStr = item.createdAt
+      ? new Date(item.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+
+    document.title = `${item.name || '인증강사'} — REAGE`;
+    document.getElementById('breadcrumb-title').textContent = item.name || '인증강사 상세';
+
+    const imageHtml = item.imageUrl
+      ? `<div class="profile-image"><img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name || '인증강사')}" /></div>`
+      : `<div class="profile-image"><div class="profile-image-placeholder">👩‍🏫</div></div>`;
+
+    const descHtml = item.description
+      ? `<div class="detail-description">${escapeHtml(item.description)}</div>`
+      : '';
+
+    document.getElementById('detail-content').innerHTML = `
+      <div class="profile-section">
+        <div class="profile-image-wrap">
+          ${imageHtml}
+        </div>
+        <div class="profile-info">
+          <div class="detail-tag">REAGE CERTIFIED INSTRUCTOR</div>
+          <h1 class="detail-title">${escapeHtml(item.name || '인증강사')}</h1>
+          ${dateStr ? `<div class="detail-date">등록일 · ${dateStr}</div>` : ''}
+          <div class="gold-divider"></div>
+          ${descHtml}
+        </div>
+      </div>
+      <hr class="divider" />
+      <div class="post-nav">
+        <button class="post-nav-btn" onclick="history.back()">
+          <div class="post-nav-label">← 이전으로</div>
+          <div class="post-nav-title">인증강사 목록</div>
+        </button>
+        <button class="post-nav-btn" onclick="location.href='instructor.html'" style="text-align:right;">
+          <div class="post-nav-label">전체 보기 →</div>
+          <div class="post-nav-title">인증강사 전체 목록</div>
+        </button>
+      </div>
+    `;
+  }
+
+  function renderError(msg) {
+    document.getElementById('detail-content').innerHTML = `
+      <div style="text-align:center;padding:80px 0;">
+        <div style="font-size:48px;margin-bottom:16px;">😔</div>
+        <p style="color:var(--muted);font-size:16px;">${msg}</p>
+        <button onclick="history.back()" style="margin-top:24px;padding:10px 24px;background:var(--wine);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">돌아가기</button>
+      </div>
+    `;
+  }
+
+  loadInstructor();
+</script>
+<script src="/header-auth.js"></script>
+</body>
+</html>
