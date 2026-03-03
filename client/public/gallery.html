@@ -508,6 +508,7 @@
         <a href="review.html">후기</a>
         <a href="gallery.html">갤러리</a>
         <a href="magazine.html">매거진</a>
+        <a href="gallery.html#instructor">인증강사</a>
         <a href="contact.html">도입 상담</a>
         <a href="contact.html?tab=intro">도입 상담</a>
       </div>
@@ -736,6 +737,17 @@ function showInstructorLightboxItem() {
   currentItems = instructorItems.map((_, i) => ({ _instructorIdx: i }));
   currentIndex = instructorIndex;
 }
+
+  // URL hash로 인증강사 탭 자동 활성화
+  (function() {
+    if (window.location.hash === '#instructor') {
+      switchTab('instructor');
+      setTimeout(() => {
+        const section = document.getElementById('instructor-section');
+        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  })();
 </script>
 </body>
 </html>
