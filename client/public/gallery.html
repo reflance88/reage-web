@@ -111,6 +111,20 @@
     .lightbox-btn { background: rgba(247,245,242,.1); color: var(--offwhite); border: 1px solid rgba(247,245,242,.2); padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 14px; transition: background .2s; }
     .lightbox-btn:hover { background: rgba(247,245,242,.2); }
 
+    /* INSTRUCTOR GRID */
+    #instructor-section { display: none; padding: 80px 0; }
+    #instructor-section.active { display: block; }
+    .instructor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .instructor-item { border-radius: 12px; overflow: hidden; cursor: pointer; position: relative; background: var(--light-gray); transition: transform .3s, box-shadow .3s; aspect-ratio: 1/1; }
+    .instructor-item:hover { transform: scale(1.03); box-shadow: 0 12px 40px rgba(26,20,18,.15); }
+    .instructor-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .instructor-item-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 48px; background: var(--light-gray); }
+    .instructor-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(26,20,18,.75) 0%, transparent 50%); opacity: 0; transition: opacity .3s; display: flex; align-items: flex-end; padding: 16px; }
+    .instructor-item:hover .instructor-overlay { opacity: 1; }
+    .instructor-overlay-name { color: #fff; font-size: 13px; font-weight: 600; }
+    @media (max-width: 900px) { .instructor-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 600px) { .instructor-grid { grid-template-columns: repeat(2, 1fr); } }
+
     /* BRANCH SECTION */
     #branches { background: var(--charcoal); padding: 100px 0; }
     .branches-header { text-align: center; margin-bottom: 64px; }
@@ -245,7 +259,12 @@
 </section>
 
 <!-- FILTER -->
-
+<div class="gallery-filter">
+  <div class="gallery-filter-inner">
+    <div class="filter-tab active" id="tab-gallery" onclick="switchTab('gallery')">갤러리</div>
+    <div class="filter-tab" id="tab-instructor" onclick="switchTab('instructor')">인증강사</div>
+  </div>
+</div>
 
 <!-- GALLERY GRID -->
 <section id="gallery-main">
@@ -377,6 +396,19 @@
     <div style="text-align:center; margin-top:48px;">
       <p style="font-size:13px; color:var(--gray); margin-bottom:20px;">실제 현장 사진은 순차적으로 업데이트됩니다.</p>
       <a href="contact.html" class="btn-wine" style="padding:14px 36px;">사진 제공 문의</a>
+    </div>
+  </div>
+</section>
+
+<!-- INSTRUCTOR SECTION -->
+<section id="instructor-section">
+  <div class="container">
+    <div id="instructorGrid" class="instructor-grid">
+      <!-- DB에서 로드됨 -->
+    </div>
+    <div id="instructorEmpty" style="text-align:center; padding:80px 0; display:none;">
+      <p style="font-size:16px; color:var(--gray); margin-bottom:8px;">등록된 인증강사 사진이 없습니다.</p>
+      <p style="font-size:13px; color:var(--gray);">REAGE 인증강사 사진은 순차적으로 업데이트됩니다.</p>
     </div>
   </div>
 </section>
@@ -528,7 +560,28 @@
   }, { threshold: 0.05 });
   document.querySelectorAll('#galleryGrid, .branches-grid').forEach(el => staggerObserver.observe(el));
 
-  // 카테고리 필터 제거 — 모든 사진 전체 표시
+  // 탭 전환
+  function switchTab(tab) {
+    const galleryMain = document.getElementById('gallery-main');
+    const instructorSection = document.getElementById('instructor-section');
+    const tabGallery = document.getElementById('tab-gallery');
+    const tabInstructor = document.getElementById('tab-instructor');
+    if (tab === 'gallery') {
+      galleryMain.style.display = '';
+      instructorSection.classList.remove('active');
+      tabGallery.classList.add('active');
+      tabInstructor.classList.remove('active');
+    } else {
+      galleryMain.style.display = 'none';
+      instructorSection.classList.add('active');
+      tabGallery.classList.remove('active');
+      tabInstructor.classList.add('active');
+      if (!instructorSection.dataset.loaded) {
+        loadInstructorsFromDB();
+        instructorSection.dataset.loaded = '1';
+      }
+    }
+  }
 
   let currentItems = [];
   let currentIndex = 0;
@@ -614,6 +667,75 @@ async function loadGalleryFromDB() {
   }
 }
 loadGalleryFromDB();
+
+// ─── 인증강사 로드 ───
+let instructorItems = [];
+let instructorIndex = 0;
+
+async function loadInstructorsFromDB() {
+  try {
+    const res = await fetch('/api/trpc/certifiedInstructor.list?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22page%22%3A1%2C%22limit%22%3A200%7D%7D%7D', {
+      credentials: 'include'
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const items = data[0]?.result?.data?.json?.items;
+    const grid = document.getElementById('instructorGrid');
+    const empty = document.getElementById('instructorEmpty');
+    if (!items || items.length === 0) {
+      empty.style.display = '';
+      return;
+    }
+    grid.innerHTML = '';
+    items.forEach((item, i) => {
+      const el = document.createElement('div');
+      el.className = 'instructor-item';
+      el.setAttribute('data-id', item.id);
+      el.setAttribute('data-img', item.imageUrl);
+      el.setAttribute('data-name', item.name || '');
+      el.setAttribute('onclick', `openInstructorLightbox(${i})`);
+      el.innerHTML = item.imageUrl
+        ? `<img src="${item.imageUrl}" alt="${item.name || '인증강사'}" loading="lazy"><div class="instructor-overlay"><div class="instructor-overlay-name">${item.name || ''}</div></div>`
+        : `<div class="instructor-item-placeholder">👤</div><div class="instructor-overlay"><div class="instructor-overlay-name">${item.name || ''}</div></div>`;
+      grid.appendChild(el);
+    });
+    instructorItems = items;
+    // stagger 애니메이션
+    setTimeout(() => {
+      grid.querySelectorAll('.instructor-item').forEach((card, i) => {
+        card.style.opacity = '0';
+        card.style.transform = 'scale(0.95)';
+        card.style.transition = 'opacity .4s ease, transform .4s ease';
+        setTimeout(() => { card.style.opacity = '1'; card.style.transform = 'scale(1)'; }, i * 60);
+      });
+    }, 50);
+  } catch(e) {
+    console.log('Instructor DB load skipped:', e.message);
+  }
+}
+
+function openInstructorLightbox(index) {
+  instructorIndex = index;
+  showInstructorLightboxItem();
+  document.getElementById('lightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function showInstructorLightboxItem() {
+  const item = instructorItems[instructorIndex];
+  if (!item) return;
+  const imgEl = document.getElementById('lightboxImg');
+  if (item.imageUrl) {
+    imgEl.innerHTML = `<img src="${item.imageUrl}" alt="${item.name || ''}" style="width:100%;height:100%;object-fit:contain;border-radius:12px;">`;
+    imgEl.style.fontSize = '0';
+  } else {
+    imgEl.innerHTML = '👤';
+    imgEl.style.fontSize = '80px';
+  }
+  document.getElementById('lightboxCaption').textContent = item.name || '';
+  // override nav to use instructor items
+  currentItems = instructorItems.map((_, i) => ({ _instructorIdx: i }));
+  currentIndex = instructorIndex;
+}
 </script>
 </body>
 </html>

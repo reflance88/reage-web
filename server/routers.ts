@@ -103,6 +103,12 @@ import {
   createReview,
   updateReview,
   deleteReview,
+  // Certified Instructors
+  getCertifiedInstructors,
+  getCertifiedInstructorById,
+  createCertifiedInstructor,
+  updateCertifiedInstructor,
+  deleteCertifiedInstructor,
 } from "./db";
 import { storagePut } from "./storage";
 import {
@@ -306,6 +312,22 @@ export const appRouter = router({
         const r = await getReviewById(input.id);
         if (!r) throw new TRPCError({ code: "NOT_FOUND" });
         return r;
+      }),
+  }),
+
+  // ─── Public Certified Instructors ──────────────────────────────────────────
+  certifiedInstructor: router({
+    list: publicProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(100) }).optional())
+      .query(async ({ input }) => {
+        return getCertifiedInstructors({ publishedOnly: true, page: input?.page ?? 1, limit: input?.limit ?? 100 });
+      }),
+    byId: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const item = await getCertifiedInstructorById(input.id);
+        if (!item) throw new TRPCError({ code: "NOT_FOUND" });
+        return item;
       }),
   }),
 
@@ -1095,7 +1117,9 @@ export const appRouter = router({
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         return getPageViewStats(input.days);
       }),
-  }),order: router({
+  }),
+
+  order: router({
     create: protectedProcedure
       .input(z.object({
         items: z.array(z.object({ productId: z.number(), quantity: z.number().min(1) })),
@@ -1254,6 +1278,97 @@ export const appRouter = router({
       const orderList = await getUserOrders(ctx.user.id);
       return Promise.all(orderList.map(async (order) => ({ ...order, items: await getOrderItems(order.id) })));
     }),
+  }),
+
+  // ─── Admin Extension (Certified Instructors + Membership) ─────────────────
+  adminExt: router({
+    // ─── Certified Instructors (Admin) ──────────────────────────────────────────
+    certifiedInstructorList: protectedProcedure
+      .input(z.object({ page: z.number().default(1), limit: z.number().default(100) }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return getCertifiedInstructors({ page: input?.page ?? 1, limit: input?.limit ?? 100 });
+      }),
+    createCertifiedInstructor: protectedProcedure
+      .input(z.object({
+        imageUrl: z.string().min(1),
+        imageKey: z.string().optional(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        sortOrder: z.number().default(0),
+        isPublished: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        return createCertifiedInstructor({ ...input, authorId: ctx.user.id });
+      }),
+    updateCertifiedInstructor: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        imageUrl: z.string().optional(),
+        imageKey: z.string().optional(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        sortOrder: z.number().optional(),
+        isPublished: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        await updateCertifiedInstructor(id, data);
+        return { success: true };
+      }),
+    deleteCertifiedInstructor: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        await deleteCertifiedInstructor(input.id);
+        return { success: true };
+      }),
+    uploadCertifiedInstructorImage: protectedProcedure
+      .input(z.object({
+        fileBase64: z.string(),
+        fileName: z.string(),
+        fileMimeType: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const buffer = Buffer.from(input.fileBase64, "base64");
+        const ext = input.fileName.split(".").pop() ?? "jpg";
+        const key = `certified-instructors/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.fileMimeType);
+        return { url, key };
+      }),
+
+    // ─── Membership Grade Management ──────────────────────────────────────────────────────
+    setMembership: protectedProcedure
+      .input(z.object({
+        userId: z.number(),
+        membershipGrade: z.enum(["consumer", "professional", "membership"]),
+        discountRate: z.number().min(0).max(100).default(0),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const { users } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const targetUser = await getUserById(input.userId);
+        if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "사용자를 찾을 수 없습니다." });
+        await db.update(users).set({
+          memberRole: input.membershipGrade,
+          membershipDiscountRate: input.discountRate,
+        }).where(eq(users.id, input.userId));
+        await createAuditLog({
+          adminUserId: ctx.user.id,
+          actionType: "membership_update",
+          targetType: "user",
+          targetId: input.userId,
+          note: JSON.stringify({ grade: input.membershipGrade, discountRate: input.discountRate }),
+        });
+        return { success: true };
+      }),
   }),
 });
 

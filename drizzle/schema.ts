@@ -28,10 +28,12 @@ export const users = mysqlTable("users", {
   phone: varchar("phone", { length: 30 }),
   /** 'user' = 일반, 'admin' = 관리자 */
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  /** consumer | professional */
-  memberRole: mysqlEnum("memberRole", ["consumer", "professional"])
+  /** consumer | professional | membership */
+  memberRole: mysqlEnum("memberRole", ["consumer", "professional", "membership"])
     .default("consumer")
     .notNull(),
+  /** 멤버십 할인율 (%) - membership 등급 전용, null이면 기본값 사용 */
+  membershipDiscountRate: int("membershipDiscountRate").default(0).notNull(),
   /** none | pending | approved | rejected */
   proVerificationStatus: mysqlEnum("proVerificationStatus", [
     "none",
@@ -487,3 +489,26 @@ export const reviews = mysqlTable("reviews", {
 });
 export type Review = typeof reviews.$inferSelect;
 export type InsertReview = typeof reviews.$inferInsert;
+
+// ─── Certified Instructors (인증강사 갤러리) ──────────────────────────────────
+export const certifiedInstructors = mysqlTable("certified_instructors", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 이미지 S3 URL */
+  imageUrl: text("imageUrl").notNull(),
+  /** 이미지 S3 Key */
+  imageKey: varchar("imageKey", { length: 500 }),
+  /** 강사 이름 또는 제목 */
+  name: varchar("name", { length: 200 }),
+  /** 설명 */
+  description: text("description"),
+  /** 정렬 순서 */
+  sortOrder: int("sortOrder").default(0).notNull(),
+  /** 공개 여부 */
+  isPublished: boolean("isPublished").default(true).notNull(),
+  /** 등록자 */
+  authorId: int("authorId").references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CertifiedInstructor = typeof certifiedInstructors.$inferSelect;
+export type InsertCertifiedInstructor = typeof certifiedInstructors.$inferInsert;

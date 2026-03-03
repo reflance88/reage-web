@@ -1296,3 +1296,51 @@ export async function deleteReview(id: number) {
   if (!db) return;
   await db.delete(reviews).where(eq(reviews.id, id));
 }
+
+
+// ─── Certified Instructors (인증강사 갤러리) ──────────────────────────────────
+import {
+  certifiedInstructors,
+  CertifiedInstructor,
+  InsertCertifiedInstructor,
+} from "../drizzle/schema";
+
+export async function getCertifiedInstructors(opts: { publishedOnly?: boolean; page?: number; limit?: number } = {}) {
+  const db = await getDb();
+  if (!db) return { items: [], total: 0 };
+  const limit = opts.limit ?? 100;
+  const offset = ((opts.page ?? 1) - 1) * limit;
+  const conditions = opts.publishedOnly ? [eq(certifiedInstructors.isPublished, true)] : [];
+  const items = conditions.length
+    ? await db.select().from(certifiedInstructors).where(and(...conditions)).orderBy(certifiedInstructors.sortOrder, desc(certifiedInstructors.createdAt)).limit(limit).offset(offset)
+    : await db.select().from(certifiedInstructors).orderBy(certifiedInstructors.sortOrder, desc(certifiedInstructors.createdAt)).limit(limit).offset(offset);
+  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(certifiedInstructors);
+  return { items, total: Number(countRow?.count ?? 0) };
+}
+
+export async function getCertifiedInstructorById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(certifiedInstructors).where(eq(certifiedInstructors.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createCertifiedInstructor(data: InsertCertifiedInstructor) {
+  const db = await getDb();
+  if (!db) return undefined;
+  await db.insert(certifiedInstructors).values(data);
+  const [row] = await db.select().from(certifiedInstructors).orderBy(desc(certifiedInstructors.createdAt)).limit(1);
+  return row;
+}
+
+export async function updateCertifiedInstructor(id: number, data: Partial<InsertCertifiedInstructor>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(certifiedInstructors).set({ ...data, updatedAt: new Date() }).where(eq(certifiedInstructors.id, id));
+}
+
+export async function deleteCertifiedInstructor(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(certifiedInstructors).where(eq(certifiedInstructors.id, id));
+}

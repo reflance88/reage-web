@@ -135,6 +135,7 @@ const NAV: NavItem[] = [
       { id: "customer-search", label: "회원 조회" },
       { id: "customer-manage", label: "회원 관리" },
       { id: "customer-verification", label: "사업자 인증" },
+      { id: "customer-membership", label: "멤버십 관리" },
     ],
   },
   {
@@ -143,6 +144,7 @@ const NAV: NavItem[] = [
       { id: "board-dashboard", label: "게시판 대시보드" },
       { id: "board-review", label: "후기 관리" },
       { id: "board-gallery", label: "갤러리 관리" },
+      { id: "board-instructor", label: "인증강사 관리" },
       { id: "board-magazine", label: "매거진 관리" },
     ],
   },
@@ -1110,6 +1112,10 @@ function CustomerSection({ subPage }: { subPage: string }) {
     );
   }
 
+  if (subPage === "customer-membership") {
+    return <MembershipSection />;
+  }
+
   if (subPage === "customer-verification") {
     return (
       <div>
@@ -1338,6 +1344,272 @@ const REVIEW_CATEGORIES = [
   { value: "etc", label: "기타" },
 ];
 
+// ─── InstructorSection ──────────────────────────────────────────────────────────────────────────────────────
+function InstructorSection() {
+  const [uploading, setUploading] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [descInput, setDescInput] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<null | number>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const list = trpc.adminExt.certifiedInstructorList.useQuery({ page: 1, limit: 200 });
+  const uploadImage = trpc.adminExt.uploadCertifiedInstructorImage.useMutation();
+  const createItem = trpc.adminExt.createCertifiedInstructor.useMutation({
+    onSuccess: () => { toast.success("인증강사 사진이 등록되었습니다."); list.refetch(); setNameInput(""); setDescInput(""); if (fileRef.current) fileRef.current.value = ""; },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const deleteItem = trpc.adminExt.deleteCertifiedInstructor.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다."); list.refetch(); setDeleteConfirm(null); },
+  });
+  const togglePublish = trpc.adminExt.updateCertifiedInstructor.useMutation({
+    onSuccess: () => { list.refetch(); },
+  });
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error("파일 크기가 10MB를 초과합니다."); return; }
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((res, rej) => {
+        reader.onload = ev => res((ev.target?.result as string).split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const { url, key } = await uploadImage.mutateAsync({ fileBase64: base64, fileName: file.name, fileMimeType: file.type });
+      await createItem.mutateAsync({ imageUrl: url, imageKey: key, name: nameInput || undefined, description: descInput || undefined, isPublished: true });
+    } catch(err) {
+      toast.error("업로드 실패. 다시 시도해주세요.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const items = list.data?.items ?? [];
+
+  return (
+    <div>
+      <SectionHeader title="인증강사 관리" />
+
+      {/* 업로드 폼 */}
+      <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "24px", marginBottom: "32px" }}>
+        <h3 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "16px", color: C.text }}>새 인증강사 사진 등록</h3>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+          <input
+            type="text"
+            placeholder="이름 (선택)"
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            style={{ flex: 1, minWidth: "160px", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: "8px", fontSize: "13px" }}
+          />
+          <input
+            type="text"
+            placeholder="설명 (선택)"
+            value={descInput}
+            onChange={e => setDescInput(e.target.value)}
+            style={{ flex: 2, minWidth: "200px", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: "8px", fontSize: "13px" }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 20px", background: C.primary, color: "#fff", borderRadius: "8px", cursor: uploading ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600, opacity: uploading ? 0.7 : 1 }}>
+            {uploading ? "업로드 중..." : "파일 선택"}
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleUpload} disabled={uploading} />
+          </label>
+          <span style={{ fontSize: "12px", color: C.muted }}>JPG, PNG, WEBP · 최대 10MB</span>
+        </div>
+      </div>
+
+      {/* 리스트 */}
+      {list.isLoading ? (
+        <div style={{ textAlign: "center", padding: "40px", color: C.muted }}>로딩 중...</div>
+      ) : items.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px", color: C.muted }}>
+          <div style={{ fontSize: "40px", marginBottom: "12px" }}>👤</div>
+          <p>등록된 인증강사가 없습니다.</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "16px" }}>
+          {items.map((item: any) => (
+            <div key={item.id} style={{ border: `1px solid ${C.border}`, borderRadius: "12px", overflow: "hidden", background: C.white }}>
+              <div style={{ aspectRatio: "1/1", background: "#f5f5f5", position: "relative" }}>
+                {item.imageUrl
+                  ? <img src={item.imageUrl} alt={item.name ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "40px" }}>👤</div>
+                }
+                {!item.isPublished && (
+                  <div style={{ position: "absolute", top: "8px", left: "8px", background: "rgba(0,0,0,.6)", color: "#fff", fontSize: "10px", padding: "2px 8px", borderRadius: "4px" }}>비공개</div>
+                )}
+              </div>
+              <div style={{ padding: "12px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px", color: C.text }}>{item.name || "이름 없음"}</div>
+                {item.description && <div style={{ fontSize: "11px", color: C.muted, marginBottom: "8px" }}>{item.description}</div>}
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button
+                    onClick={() => togglePublish.mutate({ id: item.id, isPublished: !item.isPublished })}
+                    style={{ flex: 1, padding: "6px", border: `1px solid ${C.border}`, borderRadius: "6px", background: "transparent", cursor: "pointer", fontSize: "11px", color: C.muted }}
+                  >{item.isPublished ? "비공개" : "공개"}</button>
+                  <button
+                    onClick={() => setDeleteConfirm(item.id)}
+                    style={{ flex: 1, padding: "6px", border: `1px solid #fca5a5`, borderRadius: "6px", background: "transparent", cursor: "pointer", fontSize: "11px", color: "#dc2626" }}
+                  >삭제</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ConfirmModal
+        open={deleteConfirm !== null}
+        title="사진 삭제"
+        message="이 인증강사 사진을 삭제하시겠습니까?"
+        onConfirm={() => { if (deleteConfirm !== null) deleteItem.mutate({ id: deleteConfirm }); }}
+        onCancel={() => setDeleteConfirm(null)}
+        loading={deleteItem.isPending}
+        danger
+      />
+    </div>
+  );
+}
+
+// ─── MembershipSection ─────────────────────────────────────────────────────────
+const MEMBERSHIP_GRADES = [
+  { value: "consumer", label: "일반", discount: 0 },
+  { value: "professional", label: "전문가", discount: 10 },
+  { value: "membership", label: "멤버십", discount: 20 },
+];
+
+function MembershipSection() {
+  const [search, setSearch] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("all");
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [newGrade, setNewGrade] = useState("");
+  const [discountRate, setDiscountRate] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const users = trpc.admin.users.useQuery({ page: 1, limit: 200 });
+  const setMembership = trpc.adminExt.setMembership.useMutation({
+    onSuccess: () => { toast.success("멤버십 등급이 변경되었습니다."); users.refetch(); setModalOpen(false); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const allUsers = users.data?.users ?? [];
+  const filtered = allUsers.filter((u: any) => {
+    const matchSearch = !search || u.name?.includes(search) || u.email?.includes(search);
+    const matchGrade = gradeFilter === "all" || (u.membershipGrade ?? "none") === gradeFilter;
+    return matchSearch && matchGrade;
+  });
+
+  const openModal = (user: any) => {
+    setSelectedUser(user);
+    setNewGrade(user.memberRole ?? "consumer");
+    const found = MEMBERSHIP_GRADES.find(g => g.value === (user.memberRole ?? "consumer"));
+    setDiscountRate(found?.discount ?? 0);
+    setModalOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!selectedUser) return;
+    setMembership.mutate({ userId: selectedUser.id, membershipGrade: newGrade as "consumer" | "professional" | "membership", discountRate });
+  };
+
+  const gradeLabel = (g: string | null) => MEMBERSHIP_GRADES.find(x => x.value === (g ?? "consumer"))?.label ?? "일반";
+  const gradeColor = (g: string | null) => {
+    if (g === "membership") return "#7c3aed";
+    if (g === "professional") return "#0369a1";
+    return C.muted;
+  };
+
+  return (
+    <div>
+      <SectionHeader title="멤버십 등급 관리" />
+
+      {/* 등급 설명 카드 */}
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "24px" }}>
+        {MEMBERSHIP_GRADES.map(g => (
+          <div key={g.value} style={{ flex: 1, minWidth: "140px", background: C.white, border: `1px solid ${C.border}`, borderRadius: "10px", padding: "16px" }}>
+            <div style={{ fontWeight: 700, fontSize: "14px", color: gradeColor(g.value), marginBottom: "4px" }}>{g.label}</div>
+            <div style={{ fontSize: "12px", color: C.muted }}>할인율: <strong>{g.discount}%</strong></div>
+            <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>
+              {g.value === "none" && "기본 등급"}
+              {g.value === "professional" && "사업자 인증 완료 회원"}
+              {g.value === "membership" && "최고 등급 · 전문가보다 추가 할인"}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 검색 및 필터 */}
+      <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
+        <SearchBar value={search} onChange={setSearch} placeholder="이름 또는 이메일 검색" />
+        <FilterSelect
+          value={gradeFilter}
+          onChange={setGradeFilter}
+          options={[{ value: "all", label: "전체 등급" }, ...MEMBERSHIP_GRADES.map(g => ({ value: g.value, label: g.label }))]}
+        />
+      </div>
+
+      {/* 회원 테이블 */}
+      {users.isLoading ? (
+        <div style={{ textAlign: "center", padding: "40px", color: C.muted }}>로딩 중...</div>
+      ) : (
+        <Table
+          headers={["이름", "이메일", "현재 등급", "할인율", "가입일", "관리"]}
+          rows={filtered.map((u: any) => [
+            <span style={{ fontWeight: 600 }}>{u.name ?? "—"}</span>,
+            <span style={{ fontSize: "12px", color: C.muted }}>{u.email ?? "—"}</span>,
+            <span style={{ fontWeight: 700, color: gradeColor(u.memberRole) }}>{gradeLabel(u.memberRole)}</span>,
+            <span>{MEMBERSHIP_GRADES.find(g => g.value === (u.memberRole ?? "consumer"))?.discount ?? 0}%</span>,
+            <span style={{ fontSize: "12px", color: C.muted }}>{fmtDate(u.createdAt)}</span>,
+            <Btn size="sm" variant="outline" onClick={() => openModal(u)}>등급 변경</Btn>,
+          ])}
+        />
+      )}
+
+      {/* 등급 변경 모달 */}
+      {modalOpen && selectedUser && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: C.white, borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "420px", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "4px" }}>멤버십 등급 변경</h3>
+            <p style={{ fontSize: "13px", color: C.muted, marginBottom: "24px" }}>{selectedUser.name} ({selectedUser.email})</p>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "6px" }}>등급 선택</label>
+              <select
+                value={newGrade}
+                onChange={e => {
+                  setNewGrade(e.target.value);
+                  const found = MEMBERSHIP_GRADES.find(g => g.value === e.target.value);
+                  setDiscountRate(found?.discount ?? 0);
+                }}
+                style={{ width: "100%", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: "8px", fontSize: "14px" }}
+              >
+                {MEMBERSHIP_GRADES.map(g => <option key={g.value} value={g.value}>{g.label} ({g.discount}% 할인)</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "6px" }}>할인율 (%)</label>
+              <input
+                type="number" min={0} max={100}
+                value={discountRate}
+                onChange={e => setDiscountRate(Number(e.target.value))}
+                style={{ width: "100%", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: "8px", fontSize: "14px" }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <Btn variant="outline" onClick={() => setModalOpen(false)}>취소</Btn>
+              <Btn onClick={handleSave} disabled={setMembership.isPending}>
+                {setMembership.isPending ? "저장 중..." : "저장"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReviewSection() {
   const [selectedCategory, setSelectedCategory] = useState("before_after");
   const [deleteConfirm, setDeleteConfirm] = useState<null | number>(null);
@@ -1512,6 +1784,10 @@ function BoardSection({ subPage }: { subPage: string }) {
 
   if (subPage === "board-review") {
     return <ReviewSection />;
+  }
+
+  if (subPage === "board-instructor") {
+    return <InstructorSection />;
   }
 
   if (subPage === "board-dashboard") {

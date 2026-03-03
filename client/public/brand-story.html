@@ -30,8 +30,21 @@
     #scroll-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, var(--wine), var(--gold)); z-index: 9999; transition: width .1s linear; }
 
     /* ─── CURSOR ─── */
-    #cursor-follower { position: fixed; pointer-events: none; z-index: 9998; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); transform: translate(-50%, -50%); transition: transform 0.1s ease; }
-    #cursor-ring { position: fixed; pointer-events: none; z-index: 9998; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(200,162,106,0.4); transform: translate(-50%, -50%); transition: transform 0.18s ease; }
+    #cursor-follower {
+      position: fixed; pointer-events: none; z-index: 9998;
+      width: 8px; height: 8px; border-radius: 50%; background: var(--gold);
+      top: 0; left: 0;
+      will-change: transform;
+      transform: translate(-50%, -50%);
+    }
+    #cursor-ring {
+      position: fixed; pointer-events: none; z-index: 9998;
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1px solid rgba(200,162,106,0.4);
+      top: 0; left: 0;
+      will-change: transform;
+      transform: translate(-50%, -50%);
+    }
 
     /* ─── MOTION ─── */
     .fade-in { opacity: 0; transform: translateY(32px); transition: opacity 0.75s cubic-bezier(0.22,1,0.36,1), transform 0.75s cubic-bezier(0.22,1,0.36,1); }
@@ -664,19 +677,35 @@
   /* 모바일 메뉴 */
   function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
 
-  /* 스크롤 프로그레스 */
+  /* 스크롤 프로그레스 - passive 최적화 */
   const progressBar = document.getElementById('scroll-progress');
+  let ticking = false;
   window.addEventListener('scroll', () => {
-    const total = document.documentElement.scrollHeight - window.innerHeight;
-    progressBar.style.width = (window.scrollY / total * 100) + '%';
-  });
+    if (!ticking) {
+      requestAnimationFrame(() => {
+        const total = document.documentElement.scrollHeight - window.innerHeight;
+        progressBar.style.width = (window.scrollY / total * 100) + '%';
+        ticking = false;
+      });
+      ticking = true;
+    }
+  }, { passive: true });
 
-  /* 커서 팔로워 */
+  /* 커서 팔로워 - transform 기반 (reflow 방지) */
   const follower = document.getElementById('cursor-follower');
   const ring = document.getElementById('cursor-ring');
   let mouseX = 0, mouseY = 0, ringX = 0, ringY = 0;
-  document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; follower.style.left = mouseX + 'px'; follower.style.top = mouseY + 'px'; });
-  function animateRing() { ringX += (mouseX - ringX) * 0.12; ringY += (mouseY - ringY) * 0.12; ring.style.left = ringX + 'px'; ring.style.top = ringY + 'px'; requestAnimationFrame(animateRing); }
+  document.addEventListener('mousemove', e => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    follower.style.transform = `translate(calc(${mouseX}px - 50%), calc(${mouseY}px - 50%))`;
+  }, { passive: true });
+  function animateRing() {
+    ringX += (mouseX - ringX) * 0.12;
+    ringY += (mouseY - ringY) * 0.12;
+    ring.style.transform = `translate(calc(${ringX}px - 50%), calc(${ringY}px - 50%))`;
+    requestAnimationFrame(animateRing);
+  }
   animateRing();
 
   /* 스크롤 트리거 */
