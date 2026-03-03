@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { getLoginUrl } from "@/const";
 
 export default function SignupPage() {
   const [, navigate] = useLocation();
@@ -30,8 +31,9 @@ export default function SignupPage() {
     signupMutation.mutate({ name: form.name, email: form.email, password: form.password });
   };
 
-  const handleSocial = (provider: "kakao" | "naver" | "google") => {
-    window.location.href = `/api/auth/social/${provider}?returnTo=/index-main.html`;
+  // 소셜 가입: Manus OAuth 포털으로 리다이렉트
+  const handleSocial = () => {
+    window.location.href = getLoginUrl();
   };
 
   const inputStyle = {
@@ -65,15 +67,15 @@ export default function SignupPage() {
 
         {/* 소셜 가입 */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-          <button onClick={() => handleSocial("kakao")} title="카카오로 가입" style={{
+          <button onClick={() => handleSocial()} title="카카오로 가입" style={{
             flex: 1, padding: "12px", borderRadius: "10px", border: "none",
             background: "#FEE500", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#191919"
           }}>카카오</button>
-          <button onClick={() => handleSocial("naver")} title="네이버로 가입" style={{
+          <button onClick={() => handleSocial()} title="네이버로 가입" style={{
             flex: 1, padding: "12px", borderRadius: "10px", border: "none",
             background: "#03C75A", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#fff"
           }}>네이버</button>
-          <button onClick={() => handleSocial("google")} title="구글로 가입" style={{
+          <button onClick={() => handleSocial()} title="구글로 가입" style={{
             flex: 1, padding: "12px", borderRadius: "10px", border: "1.5px solid #E8E6E3",
             background: "#fff", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#1A1412"
           }}>구글</button>

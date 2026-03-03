@@ -9,6 +9,28 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * state 파라미터에서 returnPath를 파싱합니다.
+ * getLoginUrl()은 state = btoa(redirectUri) 형식으로 전달합니다.
+ * state = btoa(JSON.stringify({redirectUri, returnPath})) 형식도 지원합니다.
+ */
+function parseReturnPath(state: string): string {
+  try {
+    const decoded = Buffer.from(state, "base64").toString("utf-8");
+    // JSON 형식인 경우
+    if (decoded.startsWith("{")) {
+      const parsed = JSON.parse(decoded);
+      if (parsed.returnPath && typeof parsed.returnPath === "string") {
+        return parsed.returnPath;
+      }
+    }
+    // 단순 URL 형식인 경우 (기존 방식) - 홈으로
+    return "/";
+  } catch {
+    return "/";
+  }
+}
+
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
@@ -44,7 +66,9 @@ export function registerOAuthRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      res.redirect(302, "/");
+      // 로그인 후 returnPath로 리다이렉트 (없으면 홈으로)
+      const returnPath = parseReturnPath(state);
+      res.redirect(302, returnPath);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
