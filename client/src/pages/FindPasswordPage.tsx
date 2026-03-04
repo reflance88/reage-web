@@ -20,11 +20,13 @@ export default function FindPasswordPage() {
     onSuccess: (data) => {
       setSent(true);
       setLoading(false);
-      // 개발 환경에서는 토큰을 직접 표시
-      if (data.devToken) {
-        toast.info(`[개발용] 토큰: ${data.devToken}`, { duration: 30000 });
+      if (data.emailSent) {
+        toast.success("재설정 링크를 이메일로 발송했습니다.");
+      } else if (data.devToken) {
+        // 개발 환경: SMTP 미설정 시 토큰으로 바로 이동
+        toast.info(`[개발용] SMTP 미설정 - 토큰으로 직접 이동합니다.`, { duration: 5000 });
         setToken(data.devToken);
-        setTimeout(() => setStep("reset"), 1000);
+        setTimeout(() => setStep("reset"), 1500);
       }
     },
     onError: (err: { message?: string }) => {
@@ -48,7 +50,7 @@ export default function FindPasswordPage() {
     e.preventDefault();
     if (!email) { toast.error("이메일을 입력해주세요."); return; }
     setLoading(true);
-    requestMutation.mutate({ email });
+    requestMutation.mutate({ email, origin: window.location.origin });
   };
 
   const handleReset = (e: React.FormEvent) => {
@@ -92,11 +94,16 @@ export default function FindPasswordPage() {
             {sent ? (
               <div style={{
                 background: "#F0FDF4", border: "1px solid #86EFAC",
-                borderRadius: "12px", padding: "20px", textAlign: "center"
+                borderRadius: "12px", padding: "24px", textAlign: "center"
               }}>
-                <p style={{ fontSize: "14px", color: "#166534", fontWeight: 600 }}>이메일을 발송했습니다.</p>
-                <p style={{ fontSize: "13px", color: "#4B7A5A", marginTop: "6px" }}>
-                  {email} 으로 재설정 링크를 보내드렸습니다. 이메일을 확인해주세요.
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>📧</div>
+                <p style={{ fontSize: "15px", color: "#166534", fontWeight: 700, margin: "0 0 8px" }}>이메일을 발송했습니다!</p>
+                <p style={{ fontSize: "13px", color: "#4B7A5A", margin: "0 0 12px", lineHeight: "1.6" }}>
+                  <strong>{email}</strong>으로 비밀번호 재설정 링크를 보내드렸습니다.
+                  <br />이메일을 확인하여 1시간 이내에 링크를 클릭해주세요.
+                </p>
+                <p style={{ fontSize: "12px", color: "#6B9B7A", margin: 0 }}>
+                  이메일이 도착하지 않으면 스팸 폴더를 확인해주세요.
                 </p>
               </div>
             ) : (

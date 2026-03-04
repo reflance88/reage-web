@@ -135,6 +135,7 @@ import {
   getPromotionStats,
 } from "./db";
 import { storagePut } from "./storage";
+import { sendPasswordResetEmail } from "./_core/mailer";
 import {
   sendOrderCompleteAlimtalk,
   sendAdminNewOrderAlimtalk,
@@ -249,16 +250,26 @@ export const appRouter = router({
 
     // ─── 비밀번호 재설정 요청 ─────────────────────────────────────────────────
     requestPasswordReset: publicProcedure
-      .input(z.object({ email: z.string().email() }))
-      .mutation(async ({ input }) => {
+      .input(z.object({ email: z.string().email(), origin: z.string().url().optional() }))
+      .mutation(async ({ input, ctx }) => {
         const user = await getUserByEmail(input.email);
-        // 보안상 존재 여부 노출 안 함
-        if (!user) return { success: true };
+        // 보안상 이메일 존재 여부를 노출하지 않음
+        if (!user) return { success: true, emailSent: false };
         const token = nanoid(32);
         const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1시간
         await updateUserResetToken(user.id, token, expiresAt);
-        // TODO: 실제 이메일 발송 (현재는 토큰을 응답에 포함 - 개발용)
-        return { success: true, devToken: process.env.NODE_ENV === "development" ? token : undefined };
+        // 재설정 URL 생성 (origin은 프론트에서 전달, 없으면 요청 헤더에서 추출)
+        const origin = input.origin ||
+          (ctx.req ? `${ctx.req.protocol}://${ctx.req.get("host")}` : "http://localhost:3000");
+        const resetUrl = `${origin}/find-password?token=${token}`;
+        // 실제 이메일 발송
+        const emailSent = await sendPasswordResetEmail(input.email, resetUrl);
+        // 개발 환경에서 SMTP 미설정 시 토큰을 응답에 포함 (테스트용)
+        const devToken = (!emailSent && process.env.NODE_ENV === "development") ? token : undefined;
+        if (devToken) {
+          console.log(`[Dev] Password reset URL: ${resetUrl}`);
+        }
+        return { success: true, emailSent, devToken };
       }),
 
     // ─── 비밀번호 재설정 실행 ─────────────────────────────────────────────────

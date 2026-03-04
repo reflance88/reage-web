@@ -287,3 +287,12 @@
 - [x] server/_core/index.ts: registerSocialOAuthRoutes 조건부 등록 (환경변수 있을 때만 활성화)
 - [x] client/src/const.ts: getSocialLoginUrl() 함수 추가
 - [x] TypeScript 에러 0개 확인
+
+## 이메일 비밀번호 찾기 실제 발송 구현
+
+- [x] nodemailer 패키지 설치
+- [x] server/_core/mailer.ts: SMTP 이메일 발송 헬퍼 작성
+- [x] server/routers.ts: requestPasswordReset에 실제 이메일 발송 로직 추가
+- [x] 비밀번호 재설정 이메일 HTML 템플릿 작성
+- [x] SMTP 환경변수 설정 안내 (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM)
+- [x] TypeScript 에러 0개 확인
