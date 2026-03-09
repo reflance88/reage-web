@@ -1012,6 +1012,22 @@
       width: var(--bar-width, 60%) !important;
     }
 
+    /* ─── 모바일 애니메이션 폴백 (IntersectionObserver 미작동 대비) ─── */
+    @media (max-width: 900px) {
+      .fade-in, .slide-in-left, .slide-in-right, .blur-in, .scale-up {
+        opacity: 1 !important;
+        transform: none !important;
+        filter: none !important;
+      }
+      .step-card, .system-card, .trust-item {
+        opacity: 1 !important;
+        transform: none !important;
+      }
+      .gold-line, .gold-line-left {
+        width: 48px !important;
+      }
+    }
+
     /* ─── RESPONSIVE ─── */
     @media (max-width: 900px) {
       nav, .header-cta { display: none; }
@@ -1725,6 +1741,7 @@
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
   /* ═══════════════════════════════════════════
      REAGE 고급 모션 시스템
   ═══════════════════════════════════════════ */
@@ -1935,7 +1952,8 @@
       '₩ ' + Math.round(monthly).toLocaleString('ko-KR');
   }
   calcRevenue();
-  }
+
+}); // DOMContentLoaded end
 
   /* 15. 모바일 메뉴 토글 */
   let mobileMenuOpen = false;

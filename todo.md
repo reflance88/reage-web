@@ -303,3 +303,7 @@
 - [x] M2크림 누끼 이미지를 product-m2 상세페이지에 적용
 - [x] F3크림 누끼 이미지를 product-f3 상세페이지에 적용
 - [x] Supabase 연결 테스트 및 23개 테이블 생성 확인 (REST API 연결 성공, SQL 마이그레이션 파일 생성 완료)
+
+## 모바일 렌더링 수정
+
+- [x] 모바일에서 IntersectionObserver 미작동으로 텍스트/이미지 opacity:0 고정 문제 수정 (index-main.html) - CSS 폴백 + DOMContentLoaded 래핑
