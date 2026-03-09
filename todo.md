@@ -296,3 +296,10 @@
 - [x] 비밀번호 재설정 이메일 HTML 템플릿 작성
 - [x] SMTP 환경변수 설정 안내 (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM)
 - [x] TypeScript 에러 0개 확인
+
+## 크림 누끼 이미지 적용 및 Supabase 연결 테스트
+
+- [x] S1크림 누끼 이미지를 product-s1 상세페이지에 적용
+- [x] M2크림 누끼 이미지를 product-m2 상세페이지에 적용
+- [x] F3크림 누끼 이미지를 product-f3 상세페이지에 적용
+- [x] Supabase 연결 테스트 및 23개 테이블 생성 확인 (REST API 연결 성공, SQL 마이그레이션 파일 생성 완료)

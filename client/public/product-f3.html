@@ -53,10 +53,11 @@
     .product-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
     .product-image-area { position: sticky; top: 84px; }
     .product-image-box {
-      background: #fff; border-radius: 20px; overflow: hidden;
+      background: #f9f5ef; border-radius: 20px; overflow: hidden;
       box-shadow: var(--shadow); aspect-ratio: 1/1;
       display: flex; align-items: center; justify-content: center;
     }
+    .product-image-box img { width: 100%; height: 100%; object-fit: contain; padding: 20px; }
     .product-image-placeholder {
       width: 100%; height: 100%; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 12px;
@@ -210,11 +211,7 @@
       <!-- 이미지 영역 -->
       <div class="product-image-area">
         <div class="product-image-box">
-          <div class="product-image-placeholder" id="productImageArea">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            <span>제품 이미지</span>
-            <span class="img-size">권장 사이즈: 800×800px</span>
-          </div>
+          <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663306521822/AerFeijbfzRzRoaKj4KqTe/f3-cream_fd3b1431.png" alt="REAGE F3 크림" style="width:100%;height:100%;object-fit:contain;padding:20px;">
         </div>
       </div>
 
