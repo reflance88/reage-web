@@ -142,6 +142,11 @@ import {
   getDesignFolders,
   createDesignFolder,
   deleteDesignFolder,
+  getExcelTemplates,
+  getExcelTemplate,
+  createExcelTemplate,
+  updateExcelTemplate,
+  deleteExcelTemplate,
 } from "./db";
 import { storagePut } from "./storage";
 import { sendPasswordResetEmail, sendMail } from "./_core/mailer";
@@ -587,7 +592,28 @@ export const appRouter = router({
       .input(z.object({ orderId: z.string(), status: z.enum(["created", "paid", "failed", "cancelled"]) }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        // 입금확인 알림톡: created → paid 전환 시 발송
+        const prevOrder = await getOrderByOrderId(input.orderId);
         await updateOrderStatus(input.orderId, { status: input.status });
+        if (prevOrder && prevOrder.status === "created" && input.status === "paid") {
+          try {
+            const { sendBankTransferConfirmAlimtalk } = await import("./_core/kakao.js");
+            const items = await getOrderItems(prevOrder.id);
+            const productName = items.length > 0 ? items[0].productName : "레아쥬 제품";
+            if (prevOrder.recipientPhone && prevOrder.recipientName) {
+              await sendBankTransferConfirmAlimtalk({
+                phone: prevOrder.recipientPhone,
+                name: prevOrder.recipientName,
+                orderId: prevOrder.id,
+                orderNumber: prevOrder.orderId,
+                productName,
+                totalAmount: Number(prevOrder.totalAmount ?? 0),
+              });
+            }
+          } catch (err) {
+            console.error("[입금확인 알림톡] 발송 오류:", err);
+          }
+        }
         return { success: true };
       }),
 
@@ -801,11 +827,15 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // ─── Order Search ──────────────────────────────────────────────────────
+    // ─    // ─── Order Search ──────────────────────────────────────────────
     searchOrders: protectedProcedure
       .input(z.object({
         status: z.enum(["created", "paid", "failed", "cancelled"]).optional(),
         search: z.string().optional(),
+        searchType: z.enum(["orderId", "name", "email", "productName"]).optional(),
+        viewType: z.enum(["order", "item"]).default("order"),
+        dateFrom: z.date().optional(),
+        dateTo: z.date().optional(),
         page: z.number().default(1),
         limit: z.number().default(20),
       }))
@@ -1953,6 +1983,157 @@ export const appRouter = router({
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
         await deleteDesignFolder(input.id);
         return { success: true };
+      }),
+
+    // ─── Excel Templates ──────────────────────────────────────────────────
+    getExcelTemplates: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+      return getExcelTemplates();
+    }),
+
+    createExcelTemplate: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        isDefault: z.boolean().optional(),
+        columns: z.string(), // JSON
+        sortConfig: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        await createExcelTemplate({ ...input, authorId: ctx.user.id });
+        return { success: true };
+      }),
+
+    updateExcelTemplate: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        isDefault: z.boolean().optional(),
+        columns: z.string().optional(),
+        sortConfig: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const { id, ...data } = input;
+        await updateExcelTemplate(id, data);
+        return { success: true };
+      }),
+
+    deleteExcelTemplate: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        await deleteExcelTemplate(input.id);
+        return { success: true };
+      }),
+
+    exportOrders: protectedProcedure
+      .input(z.object({
+        templateId: z.number().optional(),
+        status: z.enum(["created", "paid", "failed", "cancelled"]).optional(),
+        search: z.string().optional(),
+        searchType: z.enum(["orderId", "name", "email", "productName"]).optional(),
+        viewType: z.enum(["order", "item"]).default("order"),
+        dateFrom: z.date().optional(),
+        dateTo: z.date().optional(),
+        stripHtml: z.boolean().default(true),
+        padZero: z.boolean().default(false),
+        columns: z.array(z.object({ key: z.string(), label: z.string() })).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const XLSX = await import('xlsx');
+
+        // 주문 데이터 조회
+        const result = await searchOrders({
+          status: input.status,
+          search: input.search,
+          searchType: input.searchType,
+          viewType: input.viewType,
+          dateFrom: input.dateFrom,
+          dateTo: input.dateTo,
+          page: 1,
+          limit: 10000,
+        });
+
+        // 컨럼 정의
+        const DEFAULT_ORDER_COLS = [
+          { key: 'orderId', label: '주문번호' },
+          { key: 'createdAt', label: '주문일' },
+          { key: 'recipientName', label: '주문자' },
+          { key: 'userEmail', label: '이메일' },
+          { key: 'orderName', label: '주문명' },
+          { key: 'totalAmount', label: '총 상품 구매금액' },
+          { key: 'paidAmount', label: '실결제금액' },
+          { key: 'paymentMethod', label: '결제수단' },
+          { key: 'status', label: '결제상태' },
+          { key: 'shippingStatus', label: '배송상태' },
+          { key: 'recipientPhone', label: '수령인 연락처' },
+          { key: 'recipientAddress', label: '배송주소' },
+        ];
+        const DEFAULT_ITEM_COLS = [
+          { key: 'orderId', label: '주문번호' },
+          { key: 'createdAt', label: '주문일' },
+          { key: 'recipientName', label: '주문자' },
+          { key: 'productName', label: '상품명' },
+          { key: 'optionName', label: '옵션' },
+          { key: 'quantity', label: '수량' },
+          { key: 'price', label: '단가' },
+          { key: 'totalAmount', label: '총금액' },
+          { key: 'paymentMethod', label: '결제수단' },
+          { key: 'status', label: '결제상태' },
+        ];
+
+        let cols = input.columns;
+        if (!cols || cols.length === 0) {
+          if (input.templateId) {
+            const tpl = await getExcelTemplate(input.templateId);
+            if (tpl) cols = JSON.parse(tpl.columns);
+          }
+          if (!cols || cols.length === 0) {
+            cols = input.viewType === 'item' ? DEFAULT_ITEM_COLS : DEFAULT_ORDER_COLS;
+          }
+        }
+
+        const statusLabel = (s: string) => ({ created: '입금전', paid: '결제완료', failed: '실패', cancelled: '취소' }[s] ?? s);
+        const shippingLabel = (s: string) => ({ pending_payment: '입금대기', ready: '배송준비', hold: '배송보류', shipping: '배송중', delivered: '배송완료', none: '미배송' }[s] ?? s);
+        const payLabel = (s: string) => ({ card: '카드', bank_transfer: '무통장입금', virtualAccount: '무통장입금', tosspay: '토스페이', kakaopay: '카카오페이' }[s] ?? s);
+
+        const rows = result.items.map((item: any) => {
+          const o = item.o;
+          const row: Record<string, unknown> = {};
+          for (const col of cols!) {
+            switch (col.key) {
+              case 'orderId': row[col.label] = o.orderId; break;
+              case 'createdAt': row[col.label] = o.createdAt ? new Date(o.createdAt).toLocaleString('ko-KR') : ''; break;
+              case 'recipientName': row[col.label] = o.recipientName ?? ''; break;
+              case 'userEmail': row[col.label] = item.userEmail ?? ''; break;
+              case 'orderName': row[col.label] = o.orderName ?? ''; break;
+              case 'totalAmount': row[col.label] = Number(o.totalAmount ?? 0); break;
+              case 'paidAmount': row[col.label] = Number(o.totalAmount ?? 0); break;
+              case 'paymentMethod': row[col.label] = payLabel(o.paymentMethod ?? ''); break;
+              case 'status': row[col.label] = statusLabel(o.status ?? ''); break;
+              case 'shippingStatus': row[col.label] = shippingLabel(o.shippingStatus ?? 'none'); break;
+              case 'recipientPhone': row[col.label] = o.recipientPhone ?? ''; break;
+              case 'recipientAddress': row[col.label] = `${o.recipientAddress ?? ''} ${o.recipientAddressDetail ?? ''}`.trim(); break;
+              case 'productName': row[col.label] = item.item?.productName ?? ''; break;
+              case 'optionName': row[col.label] = item.item?.optionName ?? ''; break;
+              case 'quantity': row[col.label] = item.item?.quantity ?? 0; break;
+              case 'price': row[col.label] = Number(item.item?.price ?? 0); break;
+              default: row[col.label] = '';
+            }
+          }
+          return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '주문목록');
+        const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+        const base64 = Buffer.from(buf).toString('base64');
+        return { base64, filename: `주문목록_${new Date().toISOString().slice(0,10)}.xlsx` };
       }),
   }),
 });

@@ -324,7 +324,41 @@ export async function sendRefundCompleteAlimtalk(params: {
   });
 }
 
-// ─── 템플릿 8: 입금 전 취소 ──────────────────────────────────────────────────
+// ─── 템플릿 8: 입금 확인 안내 ──────────────────────────────────────────────
+export async function sendBankTransferConfirmAlimtalk(params: {
+  phone: string;
+  name: string;
+  orderId: number;
+  orderNumber: string;
+  productName: string;
+  totalAmount: number;
+}): Promise<boolean> {
+  const message =
+    `${params.name}님, 입금이 확인되었습니다.\n\n` +
+    `- 주문번호 : ${params.orderNumber}\n` +
+    `- 상품명 : ${params.productName}\n` +
+    `- 결제금액 : ${params.totalAmount.toLocaleString()}원\n\n` +
+    `빠르게 배송 준비를 시작하겠습니다. 감사합니다.\n` +
+    `문의: 010-9679-9498`;
+
+  return sendAlimtalk({
+    templateCode: "BANK_TRANSFER_CONFIRM",
+    receiverPhone: params.phone,
+    receiverName: params.name,
+    message,
+    buttons: [
+      {
+        name: "주문 확인",
+        linkType: "WL",
+        linkTypeName: "웹링크",
+        linkMo: orderDetailUrl(params.orderId),
+        linkPc: orderDetailUrl(params.orderId),
+      },
+    ],
+  });
+}
+
+// ─── 템플릿 9: 입금 전 취소 ──────────────────────────────────────────────────
 export async function sendCancelBeforePaymentAlimtalk(params: {
   phone: string;
   name: string;

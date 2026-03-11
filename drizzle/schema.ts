@@ -758,3 +758,25 @@ export const remindAlerts = mysqlTable("remind_alerts", {
 });
 export type RemindAlert = typeof remindAlerts.$inferSelect;
 export type InsertRemindAlert = typeof remindAlerts.$inferInsert;
+
+// ─── Excel Templates ──────────────────────────────────────────────────────────
+/** 주문 엑셀 다운로드 양식 관리 */
+export const excelTemplates = mysqlTable("excelTemplates", {
+  id: int("id").autoincrement().primaryKey(),
+  /** 양식 이름 */
+  name: varchar("name", { length: 100 }).notNull(),
+  /** 양식 설명 */
+  description: text("description"),
+  /** 기본 양식 여부 */
+  isDefault: boolean("isDefault").default(false).notNull(),
+  /** 포함할 컨럼 목록 (JSON 배열: [{key, label, order}]) */
+  columns: text("columns").notNull(),
+  /** 정렬 기준 (JSON: [{field, direction}]) */
+  sortConfig: text("sortConfig"),
+  /** 생성자 */
+  authorId: int("authorId").references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ExcelTemplate = typeof excelTemplates.$inferSelect;
+export type InsertExcelTemplate = typeof excelTemplates.$inferInsert;

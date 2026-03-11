@@ -670,14 +670,19 @@ function OrderDashboard() {
   );
 }
 
-// ─── Order Section ────────────────────────────────────────────────────────────
+// ─── Ord// ─── Order Section ────────────────────────────────────────────
 function OrderSection({ subPage }: { subPage: string }) {
   const [search, setSearch] = useState("");
+  const [searchType, setSearchType] = useState<"orderId" | "name" | "email" | "productName">("orderId");
+  const [viewType, setViewType] = useState<"order" | "item">("order");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [shippingModalOpen, setShippingModalOpen] = useState(false);
   const [csTab, setCsTab] = useState("all");
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
+  const [showExcelModal, setShowExcelModal] = useState(false);
 
   // ─── Shipping status pages ──────────────────────────────────────────────────
   const shippingStatusMap: Record<string, "pending_payment" | "ready" | "hold" | "shipping" | "delivered"> = {
@@ -715,10 +720,19 @@ function OrderSection({ subPage }: { subPage: string }) {
   const updateReturn = trpc.admin.updateReturn.useMutation({ onSuccess: () => { toast.success("업데이트 완료"); returns.refetch(); } });
   const updateRefund = trpc.admin.updateRefund.useMutation({ onSuccess: () => { toast.success("업데이트 완료"); refunds.refetch(); } });
 
-  // ─── General order pages ─────────────────────────────────────────────────────
+   // ─── General order pages ──────────────────────────────────────────────────
   const effectiveStatus = subPage === "order-unpaid" ? "created" : statusFilter !== "all" ? statusFilter : undefined;
   const orders = trpc.admin.searchOrders.useQuery(
-    { search: search || undefined, status: effectiveStatus as any, page: 1, limit: 50 },
+    {
+      search: search || undefined,
+      searchType: searchType || undefined,
+      viewType,
+      status: effectiveStatus as any,
+      dateFrom: dateFrom ? new Date(dateFrom) : undefined,
+      dateTo: dateTo ? new Date(dateTo) : undefined,
+      page: 1,
+      limit: 100,
+    },
     { enabled: !isShippingPage && !isCsPage }
   );
   const updateStatus = trpc.admin.updateOrderStatus.useMutation({
@@ -962,24 +976,111 @@ function OrderSection({ subPage }: { subPage: string }) {
     );
   }
 
-  // ─── General order list ───────────────────────────────────────────────────────
+  // ─── General order list ──────────────────────────────────────────────────
   const title = subPage === "order-all" ? "전체 주문 조회"
     : subPage === "order-unpaid" ? "입금전 관리" : "주문 관리";
 
   return (
     <div>
       <SectionHeader title={title} />
-      <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
-        <SearchBar value={search} onChange={setSearch} placeholder="주문번호, 이메일 검색" />
-        {subPage === "order-all" && (
-          <FilterSelect value={statusFilter} onChange={setStatusFilter} options={[
-            { value: "all", label: "전체 상태" },
-            { value: "created", label: "입금전" },
-            { value: "paid", label: "결제완료" },
-            { value: "failed", label: "실패" },
-            { value: "cancelled", label: "취소" },
-          ]} />
-        )}
+
+      {/* 주문번호별 / 품목주문별 탭 - order-all에서만 표시 */}
+      {subPage === "order-all" && (
+        <div style={{ display: "flex", gap: "0", marginBottom: "16px", borderBottom: `2px solid ${C.border}` }}>
+          {(["order", "item"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setViewType(t)}
+              style={{
+                padding: "8px 20px",
+                border: "none",
+                borderBottom: viewType === t ? `2px solid ${C.primary}` : "2px solid transparent",
+                background: "transparent",
+                color: viewType === t ? C.primary : C.muted,
+                fontWeight: viewType === t ? 700 : 400,
+                fontSize: "14px",
+                cursor: "pointer",
+                marginBottom: "-2px",
+              }}
+            >
+              {t === "order" ? "주문번호별" : "품목주문별"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 검색 필터 영역 */}
+      <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: "10px", padding: "16px", marginBottom: "16px" }}>
+        {/* 기간 필터 */}
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "10px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "13px", color: C.muted, minWidth: "32px" }}>기간</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={{ border: `1px solid ${C.border}`, borderRadius: "6px", padding: "6px 10px", fontSize: "13px", color: C.text }}
+          />
+          <span style={{ color: C.muted }}>~</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            style={{ border: `1px solid ${C.border}`, borderRadius: "6px", padding: "6px 10px", fontSize: "13px", color: C.text }}
+          />
+          <button
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
+            style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: "6px", background: "#F9FAFB", fontSize: "12px", cursor: "pointer", color: C.muted }}
+          >전체기간</button>
+          {["today", "week", "month"].map((p) => (
+            <button
+              key={p}
+              onClick={() => {
+                const now = new Date();
+                const from = new Date();
+                if (p === "today") { /* from = now */ }
+                else if (p === "week") from.setDate(now.getDate() - 7);
+                else if (p === "month") from.setMonth(now.getMonth() - 1);
+                setDateFrom(from.toISOString().slice(0, 10));
+                setDateTo(now.toISOString().slice(0, 10));
+              }}
+              style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: "6px", background: "#F9FAFB", fontSize: "12px", cursor: "pointer", color: C.text }}
+            >
+              {p === "today" ? "오늘" : p === "week" ? "1주일" : "1개월"}
+            </button>
+          ))}
+        </div>
+
+        {/* 검색어 + 검색 타입 + 상태 필터 */}
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={searchType}
+            onChange={(e) => setSearchType(e.target.value as any)}
+            style={{ border: `1px solid ${C.border}`, borderRadius: "6px", padding: "7px 10px", fontSize: "13px", color: C.text, background: "#fff" }}
+          >
+            <option value="orderId">주문번호</option>
+            <option value="name">주문자명</option>
+            <option value="email">이메일</option>
+            {viewType === "item" && <option value="productName">상품명</option>}
+          </select>
+          <SearchBar value={search} onChange={setSearch} placeholder="검색어를 입력하세요" />
+          {subPage === "order-all" && (
+            <FilterSelect value={statusFilter} onChange={setStatusFilter} options={[
+              { value: "all", label: "전체 상태" },
+              { value: "created", label: "입금전" },
+              { value: "paid", label: "결제완료" },
+              { value: "failed", label: "실패" },
+              { value: "cancelled", label: "취소" },
+            ]} />
+          )}
+          {subPage === "order-all" && (
+            <button
+              onClick={() => setShowExcelModal(true)}
+              style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "4px", padding: "6px 14px", border: `1.5px solid ${C.border}`, borderRadius: "6px", background: "#fff", fontSize: "13px", cursor: "pointer", color: C.text, fontWeight: 600 }}
+            >
+              📅 엑셀 다운로드
+            </button>
+          )}
+        </div>
       </div>
       <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
         <Table
@@ -1053,6 +1154,17 @@ function OrderSection({ subPage }: { subPage: string }) {
             </div>
           </div>
         </div>
+      )}
+      {showExcelModal && (
+        <ExcelDownloadModal
+          onClose={() => setShowExcelModal(false)}
+          defaultStatus={statusFilter !== "all" ? statusFilter as any : undefined}
+          defaultSearch={search}
+          defaultSearchType={searchType}
+          defaultViewType={viewType}
+          defaultDateFrom={dateFrom}
+          defaultDateTo={dateTo}
+        />
       )}
     </div>
   );
@@ -3631,5 +3743,394 @@ function FileUploaderSection({ embedded = false }: { embedded?: boolean }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPONENT: ExcelDownloadModal
+// 주문관리 다운로드 - 양식 선택, 엑셀 요청, 다운로드 이력
+// ═══════════════════════════════════════════════════════════════════════════════
+const ALL_AVAILABLE_COLS = [
+  { key: "orderId", label: "주문번호" },
+  { key: "createdAt", label: "주문일" },
+  { key: "recipientName", label: "주문자명" },
+  { key: "userEmail", label: "이메일" },
+  { key: "orderName", label: "주문명" },
+  { key: "totalAmount", label: "총 상품 구매금액" },
+  { key: "paidAmount", label: "총 실결제금액" },
+  { key: "paymentMethod", label: "결제수단" },
+  { key: "status", label: "결제상태" },
+  { key: "shippingStatus", label: "배송상태" },
+  { key: "recipientPhone", label: "수령인 연락처" },
+  { key: "recipientAddress", label: "배송주소" },
+  { key: "productName", label: "상품명" },
+  { key: "optionName", label: "옵션명" },
+  { key: "quantity", label: "수량" },
+  { key: "price", label: "단가" },
+];
+
+function ExcelTemplateManagerModal({ onClose }: { onClose: () => void }) {
+  const utils = trpc.useUtils();
+  const templatesQuery = trpc.adminExt.getExcelTemplates.useQuery();
+  const createTpl = trpc.adminExt.createExcelTemplate.useMutation({ onSuccess: () => { utils.adminExt.getExcelTemplates.invalidate(); toast.success("양식이 저장되었습니다."); } });
+  const updateTpl = trpc.adminExt.updateExcelTemplate.useMutation({ onSuccess: () => { utils.adminExt.getExcelTemplates.invalidate(); toast.success("양식이 수정되었습니다."); } });
+  const deleteTpl = trpc.adminExt.deleteExcelTemplate.useMutation({ onSuccess: () => { utils.adminExt.getExcelTemplates.invalidate(); toast.success("양식이 삭제되었습니다."); setSelectedId(null); } });
+
+  const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
+  const [tplName, setTplName] = useState("");
+  const [availableCols, setAvailableCols] = useState(ALL_AVAILABLE_COLS.map(c => c.key));
+  const [selectedCols, setSelectedCols] = useState<string[]>([]);
+  const [availSearch, setAvailSearch] = useState("");
+  const [selSearch, setSelSearch] = useState("");
+
+  const templates = templatesQuery.data ?? [];
+
+  const loadTemplate = (id: number | "new") => {
+    setSelectedId(id);
+    if (id === "new") {
+      setTplName("");
+      setSelectedCols([]);
+      setAvailableCols(ALL_AVAILABLE_COLS.map(c => c.key));
+    } else {
+      const tpl = templates.find(t => t.id === id);
+      if (tpl) {
+        setTplName(tpl.name);
+        const cols: { key: string }[] = JSON.parse(tpl.columns || "[]");
+        const colKeys = cols.map(c => c.key);
+        setSelectedCols(colKeys);
+        setAvailableCols(ALL_AVAILABLE_COLS.map(c => c.key).filter(k => !colKeys.includes(k)));
+      }
+    }
+  };
+
+  const moveToSelected = (key: string) => {
+    setAvailableCols(prev => prev.filter(k => k !== key));
+    setSelectedCols(prev => [...prev, key]);
+  };
+  const moveToAvailable = (key: string) => {
+    setSelectedCols(prev => prev.filter(k => k !== key));
+    setAvailableCols(prev => [...prev, key]);
+  };
+  const moveAllToSelected = () => {
+    setSelectedCols(prev => [...prev, ...availableCols]);
+    setAvailableCols([]);
+  };
+  const moveAllToAvailable = () => {
+    setAvailableCols(prev => [...prev, ...selectedCols]);
+    setSelectedCols([]);
+  };
+  const moveUp = (idx: number) => {
+    if (idx === 0) return;
+    setSelectedCols(prev => { const a = [...prev]; [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; return a; });
+  };
+  const moveDown = (idx: number) => {
+    setSelectedCols(prev => { if (idx >= prev.length - 1) return prev; const a = [...prev]; [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; return a; });
+  };
+
+  const handleSave = () => {
+    if (!tplName.trim()) { toast.error("양식 이름을 입력해주세요."); return; }
+    if (selectedCols.length === 0) { toast.error("최소 1개 이상의 항목을 선택해주세요."); return; }
+    const cols = selectedCols.map(key => {
+      const found = ALL_AVAILABLE_COLS.find(c => c.key === key);
+      return { key, label: found?.label ?? key };
+    });
+    const columnsJson = JSON.stringify(cols);
+    if (selectedId === "new") {
+      createTpl.mutate({ name: tplName, columns: columnsJson });
+    } else if (typeof selectedId === "number") {
+      updateTpl.mutate({ id: selectedId, name: tplName, columns: columnsJson });
+    }
+  };
+
+  const handleReset = () => {
+    if (selectedId === "new") {
+      setTplName(""); setSelectedCols([]); setAvailableCols(ALL_AVAILABLE_COLS.map(c => c.key));
+    } else if (typeof selectedId === "number") {
+      loadTemplate(selectedId);
+    }
+  };
+
+  const boxStyle: React.CSSProperties = { border: `1px solid ${C.border}`, borderRadius: "6px", height: "220px", overflowY: "auto", background: "#FAFAFA" };
+  const itemStyle = (active: boolean): React.CSSProperties => ({ padding: "6px 10px", cursor: "pointer", fontSize: "13px", background: active ? "#EFF6FF" : "transparent", color: active ? C.primary : C.text, borderBottom: `1px solid ${C.border}` });
+
+  const [activeAvail, setActiveAvail] = useState<string | null>(null);
+  const [activeSel, setActiveSel] = useState<string | null>(null);
+
+  const filteredAvail = ALL_AVAILABLE_COLS.filter(c => availableCols.includes(c.key) && c.label.includes(availSearch));
+  const filteredSel = selectedCols.map(k => ALL_AVAILABLE_COLS.find(c => c.key === k)).filter(Boolean).filter(c => c!.label.includes(selSearch));
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: "12px", width: "min(900px, 96vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" }}>
+        <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}` }}>
+          <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.text }}>주문관리 다운로드 양식관리</h2>
+        </div>
+        <div style={{ padding: "20px 24px" }}>
+          {/* 선택 */}
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px" }}>
+            <label style={{ fontSize: "13px", fontWeight: 600, minWidth: "40px" }}>선택</label>
+            <select
+              value={selectedId ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") return;
+                if (v === "new") loadTemplate("new");
+                else loadTemplate(Number(v));
+              }}
+              style={{ border: `1px solid ${C.border}`, borderRadius: "6px", padding: "7px 12px", fontSize: "13px", minWidth: "200px" }}
+            >
+              <option value="">-- 양식을 선택하세요 --</option>
+              {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              <option value="new">새로운 양식 추가</option>
+            </select>
+            {selectedId !== null && selectedId !== "new" && (
+              <input
+                value={tplName}
+                onChange={(e) => setTplName(e.target.value)}
+                placeholder="양식 이름"
+                style={{ border: `1px solid ${C.border}`, borderRadius: "6px", padding: "7px 12px", fontSize: "13px", flex: 1 }}
+              />
+            )}
+            {selectedId === "new" && (
+              <input
+                value={tplName}
+                onChange={(e) => setTplName(e.target.value)}
+                placeholder="새 양식 이름 입력"
+                style={{ border: `1px solid ${C.border}`, borderRadius: "6px", padding: "7px 12px", fontSize: "13px", flex: 1 }}
+              />
+            )}
+          </div>
+
+          {selectedId !== null && (
+            <>
+              {/* 항목 설정 */}
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "10px" }}>항목 설정</div>
+                <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                  {/* 다운로드 가능한 항목 */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "12px", color: C.muted, marginBottom: "4px" }}>다운로드 가능한 항목</div>
+                    <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
+                      <input value={availSearch} onChange={e => setAvailSearch(e.target.value)} placeholder="검색" style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: "4px", padding: "4px 8px", fontSize: "12px" }} />
+                    </div>
+                    <div style={boxStyle}>
+                      {filteredAvail.map(c => (
+                        <div key={c.key} style={itemStyle(activeAvail === c.key)} onClick={() => setActiveAvail(c.key)} onDoubleClick={() => moveToSelected(c.key)}>
+                          {c.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 이동 버튼 */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingTop: "48px" }}>
+                    <button onClick={() => activeAvail && moveToSelected(activeAvail)} style={{ padding: "4px 10px", border: `1px solid ${C.border}`, borderRadius: "4px", fontSize: "12px", cursor: "pointer", background: "#fff" }}>{">"}</button>
+                    <button onClick={() => activeSel && moveToAvailable(activeSel)} style={{ padding: "4px 10px", border: `1px solid ${C.border}`, borderRadius: "4px", fontSize: "12px", cursor: "pointer", background: "#fff" }}>{"<"}</button>
+                    <button onClick={moveAllToSelected} style={{ padding: "4px 6px", border: `1px solid ${C.border}`, borderRadius: "4px", fontSize: "11px", cursor: "pointer", background: "#fff" }}>전체<br/>추가</button>
+                    <button onClick={moveAllToAvailable} style={{ padding: "4px 6px", border: `1px solid ${C.border}`, borderRadius: "4px", fontSize: "11px", cursor: "pointer", background: "#fff" }}>공란<br/>추가</button>
+                  </div>
+
+                  {/* 다운로드 설정한 항목 */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "12px", color: C.muted, marginBottom: "4px" }}>다운로드 설정한 항목</div>
+                    <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
+                      <input value={selSearch} onChange={e => setSelSearch(e.target.value)} placeholder="검색" style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: "4px", padding: "4px 8px", fontSize: "12px" }} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                        <button onClick={() => { const idx = filteredSel.findIndex(c => c?.key === activeSel); if (idx > 0) moveUp(selectedCols.indexOf(activeSel!)); }} style={{ padding: "2px 6px", border: `1px solid ${C.border}`, borderRadius: "3px", fontSize: "10px", cursor: "pointer", background: "#fff" }}>▲</button>
+                        <button onClick={() => { const idx = filteredSel.findIndex(c => c?.key === activeSel); if (idx >= 0) moveDown(selectedCols.indexOf(activeSel!)); }} style={{ padding: "2px 6px", border: `1px solid ${C.border}`, borderRadius: "3px", fontSize: "10px", cursor: "pointer", background: "#fff" }}>▼</button>
+                      </div>
+                    </div>
+                    <div style={boxStyle}>
+                      {filteredSel.map(c => (
+                        <div key={c!.key} style={itemStyle(activeSel === c!.key)} onClick={() => setActiveSel(c!.key)} onDoubleClick={() => moveToAvailable(c!.key)}>
+                          {c!.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+          {selectedId !== null && selectedId !== "new" && (
+            <button onClick={() => { if (window.confirm("이 양식을 삭제하시겠습니까?")) deleteTpl.mutate({ id: selectedId as number }); }} style={{ padding: "8px 16px", border: "1.5px solid #FCA5A5", borderRadius: "6px", background: "#FEF2F2", color: "#DC2626", fontSize: "13px", cursor: "pointer" }}>삭제</button>
+          )}
+          {selectedId !== null && (
+            <>
+              <button onClick={handleSave} style={{ padding: "8px 20px", background: C.primary, color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>저장</button>
+              <button onClick={handleReset} style={{ padding: "8px 16px", border: `1.5px solid ${C.border}`, borderRadius: "6px", background: "#fff", fontSize: "13px", cursor: "pointer" }}>초기화</button>
+            </>
+          )}
+          <button onClick={onClose} style={{ padding: "8px 16px", border: `1.5px solid ${C.border}`, borderRadius: "6px", background: "#fff", fontSize: "13px", cursor: "pointer" }}>닫기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExcelDownloadModal({
+  onClose,
+  defaultStatus,
+  defaultSearch,
+  defaultSearchType,
+  defaultViewType,
+  defaultDateFrom,
+  defaultDateTo,
+}: {
+  onClose: () => void;
+  defaultStatus?: "created" | "paid" | "failed" | "cancelled";
+  defaultSearch?: string;
+  defaultSearchType?: "orderId" | "name" | "email" | "productName";
+  defaultViewType?: "order" | "item";
+  defaultDateFrom?: string;
+  defaultDateTo?: string;
+}) {
+  const templatesQuery = trpc.adminExt.getExcelTemplates.useQuery();
+  const exportMutation = trpc.adminExt.exportOrders.useMutation();
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | "">("");
+  const [stripHtml, setStripHtml] = useState(true);
+  const [padZero, setPadZero] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [downloadHistory, setDownloadHistory] = useState<{ filename: string; time: string; templateName: string }[]>([]);
+
+  const templates = templatesQuery.data ?? [];
+
+  const handleExcelRequest = async () => {
+    const tplId = selectedTemplateId !== "" ? Number(selectedTemplateId) : undefined;
+    const selectedTpl = tplId ? templates.find(t => t.id === tplId) : undefined;
+    const cols = selectedTpl ? JSON.parse(selectedTpl.columns) : undefined;
+
+    try {
+      const result = await exportMutation.mutateAsync({
+        templateId: tplId,
+        status: defaultStatus,
+        search: defaultSearch || undefined,
+        searchType: defaultSearchType,
+        viewType: defaultViewType ?? "order",
+        dateFrom: defaultDateFrom ? new Date(defaultDateFrom) : undefined,
+        dateTo: defaultDateTo ? new Date(defaultDateTo) : undefined,
+        stripHtml,
+        padZero,
+        columns: cols,
+      });
+
+      // base64 → blob → download
+      const byteChars = atob(result.base64);
+      const byteNums = new Array(byteChars.length).fill(0).map((_, i) => byteChars.charCodeAt(i));
+      const byteArray = new Uint8Array(byteNums);
+      const blob = new Blob([byteArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setDownloadHistory(prev => [
+        { filename: result.filename, time: new Date().toLocaleString("ko-KR"), templateName: selectedTpl?.name ?? "기본양식" },
+        ...prev.slice(0, 9),
+      ]);
+      toast.success("엑셀 파일이 다운로드되었습니다.");
+    } catch (e: any) {
+      toast.error(e.message ?? "엑셀 다운로드에 실패했습니다.");
+    }
+  };
+
+  return (
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ background: "#fff", borderRadius: "12px", width: "min(700px, 96vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" }}>
+          <div style={{ padding: "20px 24px", borderBottom: `1px solid ${C.border}` }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.text }}>주문관리 다운로드</h2>
+          </div>
+          <div style={{ padding: "20px 24px" }}>
+            {/* 엑셀파일 요청 */}
+            <div style={{ background: "#F9FAFB", borderRadius: "8px", padding: "16px", marginBottom: "20px", border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "12px", color: C.text }}>엑셀파일 요청</div>
+
+              {/* 양식 선택 */}
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "10px" }}>
+                <label style={{ fontSize: "13px", minWidth: "60px", color: C.muted }}>양식선택</label>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value === "" ? "" : Number(e.target.value))}
+                  style={{ border: `1px solid ${C.border}`, borderRadius: "6px", padding: "6px 10px", fontSize: "13px", flex: 1 }}
+                >
+                  <option value="">기본양식(주문번호기준)</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <button
+                  onClick={() => setShowTemplateManager(true)}
+                  style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: "6px", background: "#fff", fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  다운로드 양식관리 &gt;
+                </button>
+              </div>
+
+              {/* 데이터 옵션 */}
+              <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "12px" }}>
+                <label style={{ fontSize: "13px", minWidth: "60px", color: C.muted }}>데이터 옵션</label>
+                <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", cursor: "pointer" }}>
+                  <input type="checkbox" checked={stripHtml} onChange={e => setStripHtml(e.target.checked)} />
+                  상품명 HTML 태그 삭제
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", cursor: "pointer" }}>
+                  <input type="checkbox" checked={padZero} onChange={e => setPadZero(e.target.checked)} />
+                  0으로 시작하는 숫자 보호처리
+                </label>
+              </div>
+
+              {/* 현재 필터 요약 */}
+              <div style={{ fontSize: "12px", color: C.muted, marginBottom: "12px", padding: "8px 12px", background: "#EFF6FF", borderRadius: "6px" }}>
+                조회 조건: {defaultStatus ? { created: "입금전", paid: "결제완료", failed: "실패", cancelled: "취소" }[defaultStatus] : "전체 상태"}
+                {defaultSearch ? ` | 검색어: ${defaultSearch}` : ""}
+                {defaultDateFrom ? ` | 기간: ${defaultDateFrom} ~ ${defaultDateTo || "현재"}` : ""}
+                {` | 유형: ${defaultViewType === "item" ? "품목주문별" : "주문번호별"}`}
+              </div>
+
+              <button
+                onClick={handleExcelRequest}
+                disabled={exportMutation.isPending}
+                style={{ width: "100%", padding: "10px", background: "#1D4ED8", color: "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: "pointer" }}
+              >
+                {exportMutation.isPending ? "생성 중..." : "엑셀파일요청"}
+              </button>
+            </div>
+
+            {/* 다운로드 리스트 */}
+            {downloadHistory.length > 0 && (
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "10px", color: C.text }}>다운로드 리스트</div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "#F3F4F6" }}>
+                      <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: C.muted, borderBottom: `1px solid ${C.border}` }}>파일명</th>
+                      <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, color: C.muted, borderBottom: `1px solid ${C.border}` }}>양식</th>
+                      <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, color: C.muted, borderBottom: `1px solid ${C.border}` }}>요청일</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {downloadHistory.map((h, i) => (
+                      <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                        <td style={{ padding: "8px 12px" }}>{h.filename}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "center", color: C.muted }}>{h.templateName}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "center", color: C.muted }}>{h.time}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "flex-end" }}>
+            <button onClick={onClose} style={{ padding: "8px 20px", border: `1.5px solid ${C.border}`, borderRadius: "6px", background: "#fff", fontSize: "13px", cursor: "pointer" }}>닫기</button>
+          </div>
+        </div>
+      </div>
+      {showTemplateManager && <ExcelTemplateManagerModal onClose={() => setShowTemplateManager(false)} />}
+    </>
   );
 }

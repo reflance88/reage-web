@@ -511,6 +511,10 @@ export async function searchVerifications(opts: {
 export async function searchOrders(opts: {
   status?: "created" | "paid" | "failed" | "cancelled";
   search?: string;
+  searchType?: "orderId" | "name" | "email" | "productName"; // 검색 타입
+  viewType?: "order" | "item"; // 주문번호별 | 품목주문별
+  dateFrom?: Date;
+  dateTo?: Date;
   page?: number;
   limit?: number;
 }) {
@@ -520,6 +524,53 @@ export async function searchOrders(opts: {
   const limit = opts.limit ?? 20;
   const offset = (page - 1) * limit;
 
+  // 품목주문별 조회: orderItems JOIN
+  if (opts.viewType === "item") {
+    let itemQuery = db
+      .select({
+        o: orders,
+        userEmail: users.email,
+        userName: users.name,
+        item: orderItems,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .leftJoin(users, eq(orders.userId, users.id));
+
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (opts.status) conditions.push(eq(orders.status, opts.status) as ReturnType<typeof eq>);
+    if (opts.dateFrom) conditions.push(sql`${orders.createdAt} >= ${opts.dateFrom}` as unknown as ReturnType<typeof eq>);
+    if (opts.dateTo) {
+      const endOfDay = new Date(opts.dateTo);
+      endOfDay.setHours(23, 59, 59, 999);
+      conditions.push(sql`${orders.createdAt} <= ${endOfDay}` as unknown as ReturnType<typeof eq>);
+    }
+    if (opts.search) {
+      const like = `%${opts.search}%`;
+      if (opts.searchType === "name") {
+        conditions.push(sql`${orders.recipientName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+      } else if (opts.searchType === "email") {
+        conditions.push(sql`${users.email} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+      } else if (opts.searchType === "productName") {
+        conditions.push(sql`${orderItems.productName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+      } else {
+        conditions.push(or(
+          sql`${orders.orderId} LIKE ${like}`,
+          sql`${orders.recipientName} LIKE ${like}`,
+          sql`${users.email} LIKE ${like}`,
+          sql`${orderItems.productName} LIKE ${like}`
+        )! as unknown as ReturnType<typeof eq>);
+      }
+    }
+
+    const rows = await (conditions.length > 0
+      ? itemQuery.where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(limit).offset(offset)
+      : itemQuery.orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
+
+    return { items: rows, total: rows.length, viewType: "item" as const };
+  }
+
+  // 주문번호별 조회 (default)
   let query = db
     .select({
       o: orders,
@@ -529,23 +580,38 @@ export async function searchOrders(opts: {
     .from(orders)
     .leftJoin(users, eq(orders.userId, users.id));
 
-  const conditions = [];
-  if (opts.status) conditions.push(eq(orders.status, opts.status));
+  const conditions: ReturnType<typeof eq>[] = [];
+  if (opts.status) conditions.push(eq(orders.status, opts.status) as ReturnType<typeof eq>);
+  if (opts.dateFrom) conditions.push(sql`${orders.createdAt} >= ${opts.dateFrom}` as unknown as ReturnType<typeof eq>);
+  if (opts.dateTo) {
+    const endOfDay = new Date(opts.dateTo);
+    endOfDay.setHours(23, 59, 59, 999);
+    conditions.push(sql`${orders.createdAt} <= ${endOfDay}` as unknown as ReturnType<typeof eq>);
+  }
   if (opts.search) {
     const like = `%${opts.search}%`;
-    conditions.push(
-      or(
-        sql`${orders.orderId} LIKE ${like}`,
-        sql`${users.email} LIKE ${like}`
-      )!
-    );
+    if (opts.searchType === "orderId") {
+      conditions.push(sql`${orders.orderId} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+    } else if (opts.searchType === "name") {
+      conditions.push(sql`${orders.recipientName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+    } else if (opts.searchType === "email") {
+      conditions.push(sql`${users.email} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+    } else {
+      conditions.push(
+        or(
+          sql`${orders.orderId} LIKE ${like}`,
+          sql`${orders.recipientName} LIKE ${like}`,
+          sql`${users.email} LIKE ${like}`
+        )! as unknown as ReturnType<typeof eq>
+      );
+    }
   }
 
   const rows = await (conditions.length > 0
     ? query.where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(limit).offset(offset)
     : query.orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
 
-  return { items: rows, total: rows.length };
+  return { items: rows, total: rows.length, viewType: "order" as const };
 }
 
 // ─── Dashboard Summary ─────────────────────────────────────────────────────────
@@ -1775,4 +1841,70 @@ export async function deleteDesignFolder(id: number) {
   const { designFolders } = await import('../drizzle/schema');
   const { eq } = await import('drizzle-orm');
   await db.delete(designFolders).where(eq(designFolders.id, id));
+}
+
+// ─── Excel Templates ──────────────────────────────────────────────────────────
+export async function getExcelTemplates() {
+  const db = await getDb();
+  if (!db) return [];
+  const { excelTemplates } = await import('../drizzle/schema');
+  return db.select().from(excelTemplates).orderBy(excelTemplates.createdAt);
+}
+
+export async function getExcelTemplate(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const { excelTemplates } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  const rows = await db.select().from(excelTemplates).where(eq(excelTemplates.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createExcelTemplate(data: {
+  name: string;
+  description?: string;
+  isDefault?: boolean;
+  columns: string; // JSON
+  sortConfig?: string; // JSON
+  authorId?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { excelTemplates } = await import('../drizzle/schema');
+  await db.insert(excelTemplates).values({
+    name: data.name,
+    description: data.description ?? null,
+    isDefault: data.isDefault ?? false,
+    columns: data.columns,
+    sortConfig: data.sortConfig ?? null,
+    authorId: data.authorId ?? null,
+  });
+}
+
+export async function updateExcelTemplate(id: number, data: {
+  name?: string;
+  description?: string;
+  isDefault?: boolean;
+  columns?: string;
+  sortConfig?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { excelTemplates } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  const update: Record<string, unknown> = {};
+  if (data.name !== undefined) update.name = data.name;
+  if (data.description !== undefined) update.description = data.description;
+  if (data.isDefault !== undefined) update.isDefault = data.isDefault;
+  if (data.columns !== undefined) update.columns = data.columns;
+  if (data.sortConfig !== undefined) update.sortConfig = data.sortConfig;
+  await db.update(excelTemplates).set(update).where(eq(excelTemplates.id, id));
+}
+
+export async function deleteExcelTemplate(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { excelTemplates } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  await db.delete(excelTemplates).where(eq(excelTemplates.id, id));
 }
