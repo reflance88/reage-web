@@ -116,13 +116,15 @@ export const sbContactRouter = router({
       return updateInquiryStatus(input.id, input.status, input.admin_memo);
     }),
 
-  // 관리자: 문의 통계
-  stats: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") {
-      throw new TRPCError({ code: "FORBIDDEN" });
-    }
-    return getInquiryStats();
-  }),
+  // 관리자: 문의 통계 (기간 필터 지원)
+  stats: protectedProcedure
+    .input(z.object({ months: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return getInquiryStats(input.months);
+    }),
 });
 
 // ============================================================

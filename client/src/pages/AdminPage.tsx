@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import PromotionSection from "./PromotionSection";
+import ProductDetailPage from "./ProductDetailPage";
 import { useState, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 import OrderDetailModal from "@/components/OrderDetailModal";
@@ -547,11 +548,38 @@ function ShippingDetailModal({ order, onClose, onSave }: { order: any; onClose: 
 
 // ─── Order Dashboard ─────────────────────────────────────────────────────────
 function OrderDashboard() {
+  const [orderDays, setOrderDays] = useState(30);
   const dashboard = trpc.admin.dashboard.useQuery();
+  const chartsOrder = trpc.admin.dashboardCharts.useQuery({ days: orderDays });
   const d = dashboard.data;
+  const ORDER_PERIODS = [
+    { label: '최근 3개월', value: 90 },
+    { label: '최근 6개월', value: 180 },
+    { label: '최근 1년', value: 365 },
+    { label: '전체', value: 730 },
+  ];
   return (
     <div>
-      <SectionHeader title="주문 대시보드" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <SectionHeader title="주문 대시보드" />
+        <div style={{ display: 'flex', gap: 6 }}>
+          {ORDER_PERIODS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setOrderDays(p.value)}
+              style={{
+                padding: '6px 14px', fontSize: 12, borderRadius: 20,
+                border: `1px solid ${orderDays === p.value ? C.primary : C.border}`,
+                background: orderDays === p.value ? C.primary : C.white,
+                color: orderDays === p.value ? '#fff' : C.text,
+                cursor: 'pointer', fontWeight: orderDays === p.value ? 700 : 400,
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
       {/* 실시간 매출 현황 */}
       <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, padding: "24px", marginBottom: "20px" }}>
         <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px", color: C.text }}>실시간 매출 현황</div>
@@ -983,29 +1011,45 @@ function OrderSection({ subPage }: { subPage: string }) {
 // SECTION: PRODUCT
 // ═══════════════════════════════════════════════════════════════════════════════
 function ProductSection({ subPage }: { subPage: string }) {
-  const products = trpc.admin.allProducts.useQuery();
-  const [editId, setEditId] = useState<number | null>(null);
-  const [editData, setEditData] = useState<any>({});
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const updateProduct = trpc.admin.updateProduct.useMutation({
-    onSuccess: () => { toast.success("상품이 수정되었습니다."); products.refetch(); setEditId(null); setConfirmOpen(false); },
-  });
+  const productsQuery = trpc.admin.allProducts.useQuery();
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [filterVisible, setFilterVisible] = useState<"all" | "visible" | "hidden">("all");
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
-  const title = subPage === "product-dashboard" ? "상품 대시보드"
-    : subPage === "product-list" ? "상품 목록"
-    : subPage === "product-register" ? "상품 등록"
-    : subPage === "product-manage" ? "상품 관리"
-    : subPage === "product-category" ? "분류 관리"
-    : subPage === "product-stock" ? "재고 관리" : "상품 관리";
+  const copyUrl = (url: string, id: number) => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(id);
+      toast.success("URL이 복사되었습니다.");
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  const allProducts = productsQuery.data ?? [];
+  const filtered = allProducts.filter((p: any) => {
+    const matchSearch = !searchText || p.name?.toLowerCase().includes(searchText.toLowerCase()) || p.productCode?.toLowerCase().includes(searchText.toLowerCase());
+    const matchVisible = filterVisible === "all" || (filterVisible === "visible" && p.visible) || (filterVisible === "hidden" && !p.visible);
+    return matchSearch && matchVisible;
+  });
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // 상세 페이지 표시
+  if (selectedProductId !== null && (subPage === "product-list" || subPage === "product-manage")) {
+    return <ProductDetailPage productId={selectedProductId} onBack={() => setSelectedProductId(null)} />;
+  }
 
   if (subPage === "product-dashboard") {
     return (
       <div>
         <SectionHeader title="상품 대시보드" />
         <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-          <SummaryCard label="전체 상품" value={products.data?.length ?? "—"} />
-          <SummaryCard label="노출 중" value={products.data?.filter((p: any) => p.visible).length ?? "—"} color={C.green} />
-          <SummaryCard label="전문가 전용" value={products.data?.filter((p: any) => p.isProOnly).length ?? "—"} color={C.primary} />
+          <SummaryCard label="전체 상품" value={allProducts.length} />
+          <SummaryCard label="노출 중" value={allProducts.filter((p: any) => p.visible).length} color={C.green} />
+          <SummaryCard label="전문가 전용" value={allProducts.filter((p: any) => p.isProOnly).length} color={C.primary} />
+          <SummaryCard label="재고 없음" value={allProducts.filter((p: any) => p.stock === 0).length} color={C.orange} />
         </div>
       </div>
     );
@@ -1028,9 +1072,10 @@ function ProductSection({ subPage }: { subPage: string }) {
         <SectionHeader title="재고 관리" />
         <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
           <Table
-            headers={["상품명", "현재 재고", "상태"]}
-            rows={(products.data ?? []).map((p: any) => [
-              p.name,
+            headers={["상품명", "상품코드", "현재 재고", "상태"]}
+            rows={allProducts.map((p: any) => [
+              <button onClick={() => setSelectedProductId(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.blue, fontWeight: 600, textAlign: "left" }}>{p.name}</button>,
+              <span style={{ fontSize: "12px", color: C.muted, fontFamily: "monospace" }}>{p.productCode || "—"}</span>,
               <span style={{ fontWeight: 700 }}>{p.stock}</span>,
               <StatusBadge status={p.stock > 0 ? "active" : "inactive"} />,
             ])}
@@ -1040,49 +1085,122 @@ function ProductSection({ subPage }: { subPage: string }) {
     );
   }
 
+  // 상품 목록 / 상품 관리 (카페24 스타일)
   return (
     <div>
-      <SectionHeader title={title} />
-      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
-        <Table
-          headers={["상품명", "일반가", "전문가가", "노출", "전문가전용", "관리"]}
-          rows={(products.data ?? []).map((p: any) => [
-            <div>
-              <div style={{ fontWeight: 600 }}>{p.name}</div>
-              <div style={{ fontSize: "11px", color: C.muted }}>{p.slug}</div>
-            </div>,
-            editId === p.id
-              ? <input type="number" value={editData.priceConsumer ?? p.priceConsumer} onChange={e => setEditData((d: any) => ({ ...d, priceConsumer: e.target.value }))} style={{ width: "100px", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: "6px" }} />
-              : krw(p.priceConsumer),
-            editId === p.id
-              ? <input type="number" value={editData.pricePro ?? p.pricePro} onChange={e => setEditData((d: any) => ({ ...d, pricePro: e.target.value }))} style={{ width: "100px", padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: "6px" }} />
-              : krw(p.pricePro),
-            editId === p.id
-              ? <input type="checkbox" checked={editData.visible ?? p.visible} onChange={e => setEditData((d: any) => ({ ...d, visible: e.target.checked }))} />
-              : <StatusBadge status={p.visible ? "active" : "inactive"} />,
-            editId === p.id
-              ? <input type="checkbox" checked={editData.isProOnly ?? p.isProOnly} onChange={e => setEditData((d: any) => ({ ...d, isProOnly: e.target.checked }))} />
-              : <StatusBadge status={p.isProOnly ? "active" : "inactive"} />,
-            editId === p.id
-              ? <div style={{ display: "flex", gap: "6px" }}>
-                  <Btn size="sm" onClick={() => setConfirmOpen(true)}>저장</Btn>
-                  <Btn size="sm" variant="outline" onClick={() => { setEditId(null); setEditData({}); }}>취소</Btn>
-                </div>
-              : <Btn size="sm" variant="outline" onClick={() => { setEditId(p.id); setEditData({}); }}>편집</Btn>,
-          ])}
+      <SectionHeader title={subPage === "product-list" ? "상품 목록" : subPage === "product-manage" ? "상품 관리" : "분류 관리"} />
+
+      {/* 검색/필터 바 */}
+      <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "16px", marginBottom: "16px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          type="text"
+          placeholder="상품명 또는 상품코드 검색"
+          value={searchText}
+          onChange={e => { setSearchText(e.target.value); setPage(1); }}
+          style={{ padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px", width: "280px", outline: "none" }}
         />
+        <div style={{ display: "flex", gap: "6px" }}>
+          {(["all", "visible", "hidden"] as const).map(v => (
+            <button key={v} onClick={() => { setFilterVisible(v); setPage(1); }}
+              style={{ padding: "6px 14px", borderRadius: "6px", border: `1px solid ${filterVisible === v ? C.primary : C.border}`, background: filterVisible === v ? C.primary : C.white, color: filterVisible === v ? C.white : C.text, fontSize: "12px", cursor: "pointer", fontWeight: filterVisible === v ? 700 : 400 }}>
+              {v === "all" ? "전체" : v === "visible" ? "노출" : "미노출"}
+            </button>
+          ))}
+        </div>
+        <span style={{ marginLeft: "auto", fontSize: "13px", color: C.muted }}>총 {filtered.length}개</span>
       </div>
-      <ConfirmModal
-        open={confirmOpen}
-        title="상품 정보 수정"
-        message="상품 정보를 저장하시겠습니까?"
-        onConfirm={() => {
-          if (editId === null) return;
-          updateProduct.mutate({ productId: editId, ...editData });
-        }}
-        onCancel={() => setConfirmOpen(false)}
-        loading={updateProduct.isPending}
-      />
+
+      {/* 상품 목록 테이블 */}
+      <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+          <thead>
+            <tr style={{ background: "#F9F8F7", borderBottom: `1px solid ${C.border}` }}>
+              <th style={{ padding: "10px 12px", textAlign: "center", width: "40px", fontWeight: 600, color: C.muted }}>No</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", width: "80px", fontWeight: 600, color: C.muted }}>상품구분</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", width: "100px", fontWeight: 600, color: C.muted }}>상품코드</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: C.muted }}>상품명</th>
+              <th style={{ padding: "10px 12px", textAlign: "right", width: "100px", fontWeight: 600, color: C.muted }}>판매가</th>
+              <th style={{ padding: "10px 12px", textAlign: "right", width: "100px", fontWeight: 600, color: C.muted }}>할인가</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", width: "60px", fontWeight: 600, color: C.muted }}>재고</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", width: "60px", fontWeight: 600, color: C.muted }}>노출</th>
+              <th style={{ padding: "10px 12px", textAlign: "left", width: "220px", fontWeight: 600, color: C.muted }}>상세페이지 URL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {productsQuery.isLoading ? (
+              <tr><td colSpan={9} style={{ padding: "40px", textAlign: "center", color: C.muted }}>불러오는 중...</td></tr>
+            ) : paged.length === 0 ? (
+              <tr><td colSpan={9} style={{ padding: "40px", textAlign: "center", color: C.muted }}>상품이 없습니다.</td></tr>
+            ) : paged.map((p: any, idx: number) => (
+              <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}`, background: idx % 2 === 0 ? C.white : "#FAFAF9" }}>
+                <td style={{ padding: "10px 12px", textAlign: "center", color: C.muted }}>{(page - 1) * PAGE_SIZE + idx + 1}</td>
+                <td style={{ padding: "10px 12px" }}>
+                  <span style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", background: p.isNew ? "#EFF6FF" : "#F3F4F6", color: p.isNew ? C.blue : C.muted }}>
+                    {p.isNew ? "신상품" : "기본상품"}
+                  </span>
+                </td>
+                <td style={{ padding: "10px 12px" }}>
+                  <button
+                    onClick={() => setSelectedProductId(p.id)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: C.blue, fontSize: "12px", fontFamily: "monospace", textDecoration: "underline", padding: 0 }}
+                  >
+                    {p.productCode || "—"}
+                  </button>
+                </td>
+                <td style={{ padding: "10px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    {(p.imageUrl || p.thumbnailUrl) && (
+                      <img src={p.thumbnailUrl || p.imageUrl} alt={p.name} style={{ width: "36px", height: "36px", objectFit: "cover", borderRadius: "4px", border: `1px solid ${C.border}`, flexShrink: 0 }} onError={e => (e.currentTarget.style.display = "none")} />
+                    )}
+                    <button
+                      onClick={() => setSelectedProductId(p.id)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: C.text, fontWeight: 600, textAlign: "left", padding: 0, fontSize: "13px" }}
+                    >
+                      {p.name}
+                    </button>
+                  </div>
+                </td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>{krw(p.priceConsumer)}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", color: p.pricePro ? C.primary : C.muted }}>
+                  {p.pricePro ? krw(p.pricePro) : "—"}
+                </td>
+                <td style={{ padding: "10px 12px", textAlign: "center" }}>{p.stock}</td>
+                <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                  <StatusBadge status={p.visible ? "active" : "inactive"} />
+                </td>
+                <td style={{ padding: "10px 12px" }}>
+                  {p.detailPageUrl ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ fontSize: "11px", color: C.muted, maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }} title={p.detailPageUrl}>
+                        {p.detailPageUrl}
+                      </span>
+                      <button
+                        onClick={() => copyUrl(p.detailPageUrl, p.id)}
+                        style={{ padding: "2px 8px", border: `1px solid ${C.border}`, borderRadius: "4px", background: copiedId === p.id ? C.green : C.white, color: copiedId === p.id ? C.white : C.text, fontSize: "11px", cursor: "pointer", flexShrink: 0, fontWeight: 600 }}
+                      >
+                        {copiedId === p.id ? "✓" : "복사"}
+                      </button>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: "11px", color: C.muted }}>—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 페이지네이션 */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "16px" }}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: "6px", background: C.white, cursor: page === 1 ? "default" : "pointer", color: page === 1 ? C.muted : C.text }}>이전</button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+            <button key={n} onClick={() => setPage(n)} style={{ padding: "6px 12px", border: `1px solid ${page === n ? C.primary : C.border}`, borderRadius: "6px", background: page === n ? C.primary : C.white, color: page === n ? C.white : C.text, cursor: "pointer", fontWeight: page === n ? 700 : 400 }}>{n}</button>
+          ))}
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: "6px 12px", border: `1px solid ${C.border}`, borderRadius: "6px", background: C.white, cursor: page === totalPages ? "default" : "pointer", color: page === totalPages ? C.muted : C.text }}>다음</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -2144,7 +2262,15 @@ function BoardSection({ subPage }: { subPage: string }) {
 // SECTION: INQUIRY STATS
 // ═══════════════════════════════════════════════════════════════════════════════
 function InquiryStatsSection() {
-  const stats = trpc.sbContact.stats.useQuery();
+  const [periodMonths, setPeriodMonths] = useState<number | undefined>(undefined);
+  const stats = trpc.sbContact.stats.useQuery({ months: periodMonths });
+
+  const PERIODS: { label: string; value: number | undefined }[] = [
+    { label: '전체', value: undefined },
+    { label: '최근 3개월', value: 3 },
+    { label: '최근 6개월', value: 6 },
+    { label: '최근 1년', value: 12 },
+  ];
   const d = stats.data;
 
   if (stats.isLoading) {
@@ -2166,6 +2292,8 @@ function InquiryStatsSection() {
   const monthly = d?.monthly ?? [];
   const byType = d?.byType ?? [];
   const byStatus = d?.byStatus ?? [];
+  const funnel = (d as any)?.funnel ?? [];
+  const byRegion = (d as any)?.byRegion ?? [];
 
   // 월 레이블 포맷 (2025-03 → 3월)
   const fmtMonth = (m: string) => {
@@ -2187,7 +2315,37 @@ function InquiryStatsSection() {
 
   return (
     <div>
-      <SectionHeader title="문의 통계" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <SectionHeader title="문의 통계" />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {PERIODS.map((p) => (
+            <button
+              key={String(p.value)}
+              onClick={() => setPeriodMonths(p.value)}
+              style={{
+                padding: '6px 14px', fontSize: 12, borderRadius: 20,
+                border: `1px solid ${periodMonths === p.value ? C.primary : C.border}`,
+                background: periodMonths === p.value ? C.primary : C.white,
+                color: periodMonths === p.value ? '#fff' : C.text,
+                cursor: 'pointer', fontWeight: periodMonths === p.value ? 700 : 400,
+                transition: 'all 0.15s',
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            onClick={() => stats.refetch()}
+            style={{
+              padding: '6px 12px', fontSize: 12, borderRadius: 20,
+              border: `1px solid ${C.border}`, background: C.white,
+              cursor: 'pointer', color: C.muted,
+            }}
+          >
+            🔄
+          </button>
+        </div>
+      </div>
 
       {/* KPI 카드 */}
       <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
@@ -2202,7 +2360,7 @@ function InquiryStatsSection() {
         background: C.white, borderRadius: 12, padding: "20px 24px",
         border: `1px solid ${C.border}`, marginBottom: 24,
       }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>월별 문의 건수 (최근 12개월)</div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>월별 문의 건수</div>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={monthly} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -2300,18 +2458,85 @@ function InquiryStatsSection() {
         </div>
       </div>
 
-      {/* 새로고침 버튼 */}
-      <div style={{ textAlign: "right" }}>
-        <button
-          onClick={() => stats.refetch()}
-          style={{
-            padding: "6px 16px", fontSize: 13, borderRadius: 8,
-            border: `1px solid ${C.border}`, background: C.white,
-            cursor: "pointer", color: C.muted,
-          }}
-        >
-          🔄 새로고침
-        </button>
+      {/* 퍼널 차트 + 지역별 분포 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+        {/* 퍼널 차트 */}
+        <div style={{
+          background: C.white, borderRadius: 12, padding: '20px 24px',
+          border: `1px solid ${C.border}`,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>문의 유형별 건수 퍼널</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>체험예약 → 도입상담 → 교육문의 전환 현황</div>
+          {funnel.length === 0 ? (
+            <div style={{ textAlign: 'center', color: C.muted, padding: 32 }}>데이터 없음</div>
+          ) : (
+            <div style={{ padding: '8px 0' }}>
+              {funnel.map((item: { stage: string; value: number; fill: string }, idx: number) => {
+                const maxVal = funnel[0]?.value || 1;
+                const pct = Math.round((item.value / maxVal) * 100);
+                const convRate = idx > 0 && funnel[idx - 1].value > 0
+                  ? Math.round((item.value / funnel[idx - 1].value) * 100)
+                  : null;
+                return (
+                  <div key={item.stage} style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.fill }} />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{item.stage}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {convRate !== null && (
+                          <span style={{ fontSize: 11, color: C.muted, background: '#F3F4F6', padding: '2px 6px', borderRadius: 4 }}>
+                            전환 {convRate}%
+                          </span>
+                        )}
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{item.value}건</span>
+                      </div>
+                    </div>
+                    <div style={{ height: 28, background: C.border, borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${pct}%`,
+                        background: item.fill,
+                        borderRadius: 6,
+                        transition: 'width 0.6s ease',
+                        display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 8,
+                      }}>
+                        {pct > 15 && <span style={{ fontSize: 11, color: '#fff', fontWeight: 700 }}>{pct}%</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 지역별 문의 분포 */}
+        <div style={{
+          background: C.white, borderRadius: 12, padding: '20px 24px',
+          border: `1px solid ${C.border}`,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>지역별 문의 분포</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>상위 15개 지역</div>
+          {byRegion.length === 0 ? (
+            <div style={{ textAlign: 'center', color: C.muted, padding: 32 }}>데이터 없음</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart
+                data={byRegion}
+                layout="vertical"
+                margin={{ top: 0, right: 24, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={60} />
+                <Tooltip formatter={(v: number) => [`${v}건`, '지역']} />
+                <Bar dataKey="value" fill={C.primary} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2330,7 +2555,15 @@ function StatsSection({ subPage }: { subPage: string }) {
   const salesStats = trpc.admin.salesStats.useQuery({ period: salesPeriod, days: salesDays });
   const productStats = trpc.admin.productSalesStats.useQuery();
   const customerStats = trpc.admin.customerStats.useQuery();
-  const pageViewStats = trpc.admin.pageViewStats.useQuery({ days: 30 });  const orderStats2 = trpc.admin.dashboardCharts.useQuery({ days: 30 });
+  const [dashDays, setDashDays] = useState(30);
+  const pageViewStats = trpc.admin.pageViewStats.useQuery({ days: dashDays });
+  const orderStats2 = trpc.admin.dashboardCharts.useQuery({ days: dashDays });
+  const DASH_PERIODS = [
+    { label: '최근 3개월', value: 90 },
+    { label: '최근 6개월', value: 180 },
+    { label: '최근 1년', value: 365 },
+    { label: '전체', value: 730 },
+  ];
 
   const title = subPage === "stats-dashboard" ? "통계 대시보드"
     : subPage === "stats-inquiry" ? "문의 통계"
@@ -2342,10 +2575,29 @@ function StatsSection({ subPage }: { subPage: string }) {
   if (subPage === "stats-dashboard") {
     return (
       <div>
-        <SectionHeader title="통계 대시보드" />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <SectionHeader title="통계 대시보드" />
+          <div style={{ display: 'flex', gap: 6 }}>
+            {DASH_PERIODS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setDashDays(p.value)}
+                style={{
+                  padding: '6px 14px', fontSize: 12, borderRadius: 20,
+                  border: `1px solid ${dashDays === p.value ? C.primary : C.border}`,
+                  background: dashDays === p.value ? C.primary : C.white,
+                  color: dashDays === p.value ? '#fff' : C.text,
+                  cursor: 'pointer', fontWeight: dashDays === p.value ? 700 : 400,
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
           <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>최근 30일 매출</div>
+            <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>매출 추이</div>
             <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={orderStats2.data?.orderStats ?? []}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -2359,7 +2611,7 @@ function StatsSection({ subPage }: { subPage: string }) {
           <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
             <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>방문자 현황</div>
             <div style={{ fontSize: "36px", fontWeight: 800, color: C.primary }}>{pageViewStats.data?.total ?? 0}</div>
-            <div style={{ fontSize: "12px", color: C.muted }}>최근 30일 총 방문</div>
+            <div style={{ fontSize: "12px", color: C.muted }}>선택 기간 총 방문</div>
           </div>
         </div>
       </div>

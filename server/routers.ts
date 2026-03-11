@@ -529,7 +529,7 @@ export const appRouter = router({
       return getDashboardSummary();
     }),
     dashboardCharts: protectedProcedure
-      .input(z.object({ days: z.number().min(7).max(90).default(30) }))
+      .input(z.object({ days: z.number().min(7).max(730).default(30) }))
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         const [orderStats, signupStats, verificationStats] = await Promise.all([
@@ -553,6 +553,33 @@ export const appRouter = router({
         pricePro: z.string().optional(),
         isProOnly: z.boolean().optional(),
         visible: z.boolean().optional(),
+        isActive: z.boolean().optional(),
+        isRecommended: z.boolean().optional(),
+        isNew: z.boolean().optional(),
+        stock: z.number().optional(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        summaryDescription: z.string().optional(),
+        shortDescription: z.string().optional(),
+        priceSupply: z.string().optional(),
+        priceConsumerOriginal: z.string().optional(),
+        taxType: z.enum(['taxable', 'tax_free', 'exempt']).optional(),
+        taxRate: z.string().optional(),
+        shippingType: z.enum(['direct', 'warehouse', 'other']).optional(),
+        weight: z.string().optional(),
+        manufacturer: z.string().optional(),
+        brand: z.string().optional(),
+        origin: z.string().optional(),
+        seoTitle: z.string().optional(),
+        seoDescription: z.string().optional(),
+        seoKeywords: z.string().optional(),
+        seoImageAlt: z.string().optional(),
+        adminMemo: z.string().optional(),
+        thumbnailUrl: z.string().optional(),
+        detailPageUrl: z.string().optional(),
+        sortOrder: z.number().optional(),
+        productCode: z.string().optional(),
+        productStatus: z.enum(['new', 'used', 'refurbished']).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });

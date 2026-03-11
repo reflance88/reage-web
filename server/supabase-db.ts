@@ -83,13 +83,20 @@ export async function updateInquiryStatus(
  * - 유형별 비율
  * - 상태별 처리현황
  */
-export async function getInquiryStats() {
-  // 전체 데이터 한 번에 가져오기 (created_at, inquiry_type, status 필드만)
-  const { data, error } = await supabaseAdmin
+export async function getInquiryStats(months?: number) {
+  // 기간 필터를 적용하여 데이터 조회
+  let query = supabaseAdmin
     .from("contact_inquiries")
-    .select("id, inquiry_type, status, created_at")
+    .select("id, inquiry_type, status, created_at, region")
     .order("created_at", { ascending: true });
 
+  if (months && months > 0) {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+    query = query.gte("created_at", cutoff.toISOString());
+  }
+
+  const { data, error } = await query;
   if (error) throw new Error(`통계 조회 실패: ${error.message}`);
   const rows = data ?? [];
 
@@ -103,9 +110,10 @@ export async function getInquiryStats() {
   const handled = rows.filter((r) => r.status === "contacted" || r.status === "closed").length;
   const processingRate = total > 0 ? Math.round((handled / total) * 100) : 0;
 
-  // 월별 문의 건수 (최근 12개월)
+  // 월별 문의 건수 (기간에 따라 동적 생성)
+  const monthCount = months && months > 0 ? Math.min(months, 24) : 12;
   const monthlyMap: Record<string, { month: string; total: number; trial: number; introduction: number; education: number }> = {};
-  for (let i = 11; i >= 0; i--) {
+  for (let i = monthCount - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     monthlyMap[key] = { month: key, total: 0, trial: 0, introduction: 0, education: 0 };
@@ -142,11 +150,31 @@ export async function getInquiryStats() {
     { name: "종료", value: closedCount, color: "#10B981" },
   ];
 
+  // 퍼널 데이터: 체험예약 → 도입상담 → 교육문의 전환률
+  const funnel = [
+    { stage: "체험예약", value: trialCount, fill: "#6B0F1A" },
+    { stage: "도입상담", value: introCount, fill: "#C9A96E" },
+    { stage: "교육문의", value: eduCount, fill: "#4B5563" },
+  ];
+
+  // 지역별 문의 분포
+  const regionMap: Record<string, number> = {};
+  for (const r of rows) {
+    const reg = (r.region as string | null | undefined)?.trim() || "미입력";
+    regionMap[reg] = (regionMap[reg] ?? 0) + 1;
+  }
+  const byRegion = Object.entries(regionMap)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 15); // 상위 15개만
+
   return {
     kpi: { total, thisMonth, unhandled, processingRate },
     monthly,
     byType,
     byStatus,
+    funnel,
+    byRegion,
   };
 }
 
