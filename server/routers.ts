@@ -135,9 +135,16 @@ import {
   deleteRemindAlert,
   // Promotion Stats
   getPromotionStats,
+  generateNextProductCode,
+  getDesignFiles,
+  createDesignFile,
+  deleteDesignFile,
+  getDesignFolders,
+  createDesignFolder,
+  deleteDesignFolder,
 } from "./db";
 import { storagePut } from "./storage";
-import { sendPasswordResetEmail } from "./_core/mailer";
+import { sendPasswordResetEmail, sendMail } from "./_core/mailer";
 import {
   sbContactRouter,
   sbReviewRouter,
@@ -452,10 +459,69 @@ export const appRouter = router({
 
         const { getDb } = await import("./db");
         const db = await getDb();
+        let userEmail = '';
+        let userName = '';
         if (db) {
           const { users } = await import("../drizzle/schema");
           const { eq } = await import("drizzle-orm");
           await db.update(users).set({ proVerificationStatus: "pending" }).where(eq(users.id, ctx.user.id));
+          const userRow = await db.select({ email: users.email, name: users.name }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+          userEmail = userRow[0]?.email ?? '';
+          userName = userRow[0]?.name ?? '';
+        }
+
+        // 사업자 인증 신청 이메일 발송
+        if (userEmail) {
+          const adminEmail = process.env.SMTP_FROM || process.env.SMTP_USER || '';
+          // 신청자에게 확인 이메일
+          await sendMail({
+            to: userEmail,
+            subject: '[REAGE] 사업자 인증 신청이 접수되었습니다',
+            html: `
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><title>사업자 인증 신청</title></head>
+<body style="margin:0;padding:0;background:#F7F5F2;font-family:'Noto Sans KR',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F5F2;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 4px 40px rgba(26,20,18,.10);border:1px solid #E8E6E3;">
+        <tr><td style="background:#1A1412;padding:32px 40px;text-align:center;">
+          <div style="font-size:28px;font-weight:800;letter-spacing:.12em;color:#ffffff;">RE<span style="color:#C9A96E;">A</span>GE</div>
+          <div style="font-size:11px;color:#9B8B7A;letter-spacing:.2em;margin-top:4px;">올핸드 미세전류 테라피</div>
+        </td></tr>
+        <tr><td style="padding:40px 40px 32px;">
+          <h1 style="font-size:20px;font-weight:700;color:#1A1412;margin:0 0 12px;">사업자 인증 신청 접수 완료</h1>
+          <p style="font-size:14px;color:#6B6B6B;line-height:1.7;margin:0 0 20px;">안녕하세요, <strong>${userName || '고객'}</strong>님.<br>사업자 인증 신청이 정상적으로 접수되었습니다.<br>슬제후 <strong>1영업일 이내</strong> 검토 후 결과를 안내해 드리겠습니다.</p>
+          <div style="background:#F5EFE4;border:1px solid #C9A96E30;border-radius:10px;padding:16px 20px;margin-bottom:20px;">
+            <p style="font-size:13px;color:#8B6914;margin:0;"><strong>사업자명:</strong> ${input.businessName}<br><strong>사업자등록번호:</strong> ${input.businessNumber}</p>
+          </div>
+          <p style="font-size:12px;color:#9B9B9B;line-height:1.6;margin:0;">승인 완료 시 전문가 할인가가 자동 적용됩니다.</p>
+        </td></tr>
+        <tr><td style="background:#F7F5F2;padding:20px 40px;border-top:1px solid #E8E6E3;">
+          <p style="font-size:11.5px;color:#9B9B9B;margin:0;text-align:center;">이 이메일은 발신 전용입니다. &copy; REAGE. All rights reserved.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+            text: `[REAGE] 사업자 인증 신청
+
+안녕하세요, ${userName || '고객'}님.
+사업자 인증 신청이 접수되었습니다.
+사업자명: ${input.businessName}
+사업자등록번호: ${input.businessNumber}
+승인 완료 시 전문가 할인가가 적용됩니다.`,
+          });
+          // 관리자에게 알림 이메일
+          if (adminEmail && adminEmail !== userEmail) {
+            await sendMail({
+              to: adminEmail,
+              subject: `[REAGE 관리자] 사업자 인증 신청: ${input.businessName}`,
+              html: `<p>사업자명: ${input.businessName}<br>사업자등록번호: ${input.businessNumber}<br>신청자: ${userName} (${userEmail})</p>`,
+              text: `사업자명: ${input.businessName}\n사업자등록번호: ${input.businessNumber}\n신청자: ${userName} (${userEmail})`,
+            });
+          }
         }
 
         return { success: true, status: "pending" };
@@ -553,6 +619,7 @@ export const appRouter = router({
         id: z.number(),
         priceConsumer: z.string().optional(),
         pricePro: z.string().optional(),
+        priceMembership: z.string().optional(),
         isProOnly: z.boolean().optional(),
         visible: z.boolean().optional(),
         isActive: z.boolean().optional(),
@@ -587,7 +654,7 @@ export const appRouter = router({
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         const { id, ...data } = input;
         const before = await getProductById(id);
-        await updateProduct(id, data);
+        await updateProduct(id, data as Parameters<typeof updateProduct>[1]);
         const after = await getProductById(id);
         await createAuditLog({
           adminUserId: ctx.user.id,
@@ -606,6 +673,7 @@ export const appRouter = router({
         name: z.string(),
         priceConsumer: z.string(),
         pricePro: z.string(),
+        priceMembership: z.string().optional(),
         description: z.string().optional(),
         imageUrl: z.string().optional(),
         thumbnailUrl: z.string().optional(),
@@ -638,7 +706,12 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
-        const product = await createProduct(input);
+        // 상품코드 자동 생성 (입력 없을 때)
+        let productCode = input.productCode;
+        if (!productCode) {
+          productCode = await generateNextProductCode();
+        }
+        const product = await createProduct({ ...input, productCode });
         await createAuditLog({
           adminUserId: ctx.user.id,
           actionType: 'CREATE_PRODUCT',
@@ -1771,6 +1844,80 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await deleteRemindAlert(input.id);
+        return { success: true };
+      }),
+
+    // ─── Product Code Auto-generate ──────────────────────────────────────────
+    nextProductCode: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const code = await generateNextProductCode();
+        return { code };
+      }),
+
+    // ─── Design Files ────────────────────────────────────────────────────────
+    getDesignFiles: protectedProcedure
+      .input(z.object({ folder: z.string().optional() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        return getDesignFiles(input.folder);
+      }),
+
+    uploadDesignFile: protectedProcedure
+      .input(z.object({
+        fileName: z.string(),
+        contentType: z.string(),
+        base64Data: z.string(),
+        folder: z.string().optional(),
+        fileSize: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const { nanoid: nid } = await import('nanoid');
+        const suffix = nid(8);
+        const ext = input.fileName.split('.').pop() ?? 'jpg';
+        const key = `design-files/${suffix}-${input.fileName}`;
+        const buffer = Buffer.from(input.base64Data, 'base64');
+        const { url } = await storagePut(key, buffer, input.contentType);
+        const file = await createDesignFile({
+          fileName: input.fileName,
+          fileKey: key,
+          fileUrl: url,
+          mimeType: input.contentType,
+          fileSize: input.fileSize ?? buffer.length,
+          folder: input.folder ?? 'ROOT',
+          uploadedBy: ctx.user.id,
+        });
+        return { url, key, file };
+      }),
+
+    deleteDesignFile: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const file = await deleteDesignFile(input.id);
+        return { success: true, file };
+      }),
+
+    getDesignFolders: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        return getDesignFolders();
+      }),
+
+    createDesignFolder: protectedProcedure
+      .input(z.object({ name: z.string().min(1), parentId: z.number().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        await createDesignFolder(input.name, input.parentId);
+        return { success: true };
+      }),
+
+    deleteDesignFolder: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        await deleteDesignFolder(input.id);
         return { success: true };
       }),
   }),

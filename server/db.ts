@@ -337,6 +337,7 @@ export async function getAuditLogs(targetType?: string, targetId?: number) {
 export async function updateProduct(id: number, data: {
   priceConsumer?: string;
   pricePro?: string;
+  priceMembership?: string | null;
   isProOnly?: boolean;
   visible?: boolean;
   isActive?: boolean;
@@ -383,6 +384,7 @@ export async function createProduct(data: {
   name: string;
   priceConsumer: string;
   pricePro: string;
+  priceMembership?: string | null;
   description?: string | null;
   imageUrl?: string | null;
   thumbnailUrl?: string | null;
@@ -420,6 +422,7 @@ export async function createProduct(data: {
     name: data.name,
     priceConsumer: data.priceConsumer,
     pricePro: data.pricePro,
+    priceMembership: data.priceMembership ?? null,
     description: data.description ?? null,
     imageUrl: data.imageUrl ?? null,
     thumbnailUrl: data.thumbnailUrl ?? null,
@@ -1643,4 +1646,108 @@ export async function getPromotionStats() {
     activeDiscountCodes: Number(activeDiscountCodesRow?.count ?? 0),
     activeRemindAlerts: Number(activeRemindAlertsRow?.count ?? 0),
   };
+}
+
+// ─── Product Code Auto-generation ────────────────────────────────────────────
+/**
+ * R00000AA 형식의 다음 상품코드 자동 생성
+ * AA → AB → ... → AZ → BA → ... → ZZ
+ */
+export async function generateNextProductCode(): Promise<string> {
+  const db = await getDb();
+  if (!db) return 'R00000AA';
+  // R00000XX 형식의 코드만 조회
+  const result = await db
+    .select({ productCode: products.productCode })
+    .from(products)
+    .where(sql`${products.productCode} REGEXP '^R00000[A-Z]{2}$'`)
+    .orderBy(sql`${products.productCode} DESC`)
+    .limit(1);
+
+  const lastCode = result[0]?.productCode;
+  if (!lastCode) return 'R00000AA';
+
+  const suffix = lastCode.slice(-2); // e.g. "AB"
+  const c1 = suffix.charCodeAt(0); // 첫 번째 알파벳
+  const c2 = suffix.charCodeAt(1); // 두 번째 알파벳
+
+  let next1 = c1;
+  let next2 = c2 + 1;
+  if (next2 > 90) { // 'Z'
+    next2 = 65; // 'A'
+    next1 += 1;
+  }
+  if (next1 > 90) return 'R00000AA'; // 오버플로우 시 리셋
+
+  return `R00000${String.fromCharCode(next1)}${String.fromCharCode(next2)}`;
+}
+
+// ─── Design Files CRUD ────────────────────────────────────────────────────────
+export async function getDesignFiles(folder?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const { designFiles } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  if (folder) {
+    return db.select().from(designFiles).where(eq(designFiles.folder, folder)).orderBy(designFiles.createdAt);
+  }
+  return db.select().from(designFiles).orderBy(designFiles.createdAt);
+}
+
+export async function createDesignFile(data: {
+  fileName: string;
+  fileKey: string;
+  fileUrl: string;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  folder?: string | null;
+  uploadedBy?: number | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { designFiles } = await import('../drizzle/schema');
+  await db.insert(designFiles).values({
+    fileName: data.fileName,
+    fileKey: data.fileKey,
+    fileUrl: data.fileUrl,
+    mimeType: data.mimeType ?? null,
+    fileSize: data.fileSize ?? null,
+    folder: data.folder ?? 'ROOT',
+    uploadedBy: data.uploadedBy ?? null,
+  });
+  const { eq } = await import('drizzle-orm');
+  const result = await db.select().from(designFiles).where(eq(designFiles.fileKey, data.fileKey)).limit(1);
+  return result[0];
+}
+
+export async function deleteDesignFile(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { designFiles } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  const result = await db.select().from(designFiles).where(eq(designFiles.id, id)).limit(1);
+  await db.delete(designFiles).where(eq(designFiles.id, id));
+  return result[0];
+}
+
+export async function getDesignFolders() {
+  const db = await getDb();
+  if (!db) return [];
+  const { designFolders } = await import('../drizzle/schema');
+  return db.select().from(designFolders).orderBy(designFolders.name);
+}
+
+export async function createDesignFolder(name: string, parentId?: number | null) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { designFolders } = await import('../drizzle/schema');
+  await db.insert(designFolders).values({ name, parentId: parentId ?? null });
+}
+
+export async function deleteDesignFolder(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { designFolders } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  await db.delete(designFolders).where(eq(designFolders.id, id));
 }

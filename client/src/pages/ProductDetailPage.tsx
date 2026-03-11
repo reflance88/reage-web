@@ -207,20 +207,16 @@ export default function ProductDetailPage({ productId, onBack }: { productId: nu
           {activeTab === "sale" && (
             <div>
               <div style={{ padding: "14px 16px", background: "#F9F8F7", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: "14px" }}>판매 정보</div>
-              <Field label="공급가" required>
-                <Input value={get("priceSupply")} onChange={v => set("priceSupply", v)} type="number" style={{ width: "160px" }} />
-                <span style={{ marginLeft: "8px", fontSize: "13px", color: C.muted }}>KRW</span>
-              </Field>
-              <Field label="소비자가">
-                <Input value={get("priceConsumerOriginal")} onChange={v => set("priceConsumerOriginal", v)} type="number" style={{ width: "160px" }} />
-                <span style={{ marginLeft: "8px", fontSize: "13px", color: C.muted }}>KRW</span>
-              </Field>
               <Field label="판매가 (일반)" required>
                 <Input value={get("priceConsumer")} onChange={v => set("priceConsumer", v)} type="number" style={{ width: "160px" }} />
                 <span style={{ marginLeft: "8px", fontSize: "13px", color: C.muted }}>KRW</span>
               </Field>
               <Field label="판매가 (전문가)">
                 <Input value={get("pricePro")} onChange={v => set("pricePro", v)} type="number" style={{ width: "160px" }} />
+                <span style={{ marginLeft: "8px", fontSize: "13px", color: C.muted }}>KRW</span>
+              </Field>
+              <Field label="판매가 (멤버십)">
+                <Input value={get("priceMembership")} onChange={v => set("priceMembership", v)} type="number" style={{ width: "160px" }} />
                 <span style={{ marginLeft: "8px", fontSize: "13px", color: C.muted }}>KRW</span>
               </Field>
               <Field label="과세구분">

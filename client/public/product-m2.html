@@ -312,7 +312,7 @@
 
 <script>
   // 제품 정보
-  const PRODUCT = { slug: 'm2-cream', name: 'M2크림', priceConsumer: 68000, pricePro: 49000, productId: null };
+  const PRODUCT = { slug: 'm2-cream', name: 'M2크림', priceConsumer: 68000, pricePro: 49000, priceMembership: null, productId: null };
 
   function formatPrice(n) { return n.toLocaleString('ko-KR') + '원'; }
 
@@ -330,19 +330,31 @@
     } catch { return null; }
   }
 
-  async function fetchProductId() {
+  async function fetchProductData() {
     try {
-      const res = await fetch(`/api/trpc/product.bySlug?input=${encodeURIComponent(JSON.stringify({ slug: PRODUCT.slug }))}`, { credentials: 'include' });
+      const res = await fetch(`/api/trpc/product.bySlug?input=${encodeURIComponent(JSON.stringify({ json: { slug: PRODUCT.slug } }))}`, { credentials: 'include' });
       const data = await res.json();
-      return data?.result?.data?.id ?? null;
+      const p = data?.result?.data?.json ?? data?.result?.data ?? null;
+      if (p) {
+        PRODUCT.productId = p.id;
+        if (p.name) PRODUCT.name = p.name;
+        if (p.priceConsumer) PRODUCT.priceConsumer = parseInt(p.priceConsumer);
+        if (p.pricePro) PRODUCT.pricePro = parseInt(p.pricePro);
+        if (p.priceMembership) PRODUCT.priceMembership = parseInt(p.priceMembership);
+        // 이름, 설명 동적 업데이트
+        const nameEl = document.querySelector('.product-name');
+        const subEl = document.querySelector('.product-sub');
+        if (nameEl && p.name) nameEl.textContent = p.name;
+        if (subEl && p.description) subEl.textContent = p.description;
+      }
+      return p?.id ?? null;
     } catch { return null; }
   }
 
   async function init() {
-    const [user, productId] = await Promise.all([fetchUserInfo(), fetchProductId()]);
-    PRODUCT.productId = productId;
+    const [user] = await Promise.all([fetchUserInfo(), fetchProductData()]);
 
-    const headerRight = document.getElementById('headerRight');
+    
     const priceValue = document.getElementById('priceValue');
     const loginNotice = document.getElementById('loginNotice');
     const proNotice = document.getElementById('proNotice');
@@ -356,12 +368,6 @@
     if (user) {
       const isPro = user.memberRole === 'professional' && user.proVerificationStatus === 'approved';
       const isPending = user.proVerificationStatus === 'pending';
-
-      headerRight.innerHTML = `
-        <a href="/mypage" class="header-btn btn-mypage">마이페이지</a>
-        <a href="/cart" class="header-btn btn-cart" style="position:relative;">
-          장바구니${cartCount > 0 ? `<span class="cart-count">${cartCount}</span>` : ''}
-        </a>`;
 
       if (isPro) {
         priceValue.innerHTML = `${formatPrice(PRODUCT.pricePro)} <span class="price-pro-badge">전문가가</span>`;
@@ -380,11 +386,6 @@
         }
       }
     } else {
-      headerRight.innerHTML = `
-        <a href="#" onclick="goLogin()" class="header-btn btn-login">로그인</a>
-        <a href="/cart" class="header-btn btn-cart" style="position:relative;">
-          장바구니${cartCount > 0 ? `<span class="cart-count">${cartCount}</span>` : ''}
-        </a>`;
       priceValue.textContent = formatPrice(PRODUCT.priceConsumer);
       loginNotice.style.display = 'block';
     }

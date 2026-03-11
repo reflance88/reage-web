@@ -91,6 +91,7 @@ export const products = mysqlTable("products", {
   description: text("description"),
   priceConsumer: decimal("priceConsumer", { precision: 12, scale: 0 }).notNull(),
   pricePro: decimal("pricePro", { precision: 12, scale: 0 }).notNull(),
+  priceMembership: decimal("priceMembership", { precision: 12, scale: 0 }),
   isProOnly: boolean("isProOnly").default(false).notNull(),
   stock: int("stock").default(999).notNull(),
   imageUrl: text("imageUrl"),
@@ -126,6 +127,30 @@ export const products = mysqlTable("products", {
 
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
+
+// ─── Design Files (파일업로더) ────────────────────────────────────────────────
+export const designFiles = mysqlTable("design_files", {
+  id: int("id").autoincrement().primaryKey(),
+  fileName: varchar("fileName", { length: 300 }).notNull(),
+  fileKey: text("fileKey").notNull(),
+  fileUrl: text("fileUrl").notNull(),
+  mimeType: varchar("mimeType", { length: 100 }),
+  fileSize: int("fileSize"),
+  folder: varchar("folder", { length: 200 }).default("ROOT"),
+  uploadedBy: int("uploadedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type DesignFile = typeof designFiles.$inferSelect;
+export type InsertDesignFile = typeof designFiles.$inferInsert;
+
+// ─── Design Folders ───────────────────────────────────────────────────────────
+export const designFolders = mysqlTable("design_folders", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  parentId: int("parentId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type DesignFolder = typeof designFolders.$inferSelect;
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 export const orders = mysqlTable("orders", {

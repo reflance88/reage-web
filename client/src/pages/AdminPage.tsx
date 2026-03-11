@@ -187,6 +187,15 @@ const NAV: NavItem[] = [
       { id: "popup-register", label: "팝업 등록" },
     ],
   },
+  {
+    id: "design", label: "디자인",
+    children: [
+      { id: "design-dashboard", label: "디자인 대시보드" },
+      { id: "design-library", label: "디자인 보관함" },
+      { id: "design-add", label: "디자인 추가" },
+      { id: "design-files", label: "파일업로더" },
+    ],
+  },
 ];
 
 // ─── Sidebar ───────────────────────────────────────────────────────────────────
@@ -247,7 +256,8 @@ function Sidebar({ active, onSelect }: { active: string; onSelect: (id: string) 
                       item.id === "customer" ? "👤" :
                       item.id === "board" ? "📋" :
                       item.id === "stats" ? "📊" :
-                      item.id === "popup" ? "🎯" : ""
+                      item.id === "popup" ? "🎯" :
+                      item.id === "design" ? "🎨" : ""
                     }</span>
                     {item.label}
                   </span>
@@ -1020,6 +1030,25 @@ function ProductSection({ subPage }: { subPage: string }) {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
+  // 체크박스 일괄 노출 상태 변경
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const bulkUpdateVisible = trpc.admin.updateProduct.useMutation;
+  const bulkVisibleMutation = trpc.admin.updateProduct.useMutation({
+    onSuccess: () => { utils.admin.allProducts.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleToggleSelect = (id: number) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const handleBulkVisible = async (visible: boolean, pagedItems: any[]) => {
+    if (selectedIds.length === 0) { toast.error('상품을 선택해주세요.'); return; }
+    await Promise.all(selectedIds.map(id => bulkVisibleMutation.mutateAsync({ id, visible })));
+    toast.success(`${selectedIds.length}개 상품을 ${visible ? '노출' : '미노출'}로 변경했습니다.`);
+    setSelectedIds([]);
+    utils.admin.allProducts.invalidate();
+  };
+
   // 신규 상품 등록 모달
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -1257,6 +1286,13 @@ function ProductSection({ subPage }: { subPage: string }) {
             </button>
           ))}
         </div>
+        {selectedIds.length > 0 && (
+          <div style={{ display: "flex", gap: "6px", marginLeft: "8px" }}>
+            <span style={{ fontSize: "12px", color: C.muted, alignSelf: "center" }}>{selectedIds.length}개 선택</span>
+            <button onClick={() => handleBulkVisible(true, paged)} style={{ padding: "6px 12px", borderRadius: "6px", border: `1px solid ${C.green}`, background: "#F0FDF4", color: C.green, fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>노출</button>
+            <button onClick={() => handleBulkVisible(false, paged)} style={{ padding: "6px 12px", borderRadius: "6px", border: `1px solid #F59E0B`, background: "#FFFBEB", color: "#92400E", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}>미노출</button>
+          </div>
+        )}
         <span style={{ marginLeft: "auto", fontSize: "13px", color: C.muted }}>총 {filtered.length}개</span>
       </div>
 
@@ -1265,6 +1301,9 @@ function ProductSection({ subPage }: { subPage: string }) {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
             <tr style={{ background: "#F9F8F7", borderBottom: `1px solid ${C.border}` }}>
+              <th style={{ padding: "10px 12px", textAlign: "center", width: "36px" }}>
+                <input type="checkbox" checked={paged.length > 0 && paged.every((p: any) => selectedIds.includes(p.id))} onChange={e => { setSelectedIds(e.target.checked ? paged.map((p: any) => p.id) : []); }} />
+              </th>
               <th style={{ padding: "10px 12px", textAlign: "center", width: "40px", fontWeight: 600, color: C.muted }}>No</th>
               <th style={{ padding: "10px 12px", textAlign: "left", width: "80px", fontWeight: 600, color: C.muted }}>상품구분</th>
               <th style={{ padding: "10px 12px", textAlign: "left", width: "100px", fontWeight: 600, color: C.muted }}>상품코드</th>
@@ -1283,7 +1322,10 @@ function ProductSection({ subPage }: { subPage: string }) {
             ) : paged.length === 0 ? (
               <tr><td colSpan={9} style={{ padding: "40px", textAlign: "center", color: C.muted }}>상품이 없습니다.</td></tr>
             ) : paged.map((p: any, idx: number) => (
-              <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}`, background: idx % 2 === 0 ? C.white : "#FAFAF9" }}>
+              <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}`, background: selectedIds.includes(p.id) ? "#FFF7ED" : (idx % 2 === 0 ? C.white : "#FAFAF9") }}>
+                <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                  <input type="checkbox" checked={selectedIds.includes(p.id)} onChange={() => handleToggleSelect(p.id)} />
+                </td>
                 <td style={{ padding: "10px 12px", textAlign: "center", color: C.muted }}>{(page - 1) * PAGE_SIZE + idx + 1}</td>
                 <td style={{ padding: "10px 12px" }}>
                   <span style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", background: p.isNew ? "#EFF6FF" : "#F3F4F6", color: p.isNew ? C.blue : C.muted }}>
@@ -2043,7 +2085,7 @@ function MembershipSection() {
   const allUsers = users.data?.users ?? [];
   const filtered = allUsers.filter((u: any) => {
     const matchSearch = !search || u.name?.includes(search) || u.email?.includes(search);
-    const matchGrade = gradeFilter === "all" || (u.membershipGrade ?? "none") === gradeFilter;
+    const matchGrade = gradeFilter === "all" || (u.memberRole ?? "consumer") === gradeFilter;
     return matchSearch && matchGrade;
   });
 
@@ -3293,6 +3335,7 @@ export default function AdminPage() {
     if (activePage.startsWith("stats-") || activePage === "stats") return <StatsSection subPage={activePage} />;
     if (activePage.startsWith("popup-") || activePage === "popup") return <PopupSection subPage={activePage} onNavigate={setActivePage} />;
     if (activePage.startsWith("promotion-") || activePage === "promotion") return <PromotionSection subPage={activePage} onNavigate={setActivePage} />;
+    if (activePage.startsWith("design-") || activePage === "design") return <DesignSection subPage={activePage} />;
     return <DashboardSection />;
   };
 
@@ -3302,6 +3345,250 @@ export default function AdminPage() {
       <main style={{ flex: 1, padding: "28px 32px", overflowY: "auto", minWidth: 0 }}>
         {renderContent()}
       </main>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: DESIGN
+// ═══════════════════════════════════════════════════════════════════════════════
+function DesignSection({ subPage }: { subPage: string }) {
+  if (subPage === "design-files") return <FileUploaderSection />;
+  if (subPage === "design-library") return <DesignLibrarySection />;
+  if (subPage === "design-add") return <DesignAddSection />;
+  return <DesignDashboardSection />;
+}
+
+function DesignDashboardSection() {
+  const files = trpc.adminExt.getDesignFiles.useQuery({});
+  const folders = trpc.adminExt.getDesignFolders.useQuery();
+  const totalFiles = (files.data ?? []).length;
+  const totalFolders = (folders.data ?? []).length;
+  return (
+    <div>
+      <SectionHeader title="디자인 대시보드" />
+      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "24px" }}>
+        <SummaryCard label="전체 파일" value={totalFiles} />
+        <SummaryCard label="폴더 수" value={totalFolders} />
+      </div>
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, padding: "24px" }}>
+        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px" }}>최근 업로드 파일</div>
+        {(files.data ?? []).slice(0, 10).map((f: any) => (
+          <div key={f.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+            {f.mimeType?.startsWith("image/") ? (
+              <img src={f.fileUrl} alt={f.fileName} style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px", border: `1px solid ${C.border}` }} onError={(e: React.SyntheticEvent<HTMLImageElement>) => (e.currentTarget.style.display = "none")} />
+            ) : (
+              <div style={{ width: "48px", height: "48px", background: "#F3F4F6", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>📄</div>
+            )}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: "13px", fontWeight: 600 }}>{f.fileName}</div>
+              <div style={{ fontSize: "11px", color: C.muted }}>{f.mimeType} · {Math.round((f.fileSize ?? 0) / 1024)}KB</div>
+            </div>
+            <button onClick={() => navigator.clipboard.writeText(f.fileUrl).then(() => toast.success("URL 복사됨"))} style={{ padding: "4px 10px", border: `1px solid ${C.border}`, borderRadius: "4px", background: C.white, fontSize: "11px", cursor: "pointer" }}>URL 복사</button>
+          </div>
+        ))}
+        {totalFiles === 0 && <div style={{ textAlign: "center", color: C.muted, padding: "40px" }}>업로드된 파일이 없습니다.</div>}
+      </div>
+    </div>
+  );
+}
+
+function DesignLibrarySection() {
+  const [currentFolder, setCurrentFolder] = useState<string | undefined>(undefined);
+  const files = trpc.adminExt.getDesignFiles.useQuery({ folder: currentFolder });
+  const folders = trpc.adminExt.getDesignFolders.useQuery();
+  const deleteFile = trpc.adminExt.deleteDesignFile.useMutation({
+    onSuccess: () => { toast.success("파일이 삭제되었습니다."); files.refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  return (
+    <div>
+      <SectionHeader title="디자인 보관함" />
+      <div style={{ display: "flex", gap: "16px" }}>
+        {/* 폴더 목록 */}
+        <div style={{ width: "200px", background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "12px", flexShrink: 0 }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: C.muted, marginBottom: "8px" }}>폴더</div>
+          <button onClick={() => setCurrentFolder(undefined)} style={{ width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: "6px", border: "none", background: currentFolder === undefined ? C.primary : "transparent", color: currentFolder === undefined ? C.white : C.text, fontSize: "13px", cursor: "pointer", marginBottom: "4px" }}>📁 전체 파일</button>
+          {(folders.data ?? []).map((f: any) => (
+            <button key={f.id} onClick={() => setCurrentFolder(f.name)} style={{ width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: "6px", border: "none", background: currentFolder === f.name ? C.primary : "transparent", color: currentFolder === f.name ? C.white : C.text, fontSize: "13px", cursor: "pointer", marginBottom: "4px" }}>📂 {f.name}</button>
+          ))}
+        </div>
+        {/* 파일 그리드 */}
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "12px" }}>
+            {(files.data ?? []).map((f: any) => (
+              <div key={f.id} style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", overflow: "hidden", position: "relative" }}>
+                {f.mimeType?.startsWith("image/") ? (
+                  <img src={f.fileUrl} alt={f.fileName} style={{ width: "100%", height: "100px", objectFit: "cover" }} onError={(e: React.SyntheticEvent<HTMLImageElement>) => (e.currentTarget.style.display = "none")} />
+                ) : (
+                  <div style={{ height: "100px", background: "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px" }}>📄</div>
+                )}
+                <div style={{ padding: "8px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.fileName}>{f.fileName}</div>
+                  <div style={{ fontSize: "10px", color: C.muted }}>{Math.round((f.fileSize ?? 0) / 1024)}KB</div>
+                  <div style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
+                    <button onClick={() => navigator.clipboard.writeText(f.fileUrl).then(() => toast.success("URL 복사됨"))} style={{ flex: 1, padding: "3px 0", border: `1px solid ${C.border}`, borderRadius: "4px", background: C.white, fontSize: "10px", cursor: "pointer" }}>복사</button>
+                    <button onClick={() => { if (window.confirm("삭제하시겠습니까?")) deleteFile.mutate({ id: f.id }); }} style={{ padding: "3px 6px", border: "1px solid #FCA5A5", borderRadius: "4px", background: "#FEF2F2", color: "#DC2626", fontSize: "10px", cursor: "pointer" }}>삭제</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {(files.data ?? []).length === 0 && <div style={{ gridColumn: "1/-1", textAlign: "center", color: C.muted, padding: "40px" }}>파일이 없습니다.</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DesignAddSection() {
+  return (
+    <div>
+      <SectionHeader title="디자인 추가" />
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, padding: "32px", maxWidth: "600px" }}>
+        <div style={{ fontSize: "14px", color: C.muted, marginBottom: "24px" }}>파일업로더를 통해 이미지 및 디자인 파일을 업로드한 후, 상품 상세페이지나 홈페이지 배너에 URL을 복사하여 사용하세요.</div>
+        <FileUploaderSection embedded />
+      </div>
+    </div>
+  );
+}
+
+function FileUploaderSection({ embedded = false }: { embedded?: boolean }) {
+  const utils = trpc.useUtils();
+  const [currentFolder, setCurrentFolder] = useState<string | undefined>(undefined);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [search, setSearch] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const folders = trpc.adminExt.getDesignFolders.useQuery();
+  const files = trpc.adminExt.getDesignFiles.useQuery({ folder: currentFolder });
+  const createFolder = trpc.adminExt.createDesignFolder.useMutation({
+    onSuccess: () => { toast.success("폴더가 생성되었습니다."); folders.refetch(); setNewFolderName(""); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const uploadFile = trpc.adminExt.uploadDesignFile.useMutation({
+    onSuccess: () => { files.refetch(); utils.adminExt.getDesignFiles.invalidate(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const deleteFile = trpc.adminExt.deleteDesignFile.useMutation({
+    onSuccess: () => { toast.success("삭제되었습니다."); files.refetch(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const handleFiles = async (fileList: FileList) => {
+    setUploading(true);
+    try {
+      for (const file of Array.from(fileList)) {
+        if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name}: 10MB 초과`); continue; }
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => resolve((e.target?.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        await uploadFile.mutateAsync({ fileName: file.name, contentType: file.type, base64Data: base64, folder: currentFolder, fileSize: file.size });
+      }
+      toast.success("업로드 완료");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const filteredFiles = (files.data ?? []).filter((f: any) => !search || f.fileName.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div>
+      {!embedded && <SectionHeader title="파일업로더" />}
+      <div style={{ display: "flex", gap: "16px" }}>
+        {/* 폴더 사이드바 */}
+        <div style={{ width: "200px", background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "12px", flexShrink: 0, alignSelf: "flex-start" }}>
+          <div style={{ fontSize: "12px", fontWeight: 700, color: C.muted, marginBottom: "8px" }}>폴더</div>
+          <button onClick={() => setCurrentFolder(undefined)} style={{ width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: "6px", border: "none", background: currentFolder === undefined ? C.primary : "transparent", color: currentFolder === undefined ? C.white : C.text, fontSize: "13px", cursor: "pointer", marginBottom: "4px" }}>📁 ROOT</button>
+          {(folders.data ?? []).map((f: any) => (
+            <button key={f.id} onClick={() => setCurrentFolder(f.name)} style={{ width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: "6px", border: "none", background: currentFolder === f.name ? C.primary : "transparent", color: currentFolder === f.name ? C.white : C.text, fontSize: "13px", cursor: "pointer", marginBottom: "4px" }}>📂 {f.name}</button>
+          ))}
+          <div style={{ marginTop: "12px", borderTop: `1px solid ${C.border}`, paddingTop: "12px" }}>
+            <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="새 폴더명" style={{ width: "100%", padding: "6px 8px", border: `1px solid ${C.border}`, borderRadius: "4px", fontSize: "12px", marginBottom: "6px", boxSizing: "border-box" }} onKeyDown={e => { if (e.key === "Enter" && newFolderName.trim()) createFolder.mutate({ name: newFolderName.trim() }); }} />
+            <button onClick={() => { if (newFolderName.trim()) createFolder.mutate({ name: newFolderName.trim() }); }} style={{ width: "100%", padding: "6px", border: `1px solid ${C.primary}`, borderRadius: "4px", background: C.primary, color: C.white, fontSize: "12px", cursor: "pointer" }}>+ 폴더 추가</button>
+          </div>
+        </div>
+
+        {/* 메인 영역 */}
+        <div style={{ flex: 1 }}>
+          {/* 드래그앤드롭 영역 */}
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={e => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); }}
+            onClick={() => fileInputRef.current?.click()}
+            style={{ border: `2px dashed ${isDragging ? C.primary : C.border}`, borderRadius: "8px", padding: "32px", textAlign: "center", cursor: "pointer", background: isDragging ? "#FFF7F7" : "#FAFAF9", marginBottom: "16px", transition: "all 0.2s" }}
+          >
+            {uploading ? (
+              <div style={{ color: C.primary, fontWeight: 600 }}>업로드 중...</div>
+            ) : (
+              <>
+                <div style={{ fontSize: "32px", marginBottom: "8px" }}>📂</div>
+                <div style={{ fontWeight: 600, marginBottom: "4px" }}>Drag & Drop</div>
+                <div style={{ fontSize: "13px", color: C.muted }}>여기에 이미지 파일/폴더를 끌어 놓으면 파일이 업로드됩니다.</div>
+                <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>(파일용량: 한 개당 10MB이하, 이미지/HTML/CSS/JS/웹폰트 파일 업로드 가능)</div>
+                <button style={{ marginTop: "12px", padding: "8px 20px", border: `1px solid ${C.primary}`, borderRadius: "6px", background: C.white, color: C.primary, fontSize: "13px", cursor: "pointer", fontWeight: 600 }} onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}>Add Files</button>
+              </>
+            )}
+          </div>
+          <input ref={fileInputRef} type="file" multiple accept="image/*,.html,.css,.js,.woff,.woff2,.ttf" style={{ display: "none" }} onChange={e => { if (e.target.files?.length) handleFiles(e.target.files); e.target.value = ""; }} />
+
+          {/* 검색 */}
+          <div style={{ marginBottom: "12px" }}>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="파일명을 입력하세요." style={{ padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px", width: "280px", outline: "none" }} />
+          </div>
+
+          {/* 파일 목록 */}
+          <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", overflow: "hidden" }}>
+            <div style={{ padding: "10px 16px", background: "#F9F8F7", borderBottom: `1px solid ${C.border}`, fontSize: "12px", fontWeight: 700, color: C.muted }}>
+              📁 {currentFolder ?? "ROOT"} — 총 {filteredFiles.length}개
+            </div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr style={{ background: "#F9F8F7", borderBottom: `1px solid ${C.border}` }}>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: C.muted }}>파일명</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", width: "80px", fontWeight: 600, color: C.muted }}>크기</th>
+                  <th style={{ padding: "8px 12px", textAlign: "center", width: "120px", fontWeight: 600, color: C.muted }}>등록일</th>
+                  <th style={{ padding: "8px 12px", textAlign: "center", width: "80px", fontWeight: 600, color: C.muted }}>주소복사</th>
+                  <th style={{ padding: "8px 12px", textAlign: "center", width: "60px", fontWeight: 600, color: C.muted }}>삭제</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredFiles.length === 0 ? (
+                  <tr><td colSpan={5} style={{ padding: "40px", textAlign: "center", color: C.muted }}>파일이 없습니다.</td></tr>
+                ) : filteredFiles.map((f: any) => (
+                  <tr key={f.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "10px 12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        {f.mimeType?.startsWith("image/") ? (
+                          <img src={f.fileUrl} alt={f.fileName} style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px", border: `1px solid ${C.border}` }} onError={(e: React.SyntheticEvent<HTMLImageElement>) => (e.currentTarget.style.display = "none")} />
+                        ) : (
+                          <span style={{ fontSize: "20px" }}>📄</span>
+                        )}
+                        <span style={{ fontWeight: 500 }}>{f.fileName}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: C.muted }}>{Math.round((f.fileSize ?? 0) / 1024)}KB</td>
+                    <td style={{ padding: "10px 12px", textAlign: "center", color: C.muted, fontSize: "12px" }}>{new Date(f.createdAt).toLocaleDateString("ko-KR")}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      <button onClick={() => navigator.clipboard.writeText(f.fileUrl).then(() => toast.success("URL이 복사되었습니다."))} style={{ padding: "3px 10px", border: `1px solid ${C.border}`, borderRadius: "4px", background: C.white, fontSize: "11px", cursor: "pointer" }}>복사</button>
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      <button onClick={() => { if (window.confirm("삭제하시겠습니까?")) deleteFile.mutate({ id: f.id }); }} style={{ padding: "3px 8px", border: "1px solid #FCA5A5", borderRadius: "4px", background: "#FEF2F2", color: "#DC2626", fontSize: "11px", cursor: "pointer" }}>삭제</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
