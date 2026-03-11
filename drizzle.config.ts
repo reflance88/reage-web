@@ -1,19 +1,15 @@
 import { defineConfig } from "drizzle-kit";
 
-const connectionString = process.env.DATABASE_URL;
+// Supabase PostgreSQL 연결 (SUPABASE_DATABASE_URL 우선, 없으면 DATABASE_URL)
+const connectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
 if (!connectionString) {
-  throw new Error("DATABASE_URL is required to run drizzle commands");
+  throw new Error("SUPABASE_DATABASE_URL or DATABASE_URL is required to run drizzle commands");
 }
 
-// MySQL(Manus 기본) vs PostgreSQL(Supabase) 자동 감지
-const isPostgres =
-  connectionString.startsWith("postgres://") ||
-  connectionString.startsWith("postgresql://");
-
 export default defineConfig({
-  schema: "./drizzle/schema.ts",
-  out: "./drizzle",
-  dialect: isPostgres ? "postgresql" : "mysql",
+  schema: "./drizzle/schema-pg.ts",
+  out: "./drizzle/migrations-pg",
+  dialect: "postgresql",
   dbCredentials: {
     url: connectionString,
   },

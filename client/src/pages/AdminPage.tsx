@@ -557,7 +557,7 @@ function ShippingDetailModal({ order, onClose, onSave }: { order: any; onClose: 
 }
 
 // ─── Order Dashboard ─────────────────────────────────────────────────────────
-function OrderDashboard() {
+function OrderDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const [orderDays, setOrderDays] = useState(30);
   const dashboard = trpc.admin.dashboard.useQuery();
   const chartsOrder = trpc.admin.dashboardCharts.useQuery({ days: orderDays });
@@ -610,19 +610,19 @@ function OrderDashboard() {
               <td style={{ padding: "12px", fontWeight: 600, borderLeft: `3px solid ${C.blue}` }}>총 주문 금액</td>
               <td style={{ padding: "12px", textAlign: "right", color: C.blue, fontWeight: 700 }}>{krw(d?.todayRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.todayOrders ?? 0}건</span></td>
               <td style={{ padding: "12px", textAlign: "right", color: C.primary, fontWeight: 700 }}>{krw(d?.monthRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.monthOrders ?? 0}건</span></td>
-              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => {}}>주문조회</Btn></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => onNavigate?.("order-all")}>주문조회</Btn></td>
             </tr>
             <tr style={{ borderBottom: `1px solid ${C.border}`, background: "#F0FFF4" }}>
               <td style={{ padding: "12px", fontWeight: 600, borderLeft: `3px solid ${C.green}` }}>총 실 결제 금액</td>
               <td style={{ padding: "12px", textAlign: "right", color: C.blue, fontWeight: 700 }}>{krw(d?.todayNetRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.todayOrders ?? 0}건</span></td>
               <td style={{ padding: "12px", textAlign: "right", color: C.primary, fontWeight: 700 }}>{krw(d?.monthNetRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.monthOrders ?? 0}건</span></td>
-              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => {}}>결제조회</Btn></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => onNavigate?.("order-all")}>결제조회</Btn></td>
             </tr>
             <tr style={{ borderBottom: `1px solid ${C.border}` }}>
               <td style={{ padding: "12px", color: C.muted }}>총 환불 금액</td>
               <td style={{ padding: "12px", textAlign: "right", color: "#991B1B", fontWeight: 700 }}>{krw(d?.todayRefundAmount ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>0건</span></td>
               <td style={{ padding: "12px", textAlign: "right", color: "#991B1B", fontWeight: 700 }}>{krw(d?.monthRefundAmount ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>0건</span></td>
-              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => {}}>환불조회</Btn></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => onNavigate?.("order-refund")}>환불조회</Btn></td>
             </tr>
           </tbody>
         </table>
@@ -671,7 +671,7 @@ function OrderDashboard() {
 }
 
 // ─── Ord// ─── Order Section ────────────────────────────────────────────
-function OrderSection({ subPage }: { subPage: string }) {
+function OrderSection({ subPage, onNavigate }: { subPage: string; onNavigate?: (id: string) => void }) {
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState<"orderId" | "name" | "email" | "productName">("orderId");
   const [viewType, setViewType] = useState<"order" | "item">("order");
@@ -683,6 +683,10 @@ function OrderSection({ subPage }: { subPage: string }) {
   const [csTab, setCsTab] = useState("all");
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<20 | 50 | 100>(20);
+  const [sortCol, setSortCol] = useState<string>("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   // ─── Shipping status pages ──────────────────────────────────────────────────
   const shippingStatusMap: Record<string, "pending_payment" | "ready" | "hold" | "shipping" | "delivered"> = {
@@ -730,11 +734,13 @@ function OrderSection({ subPage }: { subPage: string }) {
       status: effectiveStatus as any,
       dateFrom: dateFrom ? new Date(dateFrom) : undefined,
       dateTo: dateTo ? new Date(dateTo) : undefined,
-      page: 1,
-      limit: 100,
+      page,
+      limit: pageSize,
     },
     { enabled: !isShippingPage && !isCsPage }
   );
+  const totalCount = orders.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const updateStatus = trpc.admin.updateOrderStatus.useMutation({
     onSuccess: () => { toast.success("주문 상태가 변경되었습니다."); orders.refetch(); },
   });
@@ -744,9 +750,16 @@ function OrderSection({ subPage }: { subPage: string }) {
   });
   const [cancelConfirm, setCancelConfirm] = useState<string | null>(null); // orderId
 
+  // reset page when filters change
+  const handleSearch = () => { setPage(1); orders.refetch(); };
+  const toggleSort = (col: string) => {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  };
+
   // ─── Order Dashboard ─────────────────────────────────────────────────────────
   if (subPage === "order-dashboard") {
-    return <OrderDashboard />;
+    return <OrderDashboard onNavigate={onNavigate} />;
   }
 
   // ─── Shipping pages ───────────────────────────────────────────────────────────
@@ -1082,6 +1095,21 @@ function OrderSection({ subPage }: { subPage: string }) {
           )}
         </div>
       </div>
+      {/* 표시 개수 선택 */}
+      {(subPage === "order-all" || subPage === "order-unpaid") && (
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+          <span style={{ fontSize: "13px", color: C.muted }}>페이지당 표시</span>
+          {([20, 50, 100] as const).map((n) => (
+            <button
+              key={n}
+              onClick={() => { setPageSize(n); setPage(1); }}
+              style={{ padding: "4px 12px", borderRadius: "6px", border: `1.5px solid ${pageSize === n ? C.primary : C.border}`, background: pageSize === n ? C.primary : "#fff", color: pageSize === n ? "#fff" : C.text, fontSize: "13px", cursor: "pointer", fontWeight: pageSize === n ? 700 : 400 }}
+            >{n}개</button>
+          ))}
+          <span style={{ fontSize: "12px", color: C.muted, marginLeft: "8px" }}>총 {totalCount.toLocaleString()}건</span>
+        </div>
+      )}
+
       <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
         <Table
           headers={subPage === "order-all"
@@ -1134,6 +1162,23 @@ function OrderSection({ subPage }: { subPage: string }) {
           })}
         />
       </div>
+      {/* 페이지네이션 */}
+      {(subPage === "order-all" || subPage === "order-unpaid") && totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", marginTop: "16px", flexWrap: "wrap" }}>
+          <button onClick={() => setPage(1)} disabled={page === 1} style={{ padding: "6px 10px", borderRadius: "6px", border: `1px solid ${C.border}`, background: page === 1 ? "#F9FAFB" : "#fff", cursor: page === 1 ? "not-allowed" : "pointer", color: page === 1 ? C.muted : C.text, fontSize: "13px" }}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: "6px 10px", borderRadius: "6px", border: `1px solid ${C.border}`, background: page === 1 ? "#F9FAFB" : "#fff", cursor: page === 1 ? "not-allowed" : "pointer", color: page === 1 ? C.muted : C.text, fontSize: "13px" }}>‹</button>
+          {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+            const start = Math.max(1, Math.min(page - 3, totalPages - 6));
+            const p = start + i;
+            return p <= totalPages ? (
+              <button key={p} onClick={() => setPage(p)} style={{ padding: "6px 12px", borderRadius: "6px", border: `1.5px solid ${page === p ? C.primary : C.border}`, background: page === p ? C.primary : "#fff", color: page === p ? "#fff" : C.text, fontSize: "13px", cursor: "pointer", fontWeight: page === p ? 700 : 400 }}>{p}</button>
+            ) : null;
+          })}
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: "6px 10px", borderRadius: "6px", border: `1px solid ${C.border}`, background: page === totalPages ? "#F9FAFB" : "#fff", cursor: page === totalPages ? "not-allowed" : "pointer", color: page === totalPages ? C.muted : C.text, fontSize: "13px" }}>›</button>
+          <button onClick={() => setPage(totalPages)} disabled={page === totalPages} style={{ padding: "6px 10px", borderRadius: "6px", border: `1px solid ${C.border}`, background: page === totalPages ? "#F9FAFB" : "#fff", cursor: page === totalPages ? "not-allowed" : "pointer", color: page === totalPages ? C.muted : C.text, fontSize: "13px" }}>»</button>
+        </div>
+      )}
+
       {detailOrderId && (
         <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} />
       )}
@@ -1360,14 +1405,26 @@ function ProductSection({ subPage }: { subPage: string }) {
             <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>대표 이미지</label>
             <div
               onClick={() => createFileRef.current?.click()}
-              style={{ border: `2px dashed ${C.border}`, borderRadius: "8px", padding: "24px", textAlign: "center", cursor: "pointer", background: "#FAFAF9" }}
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.background = "#EEF2FF"; }}
+              onDragLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "#FAFAF9"; }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.style.borderColor = C.border;
+                e.currentTarget.style.background = "#FAFAF9";
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith("image/")) {
+                  const syntheticEvent = { target: { files: e.dataTransfer.files } } as unknown as React.ChangeEvent<HTMLInputElement>;
+                  handleCreateImageChange(syntheticEvent);
+                }
+              }}
+              style={{ border: `2px dashed ${C.border}`, borderRadius: "8px", padding: "24px", textAlign: "center", cursor: "pointer", background: "#FAFAF9", transition: "border-color 0.2s, background 0.2s" }}
             >
               {createImagePreview ? (
                 <img src={createImagePreview} alt="preview" style={{ maxHeight: "120px", maxWidth: "100%", objectFit: "contain", borderRadius: "6px" }} />
               ) : (
                 <div>
                   <div style={{ fontSize: "24px", marginBottom: "8px" }}>🖼️</div>
-                  <div style={{ fontSize: "13px", color: C.muted }}>이미지를 클릭하여 업로드하세요</div>
+                  <div style={{ fontSize: "13px", color: C.muted }}>이미지를 드래그하거나 클릭하여 업로드</div>
                   <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>JPG, PNG, WebP 지원</div>
                 </div>
               )}
@@ -3481,7 +3538,7 @@ export default function AdminPage() {
 
   const renderContent = () => {
     if (activePage === "dashboard") return <DashboardSection />;
-    if (activePage.startsWith("order-") || activePage === "order") return <OrderSection subPage={activePage} />;
+    if (activePage.startsWith("order-") || activePage === "order") return <OrderSection subPage={activePage} onNavigate={setActivePage} />;
     if (activePage.startsWith("product-") || activePage === "product") return <ProductSection subPage={activePage} />;
     if (activePage.startsWith("customer-") || activePage === "customer") return <CustomerSection subPage={activePage} />;
     if (activePage.startsWith("board-") || activePage === "board") return <BoardSection subPage={activePage} />;

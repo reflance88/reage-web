@@ -1,9 +1,9 @@
 /**
  * Supabase(PostgreSQL) 전용 Drizzle 스키마
  *
- * - 현재 Manus 환경의 MySQL 스키마(schema.ts)는 그대로 유지됩니다.
- * - 자체 서버 이전 시 이 파일을 기반으로 Supabase에 마이그레이션합니다.
+ * - 현재 Manus 환경의 MySQL 스키마(schema.ts)와 완전히 동기화된 버전입니다.
  * - drizzle-pg.config.ts 와 함께 사용합니다.
+ * - pnpm db:push:pg 로 Supabase에 적용합니다.
  */
 
 import {
@@ -16,7 +16,6 @@ import {
   boolean,
   timestamp,
   numeric,
-  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -49,6 +48,9 @@ export const linkTargetEnum = pgEnum("link_target", ["_self", "_blank"]);
 export const bottomTextEnum = pgEnum("bottom_text", ["today", "week", "none"]);
 export const deviceTypeEnum = pgEnum("device_type", ["pc", "mobile", "tablet"]);
 export const reviewCategoryEnum = pgEnum("review_category", ["before_after", "device", "education", "event", "etc"]);
+export const productStatusEnum = pgEnum("product_status", ["new", "used", "refurbished"]);
+export const taxTypeEnum = pgEnum("tax_type", ["taxable", "tax_free", "exempt"]);
+export const shippingTypeEnum = pgEnum("shipping_type", ["direct", "warehouse", "other"]);
 
 // ─────────────────────────────────────────────
 // 1. users (회원)
@@ -73,6 +75,9 @@ export const users = pgTable("users", {
   updatedAt:               timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
 // ─────────────────────────────────────────────
 // 2. business_verifications (사업자 인증)
 // ─────────────────────────────────────────────
@@ -93,62 +98,130 @@ export const businessVerifications = pgTable("business_verifications", {
   updatedAt:      timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type BusinessVerification = typeof businessVerifications.$inferSelect;
+export type InsertBusinessVerification = typeof businessVerifications.$inferInsert;
+
 // ─────────────────────────────────────────────
 // 3. products (상품)
 // ─────────────────────────────────────────────
 export const products = pgTable("products", {
-  id:            serial("id").primaryKey(),
-  slug:          varchar("slug", { length: 100 }).notNull().unique(),
-  name:          varchar("name", { length: 200 }).notNull(),
-  description:   text("description"),
-  priceConsumer: numeric("priceConsumer", { precision: 12, scale: 0 }).notNull(),
-  pricePro:      numeric("pricePro", { precision: 12, scale: 0 }).notNull(),
-  isProOnly:     boolean("isProOnly").notNull().default(false),
-  stock:         integer("stock").notNull().default(999),
-  imageUrl:      text("imageUrl"),
-  isActive:      boolean("isActive").notNull().default(true),
-  visible:       boolean("visible").notNull().default(true),
-  createdAt:     timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:     timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+  id:                     serial("id").primaryKey(),
+  slug:                   varchar("slug", { length: 100 }).notNull().unique(),
+  name:                   varchar("name", { length: 200 }).notNull(),
+  description:            text("description"),
+  priceConsumer:          numeric("priceConsumer", { precision: 12, scale: 0 }).notNull(),
+  pricePro:               numeric("pricePro", { precision: 12, scale: 0 }).notNull(),
+  priceMembership:        numeric("priceMembership", { precision: 12, scale: 0 }),
+  isProOnly:              boolean("isProOnly").notNull().default(false),
+  stock:                  integer("stock").notNull().default(999),
+  imageUrl:               text("imageUrl"),
+  isActive:               boolean("isActive").notNull().default(true),
+  visible:                boolean("visible").notNull().default(true),
+  productCode:            varchar("productCode", { length: 50 }),
+  productStatus:          productStatusEnum("productStatus").default("new"),
+  summaryDescription:     varchar("summaryDescription", { length: 255 }),
+  shortDescription:       text("shortDescription"),
+  priceSupply:            numeric("priceSupply", { precision: 12, scale: 0 }),
+  priceConsumerOriginal:  numeric("priceConsumerOriginal", { precision: 12, scale: 0 }),
+  taxType:                taxTypeEnum("taxType").default("taxable"),
+  taxRate:                numeric("taxRate", { precision: 5, scale: 2 }).default("10.00"),
+  shippingType:           shippingTypeEnum("shippingType").default("direct"),
+  weight:                 numeric("weight", { precision: 8, scale: 2 }).default("1.00"),
+  manufacturer:           varchar("manufacturer", { length: 100 }),
+  brand:                  varchar("brand", { length: 100 }),
+  origin:                 varchar("origin", { length: 100 }),
+  seoTitle:               varchar("seoTitle", { length: 200 }),
+  seoDescription:         text("seoDescription"),
+  seoKeywords:            varchar("seoKeywords", { length: 500 }),
+  seoImageAlt:            varchar("seoImageAlt", { length: 200 }),
+  adminMemo:              text("adminMemo"),
+  features:               text("features"),
+  howToUse:               text("howToUse"),
+  ingredients:            text("ingredients"),
+  thumbnailUrl:           text("thumbnailUrl"),
+  detailPageUrl:          varchar("detailPageUrl", { length: 500 }),
+  sortOrder:              integer("sortOrder").default(0),
+  isRecommended:          boolean("isRecommended").notNull().default(false),
+  isNew:                  boolean("isNew").notNull().default(false),
+  createdAt:              timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:              timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type Product = typeof products.$inferSelect;
+export type InsertProduct = typeof products.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 4. orders (주문)
+// 4. design_folders (디자인 보관함 폴더)
+// ─────────────────────────────────────────────
+export const designFolders = pgTable("design_folders", {
+  id:        serial("id").primaryKey(),
+  name:      varchar("name", { length: 200 }).notNull(),
+  parentId:  integer("parentId"),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type DesignFolder = typeof designFolders.$inferSelect;
+
+// ─────────────────────────────────────────────
+// 5. design_files (파일업로더)
+// ─────────────────────────────────────────────
+export const designFiles = pgTable("design_files", {
+  id:           serial("id").primaryKey(),
+  fileName:     varchar("fileName", { length: 300 }).notNull(),
+  fileKey:      text("fileKey").notNull(),
+  fileUrl:      text("fileUrl").notNull(),
+  thumbnailUrl: text("thumbnailUrl"),
+  mediumUrl:    text("mediumUrl"),
+  mimeType:     varchar("mimeType", { length: 100 }),
+  fileSize:     integer("fileSize"),
+  folder:       varchar("folder", { length: 200 }).default("ROOT"),
+  uploadedBy:   integer("uploadedBy").references(() => users.id),
+  createdAt:    timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type DesignFile = typeof designFiles.$inferSelect;
+export type InsertDesignFile = typeof designFiles.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 6. orders (주문)
 // ─────────────────────────────────────────────
 export const orders = pgTable("orders", {
-  id:                   serial("id").primaryKey(),
-  orderId:              varchar("orderId", { length: 100 }).notNull().unique(),
-  userId:               integer("userId").notNull().references(() => users.id),
-  userRoleSnapshot:     userRoleSnapshotEnum("userRoleSnapshot").notNull(),
-  proStatusSnapshot:    proStatusSnapshotEnum("proStatusSnapshot").notNull(),
-  totalAmount:          numeric("totalAmount", { precision: 12, scale: 0 }).notNull(),
-  status:               orderStatusEnum("status").notNull().default("created"),
-  shippingStatus:       shippingStatusEnum("shippingStatus").notNull().default("none"),
-  courierCode:          varchar("courierCode", { length: 50 }),
-  courierName:          varchar("courierName", { length: 100 }),
-  trackingNumber:       varchar("trackingNumber", { length: 100 }),
-  shippedAt:            timestamp("shippedAt", { withTimezone: true }),
-  deliveredAt:          timestamp("deliveredAt", { withTimezone: true }),
-  recipientName:        varchar("recipientName", { length: 100 }),
-  recipientPhone:       varchar("recipientPhone", { length: 30 }),
-  shippingAddress:      text("shippingAddress"),
+  id:                    serial("id").primaryKey(),
+  orderId:               varchar("orderId", { length: 100 }).notNull().unique(),
+  userId:                integer("userId").notNull().references(() => users.id),
+  userRoleSnapshot:      userRoleSnapshotEnum("userRoleSnapshot").notNull(),
+  proStatusSnapshot:     proStatusSnapshotEnum("proStatusSnapshot").notNull(),
+  totalAmount:           numeric("totalAmount", { precision: 12, scale: 0 }).notNull(),
+  status:                orderStatusEnum("status").notNull().default("created"),
+  shippingStatus:        shippingStatusEnum("shippingStatus").notNull().default("none"),
+  courierCode:           varchar("courierCode", { length: 50 }),
+  courierName:           varchar("courierName", { length: 100 }),
+  trackingNumber:        varchar("trackingNumber", { length: 100 }),
+  shippedAt:             timestamp("shippedAt", { withTimezone: true }),
+  deliveredAt:           timestamp("deliveredAt", { withTimezone: true }),
+  recipientName:         varchar("recipientName", { length: 100 }),
+  recipientPhone:        varchar("recipientPhone", { length: 30 }),
+  shippingAddress:       text("shippingAddress"),
   shippingAddressDetail: text("shippingAddressDetail"),
-  shippingZipCode:      varchar("shippingZipCode", { length: 10 }),
-  shippingMemo:         text("shippingMemo"),
-  externalOrderId:      varchar("externalOrderId", { length: 200 }),
-  thirdPartyStatus:     thirdPartyStatusEnum("thirdPartyStatus").notNull().default("none"),
-  thirdPartySyncedAt:   timestamp("thirdPartySyncedAt", { withTimezone: true }),
-  adminMemo:            text("adminMemo"),
-  paymentKey:           varchar("paymentKey", { length: 200 }),
-  paymentMethod:        varchar("paymentMethod", { length: 50 }),
-  paidAt:               timestamp("paidAt", { withTimezone: true }),
-  orderName:            varchar("orderName", { length: 300 }),
-  createdAt:            timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:            timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+  shippingZipCode:       varchar("shippingZipCode", { length: 10 }),
+  shippingMemo:          text("shippingMemo"),
+  externalOrderId:       varchar("externalOrderId", { length: 200 }),
+  thirdPartyStatus:      thirdPartyStatusEnum("thirdPartyStatus").notNull().default("none"),
+  thirdPartySyncedAt:    timestamp("thirdPartySyncedAt", { withTimezone: true }),
+  adminMemo:             text("adminMemo"),
+  paymentKey:            varchar("paymentKey", { length: 200 }),
+  paymentMethod:         varchar("paymentMethod", { length: 50 }),
+  paidAt:                timestamp("paidAt", { withTimezone: true }),
+  orderName:             varchar("orderName", { length: 300 }),
+  createdAt:             timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:             timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type Order = typeof orders.$inferSelect;
+export type InsertOrder = typeof orders.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 5. order_items (주문 상품)
+// 7. order_items (주문 상품)
 // ─────────────────────────────────────────────
 export const orderItems = pgTable("order_items", {
   id:          serial("id").primaryKey(),
@@ -161,8 +234,11 @@ export const orderItems = pgTable("order_items", {
   createdAt:   timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type OrderItem = typeof orderItems.$inferSelect;
+export type InsertOrderItem = typeof orderItems.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 6. order_cancellations (취소 관리)
+// 8. order_cancellations (취소 관리)
 // ─────────────────────────────────────────────
 export const orderCancellations = pgTable("order_cancellations", {
   id:           serial("id").primaryKey(),
@@ -180,28 +256,34 @@ export const orderCancellations = pgTable("order_cancellations", {
   updatedAt:    timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// ─────────────────────────────────────────────
-// 7. order_exchanges (교환 관리)
-// ─────────────────────────────────────────────
-export const orderExchanges = pgTable("order_exchanges", {
-  id:                    serial("id").primaryKey(),
-  orderId:               integer("orderId").notNull().references(() => orders.id),
-  orderItemId:           integer("orderItemId").references(() => orderItems.id),
-  reason:                text("reason"),
-  status:                exchangeStatusEnum("status").notNull().default("requested"),
-  quantity:              integer("quantity"),
-  returnTrackingNumber:  varchar("returnTrackingNumber", { length: 100 }),
-  returnCourierName:     varchar("returnCourierName", { length: 100 }),
-  reshipTrackingNumber:  varchar("reshipTrackingNumber", { length: 100 }),
-  reshipCourierName:     varchar("reshipCourierName", { length: 100 }),
-  adminNote:             text("adminNote"),
-  processedAt:           timestamp("processedAt", { withTimezone: true }),
-  createdAt:             timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:             timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
-});
+export type OrderCancellation = typeof orderCancellations.$inferSelect;
+export type InsertOrderCancellation = typeof orderCancellations.$inferInsert;
 
 // ─────────────────────────────────────────────
-// 8. order_returns (반품 관리)
+// 9. order_exchanges (교환 관리)
+// ─────────────────────────────────────────────
+export const orderExchanges = pgTable("order_exchanges", {
+  id:                   serial("id").primaryKey(),
+  orderId:              integer("orderId").notNull().references(() => orders.id),
+  orderItemId:          integer("orderItemId").references(() => orderItems.id),
+  reason:               text("reason"),
+  status:               exchangeStatusEnum("status").notNull().default("requested"),
+  quantity:             integer("quantity"),
+  returnTrackingNumber: varchar("returnTrackingNumber", { length: 100 }),
+  returnCourierName:    varchar("returnCourierName", { length: 100 }),
+  reshipTrackingNumber: varchar("reshipTrackingNumber", { length: 100 }),
+  reshipCourierName:    varchar("reshipCourierName", { length: 100 }),
+  adminNote:            text("adminNote"),
+  processedAt:          timestamp("processedAt", { withTimezone: true }),
+  createdAt:            timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:            timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type OrderExchange = typeof orderExchanges.$inferSelect;
+export type InsertOrderExchange = typeof orderExchanges.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 10. order_returns (반품 관리)
 // ─────────────────────────────────────────────
 export const orderReturns = pgTable("order_returns", {
   id:                   serial("id").primaryKey(),
@@ -218,30 +300,36 @@ export const orderReturns = pgTable("order_returns", {
   updatedAt:            timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// ─────────────────────────────────────────────
-// 9. order_refunds (환불 관리)
-// ─────────────────────────────────────────────
-export const orderRefunds = pgTable("order_refunds", {
-  id:                   serial("id").primaryKey(),
-  orderId:              integer("orderId").notNull().references(() => orders.id),
-  cancellationId:       integer("cancellationId").references(() => orderCancellations.id),
-  returnId:             integer("returnId").references(() => orderReturns.id),
-  refundMethod:         refundMethodEnum("refundMethod").notNull().default("card"),
-  refundAmount:         numeric("refundAmount", { precision: 12, scale: 0 }).notNull(),
-  refundBank:           varchar("refundBank", { length: 50 }),
-  refundAccount:        varchar("refundAccount", { length: 50 }),
-  refundAccountHolder:  varchar("refundAccountHolder", { length: 100 }),
-  status:               refundStatusEnum("status").notNull().default("pending"),
-  refundType:           refundTypeEnum("refundType").notNull().default("full"),
-  adminNote:            text("adminNote"),
-  processedBy:          integer("processedBy").references(() => users.id),
-  processedAt:          timestamp("processedAt", { withTimezone: true }),
-  createdAt:            timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:            timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
-});
+export type OrderReturn = typeof orderReturns.$inferSelect;
+export type InsertOrderReturn = typeof orderReturns.$inferInsert;
 
 // ─────────────────────────────────────────────
-// 10. card_cancellations (카드 취소 조회)
+// 11. order_refunds (환불 관리)
+// ─────────────────────────────────────────────
+export const orderRefunds = pgTable("order_refunds", {
+  id:                  serial("id").primaryKey(),
+  orderId:             integer("orderId").notNull().references(() => orders.id),
+  cancellationId:      integer("cancellationId").references(() => orderCancellations.id),
+  returnId:            integer("returnId").references(() => orderReturns.id),
+  refundMethod:        refundMethodEnum("refundMethod").notNull().default("card"),
+  refundAmount:        numeric("refundAmount", { precision: 12, scale: 0 }).notNull(),
+  refundBank:          varchar("refundBank", { length: 50 }),
+  refundAccount:       varchar("refundAccount", { length: 50 }),
+  refundAccountHolder: varchar("refundAccountHolder", { length: 100 }),
+  status:              refundStatusEnum("status").notNull().default("pending"),
+  refundType:          refundTypeEnum("refundType").notNull().default("full"),
+  adminNote:           text("adminNote"),
+  processedBy:         integer("processedBy").references(() => users.id),
+  processedAt:         timestamp("processedAt", { withTimezone: true }),
+  createdAt:           timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:           timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type OrderRefund = typeof orderRefunds.$inferSelect;
+export type InsertOrderRefund = typeof orderRefunds.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 12. card_cancellations (카드 취소 조회)
 // ─────────────────────────────────────────────
 export const cardCancellations = pgTable("card_cancellations", {
   id:           serial("id").primaryKey(),
@@ -256,8 +344,11 @@ export const cardCancellations = pgTable("card_cancellations", {
   createdAt:    timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type CardCancellation = typeof cardCancellations.$inferSelect;
+export type InsertCardCancellation = typeof cardCancellations.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 11. third_party_logs (3PL 연동 로그)
+// 13. third_party_logs (3PL 연동 로그)
 // ─────────────────────────────────────────────
 export const thirdPartyLogs = pgTable("third_party_logs", {
   id:           serial("id").primaryKey(),
@@ -270,8 +361,11 @@ export const thirdPartyLogs = pgTable("third_party_logs", {
   createdAt:    timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type ThirdPartyLog = typeof thirdPartyLogs.$inferSelect;
+export type InsertThirdPartyLog = typeof thirdPartyLogs.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 12. admin_audit_logs (관리자 감사 로그)
+// 14. admin_audit_logs (관리자 감사 로그)
 // ─────────────────────────────────────────────
 export const adminAuditLogs = pgTable("admin_audit_logs", {
   id:          serial("id").primaryKey(),
@@ -285,8 +379,11 @@ export const adminAuditLogs = pgTable("admin_audit_logs", {
   createdAt:   timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type AdminAuditLog = typeof adminAuditLogs.$inferSelect;
+export type InsertAdminAuditLog = typeof adminAuditLogs.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 13. gallery_posts (갤러리 게시글)
+// 15. gallery_posts (갤러리 게시글)
 // ─────────────────────────────────────────────
 export const galleryPosts = pgTable("gallery_posts", {
   id:            serial("id").primaryKey(),
@@ -301,8 +398,11 @@ export const galleryPosts = pgTable("gallery_posts", {
   updatedAt:     timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type GalleryPost = typeof galleryPosts.$inferSelect;
+export type InsertGalleryPost = typeof galleryPosts.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 14. magazine_posts (매거진 게시글)
+// 16. magazine_posts (매거진 게시글)
 // ─────────────────────────────────────────────
 export const magazinePosts = pgTable("magazine_posts", {
   id:            serial("id").primaryKey(),
@@ -318,8 +418,11 @@ export const magazinePosts = pgTable("magazine_posts", {
   updatedAt:     timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type MagazinePost = typeof magazinePosts.$inferSelect;
+export type InsertMagazinePost = typeof magazinePosts.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 15. post_images (게시글 이미지)
+// 17. post_images (게시글 이미지)
 // ─────────────────────────────────────────────
 export const postImages = pgTable("post_images", {
   id:        serial("id").primaryKey(),
@@ -332,8 +435,11 @@ export const postImages = pgTable("post_images", {
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type PostImage = typeof postImages.$inferSelect;
+export type InsertPostImage = typeof postImages.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 16. popups (팝업 관리)
+// 18. popups (팝업 관리)
 // ─────────────────────────────────────────────
 export const popups = pgTable("popups", {
   id:              serial("id").primaryKey(),
@@ -354,8 +460,11 @@ export const popups = pgTable("popups", {
   updatedAt:       timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type Popup = typeof popups.$inferSelect;
+export type InsertPopup = typeof popups.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 17. page_views (접속 통계)
+// 19. page_views (접속 통계)
 // ─────────────────────────────────────────────
 export const pageViews = pgTable("page_views", {
   id:         serial("id").primaryKey(),
@@ -369,8 +478,11 @@ export const pageViews = pgTable("page_views", {
   createdAt:  timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type PageView = typeof pageViews.$inferSelect;
+export type InsertPageView = typeof pageViews.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 18. reviews (후기 관리)
+// 20. reviews (후기 관리)
 // ─────────────────────────────────────────────
 export const reviews = pgTable("reviews", {
   id:            serial("id").primaryKey(),
@@ -387,8 +499,11 @@ export const reviews = pgTable("reviews", {
   updatedAt:     timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type Review = typeof reviews.$inferSelect;
+export type InsertReview = typeof reviews.$inferInsert;
+
 // ─────────────────────────────────────────────
-// 19. certified_instructors (인증강사 갤러리)
+// 21. certified_instructors (인증강사 갤러리)
 // ─────────────────────────────────────────────
 export const certifiedInstructors = pgTable("certified_instructors", {
   id:          serial("id").primaryKey(),
@@ -403,46 +518,52 @@ export const certifiedInstructors = pgTable("certified_instructors", {
   updatedAt:   timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// ─────────────────────────────────────────────
-// 20. coupons (쿠폰 관리)
-// ─────────────────────────────────────────────
-export const coupons = pgTable("coupons", {
-  id:                  serial("id").primaryKey(),
-  name:                varchar("name", { length: 200 }).notNull(),
-  description:         text("description"),
-  benefitType:         varchar("benefitType", { length: 50 }).notNull().default("discount_rate"),
-  benefitValue:        integer("benefitValue").notNull().default(0),
-  issueType:           varchar("issueType", { length: 50 }).notNull().default("customer_download"),
-  targetMember:        varchar("targetMember", { length: 20 }).notNull().default("all"),
-  displayTiming:       varchar("displayTiming", { length: 20 }).notNull().default("immediate"),
-  scheduledAt:         timestamp("scheduledAt", { withTimezone: true }),
-  startDate:           timestamp("startDate", { withTimezone: true }),
-  endDate:             timestamp("endDate", { withTimezone: true }),
-  periodType:          varchar("periodType", { length: 30 }).notNull().default("fixed"),
-  validDays:           integer("validDays"),
-  usePc:               boolean("usePc").notNull().default(true),
-  useMobile:           boolean("useMobile").notNull().default(true),
-  applyScope:          varchar("applyScope", { length: 20 }).notNull().default("order"),
-  productScope:        varchar("productScope", { length: 20 }).notNull().default("all"),
-  minAmountType:       varchar("minAmountType", { length: 30 }).notNull().default("none"),
-  minAmount:           integer("minAmount").notNull().default(0),
-  calcBasis:           varchar("calcBasis", { length: 30 }).notNull().default("before_discount"),
-  maxUsagePerOrder:    integer("maxUsagePerOrder").notNull().default(1),
-  paymentMethodLimit:  varchar("paymentMethodLimit", { length: 20 }).notNull().default("none"),
-  imageType:           varchar("imageType", { length: 20 }).notNull().default("default"),
-  imageUrl:            text("imageUrl"),
-  notifyOnLogin:       boolean("notifyOnLogin").notNull().default(false),
-  sendSms:             boolean("sendSms").notNull().default(false),
-  sendEmail:           boolean("sendEmail").notNull().default(false),
-  status:              varchar("status", { length: 20 }).notNull().default("active"),
-  totalIssued:         integer("totalIssued").notNull().default(0),
-  authorId:            integer("authorId").references(() => users.id),
-  createdAt:           timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:           timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
-});
+export type CertifiedInstructor = typeof certifiedInstructors.$inferSelect;
+export type InsertCertifiedInstructor = typeof certifiedInstructors.$inferInsert;
 
 // ─────────────────────────────────────────────
-// 21. coupon_issues (쿠폰 발급 내역)
+// 22. coupons (쿠폰 관리)
+// ─────────────────────────────────────────────
+export const coupons = pgTable("coupons", {
+  id:                 serial("id").primaryKey(),
+  name:               varchar("name", { length: 200 }).notNull(),
+  description:        text("description"),
+  benefitType:        varchar("benefitType", { length: 50 }).notNull().default("discount_rate"),
+  benefitValue:       integer("benefitValue").notNull().default(0),
+  issueType:          varchar("issueType", { length: 50 }).notNull().default("customer_download"),
+  targetMember:       varchar("targetMember", { length: 20 }).notNull().default("all"),
+  displayTiming:      varchar("displayTiming", { length: 20 }).notNull().default("immediate"),
+  scheduledAt:        timestamp("scheduledAt", { withTimezone: true }),
+  startDate:          timestamp("startDate", { withTimezone: true }),
+  endDate:            timestamp("endDate", { withTimezone: true }),
+  periodType:         varchar("periodType", { length: 30 }).notNull().default("fixed"),
+  validDays:          integer("validDays"),
+  usePc:              boolean("usePc").notNull().default(true),
+  useMobile:          boolean("useMobile").notNull().default(true),
+  applyScope:         varchar("applyScope", { length: 20 }).notNull().default("order"),
+  productScope:       varchar("productScope", { length: 20 }).notNull().default("all"),
+  minAmountType:      varchar("minAmountType", { length: 30 }).notNull().default("none"),
+  minAmount:          integer("minAmount").notNull().default(0),
+  calcBasis:          varchar("calcBasis", { length: 30 }).notNull().default("before_discount"),
+  maxUsagePerOrder:   integer("maxUsagePerOrder").notNull().default(1),
+  paymentMethodLimit: varchar("paymentMethodLimit", { length: 20 }).notNull().default("none"),
+  imageType:          varchar("imageType", { length: 20 }).notNull().default("default"),
+  imageUrl:           text("imageUrl"),
+  notifyOnLogin:      boolean("notifyOnLogin").notNull().default(false),
+  sendSms:            boolean("sendSms").notNull().default(false),
+  sendEmail:          boolean("sendEmail").notNull().default(false),
+  status:             varchar("status", { length: 20 }).notNull().default("active"),
+  totalIssued:        integer("totalIssued").notNull().default(0),
+  authorId:           integer("authorId").references(() => users.id),
+  createdAt:          timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type Coupon = typeof coupons.$inferSelect;
+export type InsertCoupon = typeof coupons.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 23. coupon_issues (쿠폰 발급 내역)
 // ─────────────────────────────────────────────
 export const couponIssues = pgTable("coupon_issues", {
   id:           serial("id").primaryKey(),
@@ -456,34 +577,40 @@ export const couponIssues = pgTable("coupon_issues", {
   createdAt:    timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// ─────────────────────────────────────────────
-// 22. discount_codes (할인코드)
-// ─────────────────────────────────────────────
-export const discountCodes = pgTable("discount_codes", {
-  id:                    serial("id").primaryKey(),
-  name:                  varchar("name", { length: 200 }).notNull(),
-  code:                  varchar("code", { length: 100 }).notNull().unique(),
-  discountRate:          integer("discountRate").notNull().default(0),
-  truncateUnit:          integer("truncateUnit").notNull().default(0),
-  maxDiscountPerProduct: integer("maxDiscountPerProduct"),
-  startDate:             timestamp("startDate", { withTimezone: true }),
-  endDate:               timestamp("endDate", { withTimezone: true }),
-  applyScope:            varchar("applyScope", { length: 20 }).notNull().default("all"),
-  minOrderAmountType:    varchar("minOrderAmountType", { length: 20 }).notNull().default("none"),
-  minOrderAmount:        integer("minOrderAmount").notNull().default(0),
-  maxUsageType:          varchar("maxUsageType", { length: 20 }).notNull().default("none"),
-  maxUsageCount:         integer("maxUsageCount"),
-  targetType:            varchar("targetType", { length: 20 }).notNull().default("none"),
-  samePersonLimitType:   varchar("samePersonLimitType", { length: 20 }).notNull().default("none"),
-  samePersonLimitCount:  integer("samePersonLimitCount"),
-  usedCount:             integer("usedCount").notNull().default(0),
-  authorId:              integer("authorId").references(() => users.id),
-  createdAt:             timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:             timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
-});
+export type CouponIssue = typeof couponIssues.$inferSelect;
+export type InsertCouponIssue = typeof couponIssues.$inferInsert;
 
 // ─────────────────────────────────────────────
-// 23. remind_alerts (리마인드 Me 알림)
+// 24. discount_codes (할인코드)
+// ─────────────────────────────────────────────
+export const discountCodes = pgTable("discount_codes", {
+  id:                   serial("id").primaryKey(),
+  name:                 varchar("name", { length: 200 }).notNull(),
+  code:                 varchar("code", { length: 100 }).notNull().unique(),
+  discountRate:         integer("discountRate").notNull().default(0),
+  truncateUnit:         integer("truncateUnit").notNull().default(0),
+  maxDiscountPerProduct: integer("maxDiscountPerProduct"),
+  startDate:            timestamp("startDate", { withTimezone: true }),
+  endDate:              timestamp("endDate", { withTimezone: true }),
+  applyScope:           varchar("applyScope", { length: 20 }).notNull().default("all"),
+  minOrderAmountType:   varchar("minOrderAmountType", { length: 20 }).notNull().default("none"),
+  minOrderAmount:       integer("minOrderAmount").notNull().default(0),
+  maxUsageType:         varchar("maxUsageType", { length: 20 }).notNull().default("none"),
+  maxUsageCount:        integer("maxUsageCount"),
+  targetType:           varchar("targetType", { length: 20 }).notNull().default("none"),
+  samePersonLimitType:  varchar("samePersonLimitType", { length: 20 }).notNull().default("none"),
+  samePersonLimitCount: integer("samePersonLimitCount"),
+  usedCount:            integer("usedCount").notNull().default(0),
+  authorId:             integer("authorId").references(() => users.id),
+  createdAt:            timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:            timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type DiscountCode = typeof discountCodes.$inferSelect;
+export type InsertDiscountCode = typeof discountCodes.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 25. remind_alerts (리마인드 Me 알림)
 // ─────────────────────────────────────────────
 export const remindAlerts = pgTable("remind_alerts", {
   id:               serial("id").primaryKey(),
@@ -516,6 +643,27 @@ export const remindAlerts = pgTable("remind_alerts", {
   updatedAt:        timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export type RemindAlert = typeof remindAlerts.$inferSelect;
+export type InsertRemindAlert = typeof remindAlerts.$inferInsert;
+
+// ─────────────────────────────────────────────
+// 26. excel_templates (엑셀 양식 관리)
+// ─────────────────────────────────────────────
+export const excelTemplates = pgTable("excel_templates", {
+  id:          serial("id").primaryKey(),
+  name:        varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  isDefault:   boolean("isDefault").notNull().default(false),
+  columns:     text("columns").notNull(),
+  sortConfig:  text("sortConfig"),
+  authorId:    integer("authorId").references(() => users.id),
+  createdAt:   timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:   timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ExcelTemplate = typeof excelTemplates.$inferSelect;
+export type InsertExcelTemplate = typeof excelTemplates.$inferInsert;
+
 // ─────────────────────────────────────────────
 // Relations (Drizzle ORM 관계 정의)
 // ─────────────────────────────────────────────
@@ -524,6 +672,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
   businessVerifications: many(businessVerifications),
   couponIssues: many(couponIssues),
+  designFiles: many(designFiles),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -547,4 +696,8 @@ export const couponsRelations = relations(coupons, ({ many }) => ({
 export const couponIssuesRelations = relations(couponIssues, ({ one }) => ({
   coupon: one(coupons, { fields: [couponIssues.couponId], references: [coupons.id] }),
   user: one(users, { fields: [couponIssues.userId], references: [users.id] }),
+}));
+
+export const designFilesRelations = relations(designFiles, ({ one }) => ({
+  uploader: one(users, { fields: [designFiles.uploadedBy], references: [users.id] }),
 }));

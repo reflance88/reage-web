@@ -267,7 +267,7 @@ export const appRouter = router({
       .input(z.object({ name: z.string(), phone: z.string() }))
       .mutation(async ({ input }) => {
         const { getDb } = await import("./db");
-        const { users: usersTable } = await import("../drizzle/schema");
+        const { users: usersTable } = await import("../drizzle/schema-pg");
         const { and, eq } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -467,7 +467,7 @@ export const appRouter = router({
         let userEmail = '';
         let userName = '';
         if (db) {
-          const { users } = await import("../drizzle/schema");
+          const { users } = await import("../drizzle/schema-pg");
           const { eq } = await import("drizzle-orm");
           await db.update(users).set({ proVerificationStatus: "pending" }).where(eq(users.id, ctx.user.id));
           const userRow = await db.select({ email: users.email, name: users.name }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
@@ -1622,7 +1622,7 @@ export const appRouter = router({
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-        const { users } = await import("../drizzle/schema");
+        const { users } = await import("../drizzle/schema-pg");
         const { eq } = await import("drizzle-orm");
         const targetUser = await getUserById(input.userId);
         if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "사용자를 찾을 수 없습니다." });

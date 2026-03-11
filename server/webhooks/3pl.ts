@@ -20,7 +20,7 @@
 
 import type { Express, Request, Response } from "express";
 import { getDb } from "../db";
-import { orders, thirdPartyLogs } from "../../drizzle/schema";
+import { orders, thirdPartyLogs } from "../../drizzle/schema-pg";
 import { eq } from "drizzle-orm";
 
 interface ThreePLShippingEvent {

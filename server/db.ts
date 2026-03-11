@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, or, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/node-postgres";
 import {
   AdminAuditLog,
   BusinessVerification,
@@ -43,15 +43,16 @@ import {
   couponIssues,
   discountCodes,
   remindAlerts,
-} from "../drizzle/schema";
+} from "../drizzle/schema-pg";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  const url = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+  if (!_db && url) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _db = drizzle(url);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -88,7 +89,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
+    await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;
@@ -567,7 +568,12 @@ export async function searchOrders(opts: {
       ? itemQuery.where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(limit).offset(offset)
       : itemQuery.orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
 
-    return { items: rows, total: rows.length, viewType: "item" as const };
+    // totalCount for pagination
+    let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id)).leftJoin(users, eq(orders.userId, users.id));
+    const [countRow] = await (conditions.length > 0 ? (countQuery as any).where(and(...conditions)) : countQuery);
+    const totalCount = Number(countRow?.count ?? rows.length);
+
+    return { items: rows, total: totalCount, viewType: "item" as const };
   }
 
   // 주문번호별 조회 (default)
@@ -611,7 +617,12 @@ export async function searchOrders(opts: {
     ? query.where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(limit).offset(offset)
     : query.orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
 
-  return { items: rows, total: rows.length, viewType: "order" as const };
+  // totalCount for pagination
+  let countQuery2 = db.select({ count: sql<number>`COUNT(*)` }).from(orders).leftJoin(users, eq(orders.userId, users.id));
+  const [countRow2] = await (conditions.length > 0 ? (countQuery2 as any).where(and(...conditions)) : countQuery2);
+  const totalCount2 = Number(countRow2?.count ?? rows.length);
+
+  return { items: rows, total: totalCount2, viewType: "order" as const };
 }
 
 // ─── Dashboard Summary ─────────────────────────────────────────────────────────
@@ -717,12 +728,12 @@ export async function getDailyOrderStats(days = 30) {
       COALESCE(SUM(total_amount), 0) AS revenue
     FROM orders
     WHERE status = 'paid'
-      AND paid_at >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+      AND paid_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
     GROUP BY DATE(paid_at)
     ORDER BY day ASC
   `);
 
-  return (rows[0] as unknown as any[]).map((r: any) => ({
+  return (rows.rows as any[]).map((r: any) => ({
     day: String(r.day),
     orderCount: Number(r.order_count),
     revenue: Number(r.revenue),
@@ -739,12 +750,12 @@ export async function getDailySignupStats(days = 30) {
       DATE(created_at) AS day,
       COUNT(*) AS signup_count
     FROM users
-    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+    WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
     GROUP BY DATE(created_at)
     ORDER BY day ASC
   `);
 
-  return (rows[0] as unknown as any[]).map((r: any) => ({
+  return (rows.rows as any[]).map((r: any) => ({
     day: String(r.day),
     signupCount: Number(r.signup_count),
   }));
@@ -762,7 +773,7 @@ export async function getVerificationStatusStats() {
   `);
 
   const result = { pending: 0, approved: 0, rejected: 0 };
-  for (const r of (rows[0] as unknown as any[])) {
+  for (const r of (rows.rows as any[])) {
     const s = r.status as keyof typeof result;
     if (s in result) result[s] = Number(r.cnt);
   }
@@ -784,7 +795,7 @@ import {
   postImages,
   popups,
   pageViews,
-} from "../drizzle/schema";
+} from "../drizzle/schema-pg";
 
 export async function getGalleryPosts(opts: { page?: number; limit?: number; publishedOnly?: boolean } = {}) {
   const db = await getDb();
@@ -971,12 +982,12 @@ export async function getPageViewStats(days = 30) {
 
   const [totalRow] = await db.select({ count: sql<number>`COUNT(*)` })
     .from(pageViews)
-    .where(sql`${pageViews.createdAt} >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`);
+    .where(sql`${pageViews.createdAt} >= NOW() - INTERVAL '1 day' * ${days}`);
 
   const byDayRows = await db.execute(sql`
     SELECT DATE(created_at) AS day, COUNT(*) AS cnt, device_type
     FROM page_views
-    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+    WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
     GROUP BY DATE(created_at), device_type
     ORDER BY day ASC
   `);
@@ -984,42 +995,42 @@ export async function getPageViewStats(days = 30) {
   const byDeviceRows = await db.execute(sql`
     SELECT device_type, COUNT(*) AS cnt
     FROM page_views
-    WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+    WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
     GROUP BY device_type
   `);
 
   const topPagesRows = await db.execute(sql`
     SELECT path, COUNT(*) AS cnt
     FROM page_views
-    WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+    WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
     GROUP BY path
     ORDER BY cnt DESC
     LIMIT 10
   `);
 
   const byHourRows = await db.execute(sql`
-    SELECT HOUR(created_at) AS hour, COUNT(*) AS cnt
+    SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt
     FROM page_views
-    WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
-    GROUP BY HOUR(created_at)
+    WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
+    GROUP BY EXTRACT(HOUR FROM created_at)::int
     ORDER BY hour ASC
   `);
 
   const byDayOfWeekRows = await db.execute(sql`
-    SELECT DAYOFWEEK(created_at) AS dow, COUNT(*) AS cnt
+    SELECT EXTRACT(DOW FROM created_at)::int + 1 AS dow, COUNT(*) AS cnt
     FROM page_views
-    WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
-    GROUP BY DAYOFWEEK(created_at)
+    WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
+    GROUP BY EXTRACT(DOW FROM created_at)::int + 1
     ORDER BY dow ASC
   `);
 
   return {
     total: Number(totalRow?.count ?? 0),
-    byDay: (byDayRows[0] as unknown as any[]).map((r: any) => ({ day: String(r.day), count: Number(r.cnt), device: r.device_type })),
-    byDevice: (byDeviceRows[0] as unknown as any[]).map((r: any) => ({ device: r.device_type, count: Number(r.cnt) })),
-    topPages: (topPagesRows[0] as unknown as any[]).map((r: any) => ({ path: r.path, count: Number(r.cnt) })),
-    byHour: (byHourRows[0] as unknown as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
-    byDayOfWeek: (byDayOfWeekRows[0] as unknown as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
+    byDay: (byDayRows.rows as any[]).map((r: any) => ({ day: String(r.day), count: Number(r.cnt), device: r.device_type })),
+    byDevice: (byDeviceRows.rows as any[]).map((r: any) => ({ device: r.device_type, count: Number(r.cnt) })),
+    topPages: (topPagesRows.rows as any[]).map((r: any) => ({ path: r.path, count: Number(r.cnt) })),
+    byHour: (byHourRows.rows as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
+    byDayOfWeek: (byDayOfWeekRows.rows as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
   };
 }
 
@@ -1030,8 +1041,8 @@ export async function getSalesStats(period: "day" | "week" | "month" = "day", da
   if (!db) return [];
 
   let groupBy = "DATE(paid_at)";
-  if (period === "week") groupBy = "YEARWEEK(paid_at, 1)";
-  if (period === "month") groupBy = "DATE_FORMAT(paid_at, '%Y-%m')";
+  if (period === "week") groupBy = "TO_CHAR(paid_at, 'IYYY-IW')";
+  if (period === "month") groupBy = "TO_CHAR(paid_at, 'YYYY-MM')";
 
   const rows = await db.execute(sql`
     SELECT
@@ -1040,12 +1051,12 @@ export async function getSalesStats(period: "day" | "week" | "month" = "day", da
       COALESCE(SUM(total_amount), 0) AS revenue
     FROM orders
     WHERE status = 'paid'
-      AND paid_at >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+      AND paid_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
     GROUP BY ${sql.raw(groupBy)}
     ORDER BY period_key ASC
   `);
 
-  return (rows[0] as unknown as any[]).map((r: any) => ({
+  return (rows.rows as any[]).map((r: any) => ({
     periodKey: String(r.period_key),
     orderCount: Number(r.order_count),
     revenue: Number(r.revenue),
@@ -1067,7 +1078,7 @@ export async function getProductSalesStats() {
   `);
 
   return {
-    topSelling: (topSellingRows[0] as unknown as any[]).map((r: any) => ({
+    topSelling: (topSellingRows.rows as any[]).map((r: any) => ({
       productId: Number(r.product_id),
       productName: String(r.product_name),
       totalQty: Number(r.total_qty),
@@ -1088,25 +1099,25 @@ export async function getCustomerStats() {
   `);
 
   const byDowRows = await db.execute(sql`
-    SELECT DAYOFWEEK(created_at) AS dow, COUNT(*) AS cnt
+    SELECT EXTRACT(DOW FROM created_at)::int + 1 AS dow, COUNT(*) AS cnt
     FROM orders
     WHERE status = 'paid'
-    GROUP BY DAYOFWEEK(created_at)
+    GROUP BY EXTRACT(DOW FROM created_at)::int + 1
     ORDER BY dow ASC
   `);
 
   const byHourRows = await db.execute(sql`
-    SELECT HOUR(created_at) AS hour, COUNT(*) AS cnt
+    SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt
     FROM orders
     WHERE status = 'paid'
-    GROUP BY HOUR(created_at)
+    GROUP BY EXTRACT(HOUR FROM created_at)::int
     ORDER BY hour ASC
   `);
 
   return {
-    byMemberRole: (byMemberRoleRows[0] as unknown as any[]).map((r: any) => ({ role: r.member_role, count: Number(r.cnt) })),
-    byDayOfWeek: (byDowRows[0] as unknown as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
-    byHour: (byHourRows[0] as unknown as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
+    byMemberRole: (byMemberRoleRows.rows as any[]).map((r: any) => ({ role: r.member_role, count: Number(r.cnt) })),
+    byDayOfWeek: (byDowRows.rows as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
+    byHour: (byHourRows.rows as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
   };
 }
 
@@ -1773,7 +1784,7 @@ export async function generateNextProductCode(): Promise<string> {
 export async function getDesignFiles(folder?: string) {
   const db = await getDb();
   if (!db) return [];
-  const { designFiles } = await import('../drizzle/schema');
+  const { designFiles } = await import('../drizzle/schema-pg');
   const { eq } = await import('drizzle-orm');
   if (folder) {
     return db.select().from(designFiles).where(eq(designFiles.folder, folder)).orderBy(designFiles.createdAt);
@@ -1794,7 +1805,7 @@ export async function createDesignFile(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  const { designFiles } = await import('../drizzle/schema');
+  const { designFiles } = await import('../drizzle/schema-pg');
   await db.insert(designFiles).values({
     fileName: data.fileName,
     fileKey: data.fileKey,
@@ -1814,7 +1825,7 @@ export async function createDesignFile(data: {
 export async function deleteDesignFile(id: number) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  const { designFiles } = await import('../drizzle/schema');
+  const { designFiles } = await import('../drizzle/schema-pg');
   const { eq } = await import('drizzle-orm');
   const result = await db.select().from(designFiles).where(eq(designFiles.id, id)).limit(1);
   await db.delete(designFiles).where(eq(designFiles.id, id));
@@ -1824,21 +1835,21 @@ export async function deleteDesignFile(id: number) {
 export async function getDesignFolders() {
   const db = await getDb();
   if (!db) return [];
-  const { designFolders } = await import('../drizzle/schema');
+  const { designFolders } = await import('../drizzle/schema-pg');
   return db.select().from(designFolders).orderBy(designFolders.name);
 }
 
 export async function createDesignFolder(name: string, parentId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  const { designFolders } = await import('../drizzle/schema');
+  const { designFolders } = await import('../drizzle/schema-pg');
   await db.insert(designFolders).values({ name, parentId: parentId ?? null });
 }
 
 export async function deleteDesignFolder(id: number) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  const { designFolders } = await import('../drizzle/schema');
+  const { designFolders } = await import('../drizzle/schema-pg');
   const { eq } = await import('drizzle-orm');
   await db.delete(designFolders).where(eq(designFolders.id, id));
 }
@@ -1847,14 +1858,14 @@ export async function deleteDesignFolder(id: number) {
 export async function getExcelTemplates() {
   const db = await getDb();
   if (!db) return [];
-  const { excelTemplates } = await import('../drizzle/schema');
+  const { excelTemplates } = await import('../drizzle/schema-pg');
   return db.select().from(excelTemplates).orderBy(excelTemplates.createdAt);
 }
 
 export async function getExcelTemplate(id: number) {
   const db = await getDb();
   if (!db) return null;
-  const { excelTemplates } = await import('../drizzle/schema');
+  const { excelTemplates } = await import('../drizzle/schema-pg');
   const { eq } = await import('drizzle-orm');
   const rows = await db.select().from(excelTemplates).where(eq(excelTemplates.id, id)).limit(1);
   return rows[0] ?? null;
@@ -1870,7 +1881,7 @@ export async function createExcelTemplate(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  const { excelTemplates } = await import('../drizzle/schema');
+  const { excelTemplates } = await import('../drizzle/schema-pg');
   await db.insert(excelTemplates).values({
     name: data.name,
     description: data.description ?? null,
@@ -1890,7 +1901,7 @@ export async function updateExcelTemplate(id: number, data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  const { excelTemplates } = await import('../drizzle/schema');
+  const { excelTemplates } = await import('../drizzle/schema-pg');
   const { eq } = await import('drizzle-orm');
   const update: Record<string, unknown> = {};
   if (data.name !== undefined) update.name = data.name;
@@ -1904,7 +1915,7 @@ export async function updateExcelTemplate(id: number, data: {
 export async function deleteExcelTemplate(id: number) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
-  const { excelTemplates } = await import('../drizzle/schema');
+  const { excelTemplates } = await import('../drizzle/schema-pg');
   const { eq } = await import('drizzle-orm');
   await db.delete(excelTemplates).where(eq(excelTemplates.id, id));
 }
