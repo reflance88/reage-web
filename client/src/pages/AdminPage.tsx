@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import RichTextEditor from "@/components/RichTextEditor";
+import DropzoneUploader from "@/components/DropzoneUploader";
 import PromotionSection from "./PromotionSection";
 import ProductDetailPage from "./ProductDetailPage";
 import { useState, useMemo, useRef, useEffect } from "react";
@@ -1290,7 +1291,6 @@ function ProductSection({ subPage }: { subPage: string }) {
   const [createImageFile, setCreateImageFile] = useState<File | null>(null);
   const [createImagePreview, setCreateImagePreview] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const createFileRef = useRef<HTMLInputElement>(null);
 
   const createProductMutation = trpc.admin.createProduct.useMutation({
     onSuccess: () => {
@@ -1310,15 +1310,6 @@ function ProductSection({ subPage }: { subPage: string }) {
     onSuccess: () => { toast.success("상품이 삭제되었습니다."); utils.admin.allProducts.invalidate(); },
     onError: (e) => toast.error(e.message),
   });
-
-  const handleCreateImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCreateImageFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setCreateImagePreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-  };
 
   const handleCreateSubmit = async () => {
     if (!createForm.name || !createForm.slug || !createForm.priceConsumer) {
@@ -1436,33 +1427,18 @@ function ProductSection({ subPage }: { subPage: string }) {
           </div>
           <div style={{ marginBottom: "16px" }}>
             <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>대표 이미지</label>
-            <div
-              onClick={() => createFileRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.background = "#EEF2FF"; }}
-              onDragLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "#FAFAF9"; }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.currentTarget.style.borderColor = C.border;
-                e.currentTarget.style.background = "#FAFAF9";
-                const file = e.dataTransfer.files[0];
-                if (file && file.type.startsWith("image/")) {
-                  const syntheticEvent = { target: { files: e.dataTransfer.files } } as unknown as React.ChangeEvent<HTMLInputElement>;
-                  handleCreateImageChange(syntheticEvent);
-                }
+            <DropzoneUploader
+              preview={createImagePreview}
+              onFileSelect={(file) => {
+                setCreateImageFile(file);
+                const reader = new FileReader();
+                reader.onload = (ev) => setCreateImagePreview(ev.target?.result as string);
+                reader.readAsDataURL(file);
               }}
-              style={{ border: `2px dashed ${C.border}`, borderRadius: "8px", padding: "24px", textAlign: "center", cursor: "pointer", background: "#FAFAF9", transition: "border-color 0.2s, background 0.2s" }}
-            >
-              {createImagePreview ? (
-                <img src={createImagePreview} alt="preview" style={{ maxHeight: "120px", maxWidth: "100%", objectFit: "contain", borderRadius: "6px" }} />
-              ) : (
-                <div>
-                  <div style={{ fontSize: "24px", marginBottom: "8px" }}>🖼️</div>
-                  <div style={{ fontSize: "13px", color: C.muted }}>이미지를 드래그하거나 클릭하여 업로드</div>
-                  <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>JPG, PNG, WebP 지원</div>
-                </div>
-              )}
-            </div>
-            <input ref={createFileRef} type="file" accept="image/*" onChange={handleCreateImageChange} style={{ display: "none" }} />
+              onClear={() => { setCreateImageFile(null); setCreateImagePreview(null); }}
+              uploading={uploadImageMutation.isPending}
+              height={160}
+            />
           </div>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px" }}>
             <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
@@ -2081,18 +2057,7 @@ function PostEditor({
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState(post?.coverImageUrl ?? "");
   const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
   const uploadImage = trpc.admin.uploadPostImage.useMutation();
-
-  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCoverFile(file);
-    const reader = new FileReader();
-    reader.onload = ev => setCoverPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-  };
 
   // 리치 에디터 내 이미지 업로드 핸들러
   const handleEditorImageUpload = async (file: File): Promise<string> => {
@@ -2153,14 +2118,18 @@ function PostEditor({
         )}
         <div>
           <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>커버 이미지</label>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            {coverPreview && <img src={coverPreview} alt="cover" style={{ width: "120px", height: "80px", objectFit: "cover", borderRadius: "8px", border: `1px solid ${C.border}` }} />}
-            <div>
-              <input ref={fileRef} type="file" accept="image/*" onChange={handleCoverChange} style={{ display: "none" }} />
-              <Btn size="sm" variant="outline" onClick={() => fileRef.current?.click()}>이미지 선택</Btn>
-              <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>JPG, PNG, WebP / 10MB 이하</div>
-            </div>
-          </div>
+          <DropzoneUploader
+            preview={coverPreview || null}
+            onFileSelect={(file) => {
+              setCoverFile(file);
+              const reader = new FileReader();
+              reader.onload = ev => setCoverPreview(ev.target?.result as string);
+              reader.readAsDataURL(file);
+            }}
+            onClear={() => { setCoverFile(null); setCoverPreview(""); }}
+            uploading={uploading && !!coverFile}
+            height={160}
+          />
         </div>
         <div>
           <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>내용</label>
@@ -2200,12 +2169,13 @@ function InstructorSection() {
   const [nameInput, setNameInput] = useState("");
   const [descInput, setDescInput] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<null | number>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
 
   const list = trpc.adminExt.certifiedInstructorList.useQuery({ page: 1, limit: 200 });
   const uploadImage = trpc.adminExt.uploadCertifiedInstructorImage.useMutation();
   const createItem = trpc.adminExt.createCertifiedInstructor.useMutation({
-    onSuccess: () => { toast.success("인증강사 사진이 등록되었습니다."); list.refetch(); setNameInput(""); setDescInput(""); if (fileRef.current) fileRef.current.value = ""; },
+    onSuccess: () => { toast.success("인증강사 사진이 등록되었습니다."); list.refetch(); setNameInput(""); setDescInput(""); setPendingFile(null); setPendingPreview(null); },
     onError: (e: any) => toast.error(e.message),
   });
   const deleteItem = trpc.adminExt.deleteCertifiedInstructor.useMutation({
@@ -2215,25 +2185,22 @@ function InstructorSection() {
     onSuccess: () => { list.refetch(); },
   });
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast.error("파일 크기가 10MB를 초과합니다."); return; }
+  const handleUpload = async () => {
+    if (!pendingFile) { toast.error("이미지를 먼저 선택해주세요."); return; }
     setUploading(true);
     try {
       const reader = new FileReader();
       const base64 = await new Promise<string>((res, rej) => {
         reader.onload = ev => res((ev.target?.result as string).split(",")[1]);
         reader.onerror = rej;
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(pendingFile);
       });
-      const { url, key } = await uploadImage.mutateAsync({ fileBase64: base64, fileName: file.name, fileMimeType: file.type });
+      const { url, key } = await uploadImage.mutateAsync({ fileBase64: base64, fileName: pendingFile.name, fileMimeType: pendingFile.type });
       await createItem.mutateAsync({ imageUrl: url, imageKey: key, name: nameInput || undefined, description: descInput || undefined, isPublished: true });
     } catch(err) {
       toast.error("업로드 실패. 다시 시도해주세요.");
     } finally {
       setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
@@ -2262,13 +2229,30 @@ function InstructorSection() {
             style={{ flex: 2, minWidth: "200px", padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: "8px", fontSize: "13px" }}
           />
         </div>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 20px", background: C.primary, color: "#fff", borderRadius: "8px", cursor: uploading ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600, opacity: uploading ? 0.7 : 1 }}>
-            {uploading ? "업로드 중..." : "파일 선택"}
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleUpload} disabled={uploading} />
-          </label>
-          <span style={{ fontSize: "12px", color: C.muted }}>JPG, PNG, WEBP · 최대 10MB</span>
-        </div>
+        <DropzoneUploader
+          preview={pendingPreview}
+          onFileSelect={(file) => {
+            setPendingFile(file);
+            const reader = new FileReader();
+            reader.onload = ev => setPendingPreview(ev.target?.result as string);
+            reader.readAsDataURL(file);
+          }}
+          onClear={() => { setPendingFile(null); setPendingPreview(null); }}
+          uploading={uploading}
+          height={140}
+          hint="JPG, PNG, WEBP · 최대 10MB"
+        />
+        {pendingFile && (
+          <div style={{ marginTop: "12px" }}>
+            <button
+              onClick={handleUpload}
+              disabled={uploading}
+              style={{ padding: "10px 28px", background: C.primary, color: "#fff", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.7 : 1 }}
+            >
+              {uploading ? "등록 중..." : "인증강사 등록"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 리스트 */}

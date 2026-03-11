@@ -42,7 +42,30 @@
     .detail-tag { font-size: 11px; font-weight: 700; letter-spacing: .15em; color: var(--gold); margin-bottom: 12px; text-transform: uppercase; }
     .detail-title { font-family: 'Noto Serif KR', serif; font-size: 32px; font-weight: 700; color: var(--charcoal); line-height: 1.4; margin-bottom: 16px; }
     .detail-date { font-size: 13px; color: var(--muted); margin-bottom: 40px; }
-    .detail-content { font-size: 16px; line-height: 1.9; color: var(--text); white-space: pre-wrap; margin-bottom: 40px; }
+    .detail-content { font-size: 16px; line-height: 1.9; color: var(--text); margin-bottom: 40px; }
+    /* 리치 에디터 HTML 콘텐츠 스타일 */
+    .detail-content h1, .detail-content h2, .detail-content h3 { font-family: 'Noto Serif KR', serif; font-weight: 700; color: var(--charcoal); margin: 1.5em 0 0.5em; line-height: 1.4; }
+    .detail-content h1 { font-size: 28px; }
+    .detail-content h2 { font-size: 22px; }
+    .detail-content h3 { font-size: 18px; }
+    .detail-content p { margin: 0.8em 0; }
+    .detail-content ul, .detail-content ol { padding-left: 1.5em; margin: 0.8em 0; }
+    .detail-content li { margin: 0.3em 0; }
+    .detail-content strong { font-weight: 700; }
+    .detail-content em { font-style: italic; }
+    .detail-content u { text-decoration: underline; }
+    .detail-content s { text-decoration: line-through; }
+    .detail-content blockquote { border-left: 4px solid var(--gold); padding: 12px 20px; margin: 1.2em 0; background: rgba(200,162,106,0.08); color: var(--muted); font-style: italic; border-radius: 0 8px 8px 0; }
+    .detail-content img { max-width: 100%; border-radius: 10px; margin: 1em 0; display: block; }
+    .detail-content a { color: var(--wine); text-decoration: underline; }
+    .detail-content hr { border: none; border-top: 1px solid var(--light-gray); margin: 2em 0; }
+    .detail-content pre { background: #f4f4f4; border-radius: 6px; padding: 12px 16px; overflow-x: auto; font-size: 14px; margin: 1em 0; }
+    .detail-content code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
+    .detail-content table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    .detail-content th, .detail-content td { border: 1px solid var(--light-gray); padding: 8px 12px; text-align: left; }
+    .detail-content th { background: var(--light-gray); font-weight: 600; }
+    .detail-content [style*="text-align: center"], .detail-content .ProseMirror-center { text-align: center; }
+    .detail-content [style*="text-align: right"], .detail-content .ProseMirror-right { text-align: right; }
     .divider { border: none; border-top: 1px solid var(--light-gray); margin: 48px 0; }
 
     /* ─── 이미지 슬라이더 ─── */
@@ -245,8 +268,10 @@ function renderPost(post) {
     `;
   }
 
+  // 리치 에디터 HTML 콘텐츠인지 일반 텍스트인지 판별
+  const isHtmlContent = post.content && (post.content.trim().startsWith('<') || post.content.includes('<p>') || post.content.includes('<h'));
   const contentHtml = post.content
-    ? `<div class="detail-content">${escapeHtml(post.content)}</div>`
+    ? `<div class="detail-content">${isHtmlContent ? post.content : escapeHtml(post.content).replace(/\n/g, '<br>')}</div>`
     : '';
 
   document.getElementById('detail-content').innerHTML = `

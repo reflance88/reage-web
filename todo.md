@@ -482,3 +482,13 @@
 - [x] searchOrders db 함수 및 라우터에 sortCol/sortDir 파라미터 추가
 - [x] Supabase PostgreSQL 연결 전환 (drizzle-orm/node-postgres, schema-pg.ts)
 - [x] TypeScript 오류 0개, vitest 33 passed / 1 skipped
+
+## 드래그앤드롭 업로더 + 상세 페이지 HTML 렌더링 (2026-03-11)
+
+- [x] 드래그앤드롭 이미지 업로더 컴포넌트(DropzoneUploader) 구현
+- [x] 상품 등록 폼에 드래그앤드롭 업로더 적용
+- [x] 갤러리 글 작성 폼에 드래그앤드롭 업로더 적용
+- [x] 매거진 글 작성 폼에 드래그앤드롭 업로더 적용
+- [x] 인증강사 등록 폼에 드래그앤드롭 업로더 적용
+- [x] gallery-detail.html 리치 에디터 HTML 콘텐츠 렌더링 구현
+- [x] magazine-detail.html 리치 에디터 HTML 콘텐츠 렌더링 구현
