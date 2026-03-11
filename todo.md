@@ -492,3 +492,7 @@
 - [x] 인증강사 등록 폼에 드래그앤드롭 업로더 적용
 - [x] gallery-detail.html 리치 에디터 HTML 콘텐츠 렌더링 구현
 - [x] magazine-detail.html 리치 에디터 HTML 콘텐츠 렌더링 구현
+
+## OAuth 로그인 에러 수정 (2026-03-11)
+
+- [ ] OAuth callback failed 오류 원인 파악 및 수정
