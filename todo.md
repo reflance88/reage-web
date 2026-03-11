@@ -415,5 +415,13 @@
 
 - [x] ProductDetailPage.tsx features 편집을 구조화된 폼으로 개선 (아이콘/제목/설명 각각 입력 필드) - 이미 구현되어 있음
 - [x] reage-device.html 크림 제품 목록 DB 연동 (product.list API 호출하여 동적 렌더링, 등급별 가격 표시)
-- [ ] 디자인 보관함 이미지 업로드 시 자동 리사이징 (썸네일/중간/원본 3가지 사이즈)
-- [ ] sharp 패키지 설치 및 서버 이미지 리사이징 로직 구현
+- [x] 디자인 보관함 이미지 업로드 시 자동 리사이징 (썸네일 300px/중간 800px/원본 3가지 사이즈) + DB 저장
+- [x] sharp 패키지 설치 및 서버 이미지 리사이징 로직 구현 (이미 설치되어 있음, 사이즈 업그레이드 완료)
+
+## 2026-03-11 이미지 리사이징 + shop DB 연동 + 헤더 드롭다운 DB 연동
+
+- [x] 이미지 자동 리사이징 사이즈 업그레이드 (썸네일 300px crop, 중간 800px 비율유지) + DB에 thumbnailUrl/mediumUrl 저장
+- [x] drizzle/schema.ts designFiles 테이블에 thumbnailUrl/mediumUrl 컨럼 추가 + DB 마이그레이션 (0013)
+- [x] reage-device.html 제품소개 드롭다운 DB 연동 (product-nav-dropdown id 추가)
+- [x] 전체 HTML 헤더 제품소개 드롭다운 DB 연동 (header-products.js 공통 스크립트 13개 파일 적용)
+- [x] reage-device.html 크림 제품 목록 DB 연동 - 이미 완료되어 있음 (등급별 가격 표시 포함)

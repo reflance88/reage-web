@@ -138,6 +138,8 @@ export const designFiles = mysqlTable("design_files", {
   fileName: varchar("fileName", { length: 300 }).notNull(),
   fileKey: text("fileKey").notNull(),
   fileUrl: text("fileUrl").notNull(),
+  thumbnailUrl: text("thumbnailUrl"),
+  mediumUrl: text("mediumUrl"),
   mimeType: varchar("mimeType", { length: 100 }),
   fileSize: int("fileSize"),
   folder: varchar("folder", { length: 200 }).default("ROOT"),

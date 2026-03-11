@@ -1884,24 +1884,26 @@ export const appRouter = router({
         const key = `design-files/${suffix}-${input.fileName}`;
         const { url } = await storagePut(key, buffer, input.contentType);
 
-        // 이미지인 경우 썸네일(150px), 중간(600px) 자동 생성
+        // 이미지인 경우 썸네일(300px crop), 중간(800px 비율유지) 자동 생성 + DB 저장
         let thumbnailUrl: string | undefined;
         let mediumUrl: string | undefined;
         if (isImage) {
           try {
+            // 썸네일: 300×300 crop (목록/피드용)
             const thumbBuffer = await sharp(buffer)
-              .resize(150, 150, { fit: 'cover', withoutEnlargement: true })
-              .jpeg({ quality: 80 })
+              .resize(300, 300, { fit: 'cover', withoutEnlargement: true })
+              .jpeg({ quality: 82 })
               .toBuffer();
-            const thumbKey = `design-files/${suffix}-${baseName}_thumb.jpg`;
+            const thumbKey = `design-files/${suffix}-${baseName}_thumb300.jpg`;
             const { url: tUrl } = await storagePut(thumbKey, thumbBuffer, 'image/jpeg');
             thumbnailUrl = tUrl;
 
+            // 중간: 800px 비율 유지 (상품 상세페이지용)
             const medBuffer = await sharp(buffer)
-              .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
-              .jpeg({ quality: 85 })
+              .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+              .jpeg({ quality: 88 })
               .toBuffer();
-            const medKey = `design-files/${suffix}-${baseName}_medium.jpg`;
+            const medKey = `design-files/${suffix}-${baseName}_medium800.jpg`;
             const { url: mUrl } = await storagePut(medKey, medBuffer, 'image/jpeg');
             mediumUrl = mUrl;
           } catch (e) {
@@ -1913,6 +1915,8 @@ export const appRouter = router({
           fileName: input.fileName,
           fileKey: key,
           fileUrl: url,
+          thumbnailUrl: thumbnailUrl ?? null,
+          mediumUrl: mediumUrl ?? null,
           mimeType: input.contentType,
           fileSize: input.fileSize ?? buffer.length,
           folder: input.folder ?? 'ROOT',

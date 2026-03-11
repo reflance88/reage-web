@@ -1698,6 +1698,8 @@ export async function createDesignFile(data: {
   fileName: string;
   fileKey: string;
   fileUrl: string;
+  thumbnailUrl?: string | null;
+  mediumUrl?: string | null;
   mimeType?: string | null;
   fileSize?: number | null;
   folder?: string | null;
@@ -1710,6 +1712,8 @@ export async function createDesignFile(data: {
     fileName: data.fileName,
     fileKey: data.fileKey,
     fileUrl: data.fileUrl,
+    thumbnailUrl: data.thumbnailUrl ?? null,
+    mediumUrl: data.mediumUrl ?? null,
     mimeType: data.mimeType ?? null,
     fileSize: data.fileSize ?? null,
     folder: data.folder ?? 'ROOT',
