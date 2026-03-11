@@ -378,6 +378,88 @@ export async function getAllProducts() {
   return db.select().from(products).orderBy(products.id);
 }
 
+export async function createProduct(data: {
+  slug: string;
+  name: string;
+  priceConsumer: string;
+  pricePro: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
+  isProOnly?: boolean;
+  isActive?: boolean;
+  visible?: boolean;
+  isRecommended?: boolean;
+  isNew?: boolean;
+  stock?: number;
+  productCode?: string | null;
+  productStatus?: 'new' | 'used' | 'refurbished';
+  summaryDescription?: string | null;
+  shortDescription?: string | null;
+  priceSupply?: string | null;
+  priceConsumerOriginal?: string | null;
+  taxType?: 'taxable' | 'tax_free' | 'exempt';
+  taxRate?: string | null;
+  shippingType?: 'direct' | 'warehouse' | 'other';
+  weight?: string | null;
+  manufacturer?: string | null;
+  brand?: string | null;
+  origin?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  seoKeywords?: string | null;
+  seoImageAlt?: string | null;
+  adminMemo?: string | null;
+  detailPageUrl?: string | null;
+  sortOrder?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.insert(products).values({
+    slug: data.slug,
+    name: data.name,
+    priceConsumer: data.priceConsumer,
+    pricePro: data.pricePro,
+    description: data.description ?? null,
+    imageUrl: data.imageUrl ?? null,
+    thumbnailUrl: data.thumbnailUrl ?? null,
+    isProOnly: data.isProOnly ?? false,
+    isActive: data.isActive ?? true,
+    visible: data.visible ?? true,
+    isRecommended: data.isRecommended ?? false,
+    isNew: data.isNew ?? false,
+    stock: data.stock ?? 999,
+    productCode: data.productCode ?? null,
+    productStatus: data.productStatus ?? 'new',
+    summaryDescription: data.summaryDescription ?? null,
+    shortDescription: data.shortDescription ?? null,
+    priceSupply: data.priceSupply ?? null,
+    priceConsumerOriginal: data.priceConsumerOriginal ?? null,
+    taxType: data.taxType ?? 'taxable',
+    taxRate: data.taxRate ?? '10.00',
+    shippingType: data.shippingType ?? 'direct',
+    weight: data.weight ?? '1.00',
+    manufacturer: data.manufacturer ?? null,
+    brand: data.brand ?? null,
+    origin: data.origin ?? null,
+    seoTitle: data.seoTitle ?? null,
+    seoDescription: data.seoDescription ?? null,
+    seoKeywords: data.seoKeywords ?? null,
+    seoImageAlt: data.seoImageAlt ?? null,
+    adminMemo: data.adminMemo ?? null,
+    detailPageUrl: data.detailPageUrl ?? null,
+    sortOrder: data.sortOrder ?? 0,
+  });
+  const result = await db.select().from(products).where(eq(products.slug, data.slug)).limit(1);
+  return result[0];
+}
+
+export async function deleteProduct(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  await db.delete(products).where(eq(products.id, id));
+}
+
 // ─── Verification Search ───────────────────────────────────────────────────────
 export async function searchVerifications(opts: {
   status?: "pending" | "approved" | "rejected";

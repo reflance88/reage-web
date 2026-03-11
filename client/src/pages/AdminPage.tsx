@@ -1012,12 +1012,96 @@ function OrderSection({ subPage }: { subPage: string }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function ProductSection({ subPage }: { subPage: string }) {
   const productsQuery = trpc.admin.allProducts.useQuery();
+  const utils = trpc.useUtils();
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [searchText, setSearchText] = useState("");
   const [filterVisible, setFilterVisible] = useState<"all" | "visible" | "hidden">("all");
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
+
+  // 신규 상품 등록 모달
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: "", slug: "", priceConsumer: "", pricePro: "",
+    productCode: "", description: "", stock: "999",
+    visible: true, isNew: false,
+  });
+  const [createImageFile, setCreateImageFile] = useState<File | null>(null);
+  const [createImagePreview, setCreateImagePreview] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const createFileRef = useRef<HTMLInputElement>(null);
+
+  const createProductMutation = trpc.admin.createProduct.useMutation({
+    onSuccess: () => {
+      toast.success("상품이 등록되었습니다.");
+      utils.admin.allProducts.invalidate();
+      setShowCreateModal(false);
+      setCreateForm({ name: "", slug: "", priceConsumer: "", pricePro: "", productCode: "", description: "", stock: "999", visible: true, isNew: false });
+      setCreateImageFile(null);
+      setCreateImagePreview(null);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const uploadImageMutation = trpc.admin.uploadProductImage.useMutation();
+
+  const deleteProductMutation = trpc.admin.deleteProduct.useMutation({
+    onSuccess: () => { toast.success("상품이 삭제되었습니다."); utils.admin.allProducts.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleCreateImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCreateImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setCreateImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleCreateSubmit = async () => {
+    if (!createForm.name || !createForm.slug || !createForm.priceConsumer) {
+      toast.error("상품명, 슬러그, 소비자가는 필수입니다.");
+      return;
+    }
+    setIsCreating(true);
+    try {
+      let imageUrl: string | undefined;
+      if (createImageFile) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(createImageFile);
+        });
+        const uploaded = await uploadImageMutation.mutateAsync({
+          filename: createImageFile.name,
+          contentType: createImageFile.type,
+          base64Data: base64,
+        });
+        imageUrl = uploaded.url;
+      }
+      await createProductMutation.mutateAsync({
+        name: createForm.name,
+        slug: createForm.slug,
+        priceConsumer: createForm.priceConsumer,
+        pricePro: createForm.pricePro || createForm.priceConsumer,
+        productCode: createForm.productCode || undefined,
+        description: createForm.description || undefined,
+        stock: parseInt(createForm.stock) || 999,
+        visible: createForm.visible,
+        isNew: createForm.isNew,
+        imageUrl,
+        thumbnailUrl: imageUrl,
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const copyUrl = (url: string, id: number) => {
     navigator.clipboard.writeText(url).then(() => {
@@ -1059,8 +1143,74 @@ function ProductSection({ subPage }: { subPage: string }) {
     return (
       <div>
         <SectionHeader title="상품 등록" />
-        <div style={{ background: C.white, borderRadius: "12px", padding: "24px", border: `1px solid ${C.border}` }}>
-          <p style={{ color: C.muted, fontSize: "14px" }}>현재 상품 등록은 DB 시드 방식으로 관리됩니다. 상품 가격/노출 변경은 상품 관리 탭을 이용해 주세요.</p>
+        <div style={{ background: C.white, borderRadius: "12px", padding: "32px", border: `1px solid ${C.border}`, maxWidth: "640px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>상품명 <span style={{ color: "red" }}>*</span></label>
+              <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} placeholder="예: REAGE S1 크림" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>슬러그 (URL 식별자) <span style={{ color: "red" }}>*</span></label>
+              <input value={createForm.slug} onChange={e => setCreateForm(f => ({ ...f, slug: e.target.value }))} placeholder="예: reage-s1-cream" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>소비자가 <span style={{ color: "red" }}>*</span></label>
+              <input value={createForm.priceConsumer} onChange={e => setCreateForm(f => ({ ...f, priceConsumer: e.target.value }))} placeholder="예: 150000" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>전문가 가격</label>
+              <input value={createForm.pricePro} onChange={e => setCreateForm(f => ({ ...f, pricePro: e.target.value }))} placeholder="예: 120000 (비워두면 소비자가와 동일)" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>상품코드</label>
+              <input value={createForm.productCode} onChange={e => setCreateForm(f => ({ ...f, productCode: e.target.value }))} placeholder="예: P-001" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>재고</label>
+              <input value={createForm.stock} onChange={e => setCreateForm(f => ({ ...f, stock: e.target.value }))} placeholder="999" type="number" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+            </div>
+          </div>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>상품 설명</label>
+            <textarea value={createForm.description} onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="상품 간략 설명" style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px", outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted, display: "block", marginBottom: "4px" }}>대표 이미지</label>
+            <div
+              onClick={() => createFileRef.current?.click()}
+              style={{ border: `2px dashed ${C.border}`, borderRadius: "8px", padding: "24px", textAlign: "center", cursor: "pointer", background: "#FAFAF9" }}
+            >
+              {createImagePreview ? (
+                <img src={createImagePreview} alt="preview" style={{ maxHeight: "120px", maxWidth: "100%", objectFit: "contain", borderRadius: "6px" }} />
+              ) : (
+                <div>
+                  <div style={{ fontSize: "24px", marginBottom: "8px" }}>🖼️</div>
+                  <div style={{ fontSize: "13px", color: C.muted }}>이미지를 클릭하여 업로드하세요</div>
+                  <div style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>JPG, PNG, WebP 지원</div>
+                </div>
+              )}
+            </div>
+            <input ref={createFileRef} type="file" accept="image/*" onChange={handleCreateImageChange} style={{ display: "none" }} />
+          </div>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "20px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
+              <input type="checkbox" checked={createForm.visible} onChange={e => setCreateForm(f => ({ ...f, visible: e.target.checked }))} />
+              노출
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
+              <input type="checkbox" checked={createForm.isNew} onChange={e => setCreateForm(f => ({ ...f, isNew: e.target.checked }))} />
+              신상품 표시
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button
+              onClick={handleCreateSubmit}
+              disabled={isCreating}
+              style={{ padding: "10px 28px", background: C.primary, color: C.white, border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: isCreating ? "wait" : "pointer", opacity: isCreating ? 0.7 : 1 }}
+            >
+              {isCreating ? "등록 중..." : "상품 등록"}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1124,6 +1274,7 @@ function ProductSection({ subPage }: { subPage: string }) {
               <th style={{ padding: "10px 12px", textAlign: "center", width: "60px", fontWeight: 600, color: C.muted }}>재고</th>
               <th style={{ padding: "10px 12px", textAlign: "center", width: "60px", fontWeight: 600, color: C.muted }}>노출</th>
               <th style={{ padding: "10px 12px", textAlign: "left", width: "220px", fontWeight: 600, color: C.muted }}>상세페이지 URL</th>
+              <th style={{ padding: "10px 12px", textAlign: "center", width: "60px", fontWeight: 600, color: C.muted }}>관리</th>
             </tr>
           </thead>
           <tbody>
@@ -1184,6 +1335,18 @@ function ProductSection({ subPage }: { subPage: string }) {
                   ) : (
                     <span style={{ fontSize: "11px", color: C.muted }}>—</span>
                   )}
+                </td>
+                <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`"상품명: ${p.name}"을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+                        deleteProductMutation.mutate({ id: p.id });
+                      }
+                    }}
+                    style={{ padding: "3px 8px", border: `1px solid #FCA5A5`, borderRadius: "4px", background: "#FEF2F2", color: "#DC2626", fontSize: "11px", cursor: "pointer", fontWeight: 600 }}
+                  >
+                    삭제
+                  </button>
                 </td>
               </tr>
             ))}
@@ -2294,6 +2457,7 @@ function InquiryStatsSection() {
   const byStatus = d?.byStatus ?? [];
   const funnel = (d as any)?.funnel ?? [];
   const byRegion = (d as any)?.byRegion ?? [];
+  const conversionStats = (d as any)?.conversionStats ?? null;
 
   // 월 레이블 포맷 (2025-03 → 3월)
   const fmtMonth = (m: string) => {
@@ -2460,23 +2624,27 @@ function InquiryStatsSection() {
 
       {/* 퍼널 차트 + 지역별 분포 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
-        {/* 퍼널 차트 */}
+        {/* 퍼널 차트 - 실제 전환율 추적 */}
         <div style={{
           background: C.white, borderRadius: 12, padding: '20px 24px',
           border: `1px solid ${C.border}`,
         }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>문의 유형별 건수 퍼널</div>
-          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>체험예약 → 도입상담 → 교육문의 전환 현황</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>고객 전환 퍼널</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>동일 고객(phone/email 기준)의 단계별 전환 추적</div>
           {funnel.length === 0 ? (
             <div style={{ textAlign: 'center', color: C.muted, padding: 32 }}>데이터 없음</div>
           ) : (
             <div style={{ padding: '8px 0' }}>
-              {funnel.map((item: { stage: string; value: number; fill: string }, idx: number) => {
-                const maxVal = funnel[0]?.value || 1;
-                const pct = Math.round((item.value / maxVal) * 100);
-                const convRate = idx > 0 && funnel[idx - 1].value > 0
-                  ? Math.round((item.value / funnel[idx - 1].value) * 100)
-                  : null;
+              {funnel.map((item: { stage: string; value: number; uniqueCustomers: number; fill: string }, idx: number) => {
+                const maxVal = funnel[0]?.uniqueCustomers || funnel[0]?.value || 1;
+                const uniqueVal = item.uniqueCustomers ?? item.value;
+                const pct = Math.round((uniqueVal / maxVal) * 100);
+                // 실제 전환율 (conversionStats 사용)
+                let realConvRate: number | null = null;
+                if (conversionStats) {
+                  if (idx === 1) realConvRate = conversionStats.trialToIntroRate;
+                  else if (idx === 2) realConvRate = conversionStats.introToEduRate;
+                }
                 return (
                   <div key={item.stage} style={{ marginBottom: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
@@ -2485,12 +2653,17 @@ function InquiryStatsSection() {
                         <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{item.stage}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {convRate !== null && (
-                          <span style={{ fontSize: 11, color: C.muted, background: '#F3F4F6', padding: '2px 6px', borderRadius: 4 }}>
-                            전환 {convRate}%
+                        {realConvRate !== null && (
+                          <span style={{ fontSize: 11, color: realConvRate >= 30 ? '#059669' : realConvRate >= 10 ? '#D97706' : C.muted, background: realConvRate >= 30 ? '#ECFDF5' : realConvRate >= 10 ? '#FFFBEB' : '#F3F4F6', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
+                            전환 {realConvRate}%
                           </span>
                         )}
-                        <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{item.value}건</span>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{item.value}건</div>
+                          {item.uniqueCustomers !== undefined && item.uniqueCustomers !== item.value && (
+                            <div style={{ fontSize: 11, color: C.muted }}>고객 {item.uniqueCustomers}명</div>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div style={{ height: 28, background: C.border, borderRadius: 6, overflow: 'hidden' }}>
@@ -2508,6 +2681,22 @@ function InquiryStatsSection() {
                   </div>
                 );
               })}
+              {conversionStats && (
+                <div style={{ marginTop: 16, padding: '12px 14px', background: '#F9F8F7', borderRadius: 8, border: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 8 }}>전환 요약</div>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 12, color: C.text }}>
+                      체험→도입: <strong style={{ color: C.primary }}>{conversionStats.trialToIntroCount}명</strong> ({conversionStats.trialToIntroRate}%)
+                    </div>
+                    <div style={{ fontSize: 12, color: C.text }}>
+                      도입→교육: <strong style={{ color: C.primary }}>{conversionStats.introToEduCount}명</strong> ({conversionStats.introToEduRate}%)
+                    </div>
+                    <div style={{ fontSize: 12, color: C.text }}>
+                      체험→교육: <strong style={{ color: C.primary }}>{conversionStats.trialToEduCount}명</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

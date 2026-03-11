@@ -38,6 +38,8 @@ import {
   searchVerifications,
   updateOrderStatus,
   updateProduct,
+  createProduct,
+  deleteProduct,
   updateUserPassword,
   updateUserProfile,
   updateUserResetToken,
@@ -596,6 +598,90 @@ export const appRouter = router({
           after: JSON.stringify(after),
         });
         return { success: true };
+      }),
+
+    createProduct: protectedProcedure
+      .input(z.object({
+        slug: z.string(),
+        name: z.string(),
+        priceConsumer: z.string(),
+        pricePro: z.string(),
+        description: z.string().optional(),
+        imageUrl: z.string().optional(),
+        thumbnailUrl: z.string().optional(),
+        isProOnly: z.boolean().optional(),
+        isActive: z.boolean().optional(),
+        visible: z.boolean().optional(),
+        isRecommended: z.boolean().optional(),
+        isNew: z.boolean().optional(),
+        stock: z.number().optional(),
+        productCode: z.string().optional(),
+        productStatus: z.enum(['new', 'used', 'refurbished']).optional(),
+        summaryDescription: z.string().optional(),
+        shortDescription: z.string().optional(),
+        priceSupply: z.string().optional(),
+        priceConsumerOriginal: z.string().optional(),
+        taxType: z.enum(['taxable', 'tax_free', 'exempt']).optional(),
+        taxRate: z.string().optional(),
+        shippingType: z.enum(['direct', 'warehouse', 'other']).optional(),
+        weight: z.string().optional(),
+        manufacturer: z.string().optional(),
+        brand: z.string().optional(),
+        origin: z.string().optional(),
+        seoTitle: z.string().optional(),
+        seoDescription: z.string().optional(),
+        seoKeywords: z.string().optional(),
+        seoImageAlt: z.string().optional(),
+        adminMemo: z.string().optional(),
+        detailPageUrl: z.string().optional(),
+        sortOrder: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const product = await createProduct(input);
+        await createAuditLog({
+          adminUserId: ctx.user.id,
+          actionType: 'CREATE_PRODUCT',
+          targetType: 'product',
+          targetId: product?.id ?? 0,
+          before: null,
+          after: JSON.stringify(product),
+        });
+        return { success: true, product };
+      }),
+
+    deleteProduct: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const before = await getProductById(input.id);
+        await deleteProduct(input.id);
+        await createAuditLog({
+          adminUserId: ctx.user.id,
+          actionType: 'DELETE_PRODUCT',
+          targetType: 'product',
+          targetId: input.id,
+          before: JSON.stringify(before),
+          after: null,
+        });
+        return { success: true };
+      }),
+
+    uploadProductImage: protectedProcedure
+      .input(z.object({
+        filename: z.string(),
+        contentType: z.string(),
+        base64Data: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        const { nanoid: nid } = await import('nanoid');
+        const suffix = nid(8);
+        const ext = input.filename.split('.').pop() ?? 'jpg';
+        const key = `products/${suffix}.${ext}`;
+        const buffer = Buffer.from(input.base64Data, 'base64');
+        const { url } = await storagePut(key, buffer, input.contentType);
+        return { url, key };
       }),
 
     // ─── Verification Search ───────────────────────────────────────────────

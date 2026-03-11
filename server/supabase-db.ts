@@ -87,7 +87,7 @@ export async function getInquiryStats(months?: number) {
   // 기간 필터를 적용하여 데이터 조회
   let query = supabaseAdmin
     .from("contact_inquiries")
-    .select("id, inquiry_type, status, created_at, region")
+    .select("id, inquiry_type, status, created_at, region, phone, email")
     .order("created_at", { ascending: true });
 
   if (months && months > 0) {
@@ -150,12 +150,44 @@ export async function getInquiryStats(months?: number) {
     { name: "종료", value: closedCount, color: "#10B981" },
   ];
 
-  // 퍼널 데이터: 체험예약 → 도입상담 → 교육문의 전환률
+  // 퍼널 데이터: 실제 전환율 추적 (phone/email 기반 고객 매칭)
+  // 체험예약 신청자 중 도입상담도 신청한 고객 수, 그 중 교육문의도 신청한 고객 수
+  const trialCustomers = new Set<string>();
+  const introCustomers = new Set<string>();
+  const eduCustomers = new Set<string>();
+  for (const r of rows) {
+    const key = (r as any).phone ? `phone:${(r as any).phone}` : (r as any).email ? `email:${(r as any).email}` : null;
+    if (!key) continue;
+    if (r.inquiry_type === "trial") trialCustomers.add(key);
+    else if (r.inquiry_type === "introduction") introCustomers.add(key);
+    else if (r.inquiry_type === "education") eduCustomers.add(key);
+  }
+  // 체험 → 도입 전환: 체험 고객 중 도입상담도 신청한 수
+  const trialToIntroCount = Array.from(trialCustomers).filter(k => introCustomers.has(k)).length;
+  // 도입 → 교육 전환: 도입 고객 중 교육문의도 신청한 수
+  const introToEduCount = Array.from(introCustomers).filter(k => eduCustomers.has(k)).length;
+  // 체험 → 교육 직접 전환 (3단계 모두 거친 고객)
+  const trialToEduCount = Array.from(trialCustomers).filter(k => eduCustomers.has(k)).length;
+
+  const trialToIntroRate = trialCustomers.size > 0 ? Math.round((trialToIntroCount / trialCustomers.size) * 100) : 0;
+  const introToEduRate = introCustomers.size > 0 ? Math.round((introToEduCount / introCustomers.size) * 100) : 0;
+
   const funnel = [
-    { stage: "체험예약", value: trialCount, fill: "#6B0F1A" },
-    { stage: "도입상담", value: introCount, fill: "#C9A96E" },
-    { stage: "교육문의", value: eduCount, fill: "#4B5563" },
+    { stage: "체험예약", value: trialCount, uniqueCustomers: trialCustomers.size, fill: "#6B0F1A" },
+    { stage: "도입상담", value: introCount, uniqueCustomers: introCustomers.size, fill: "#C9A96E" },
+    { stage: "교육문의", value: eduCount, uniqueCustomers: eduCustomers.size, fill: "#4B5563" },
   ];
+
+  const conversionStats = {
+    trialToIntroCount,
+    introToEduCount,
+    trialToEduCount,
+    trialToIntroRate,
+    introToEduRate,
+    trialCustomers: trialCustomers.size,
+    introCustomers: introCustomers.size,
+    eduCustomers: eduCustomers.size,
+  };
 
   // 지역별 문의 분포
   const regionMap: Record<string, number> = {};
@@ -175,6 +207,7 @@ export async function getInquiryStats(months?: number) {
     byStatus,
     funnel,
     byRegion,
+    conversionStats,
   };
 }
 
