@@ -158,6 +158,11 @@ import {
   createAdminMagazinePost,
   updateAdminMagazinePost,
   deleteAdminMagazinePost,
+  getCertifiedInstructorsSupabase,
+  createCertifiedInstructorSupabase,
+  updateCertifiedInstructorSupabase,
+  deleteCertifiedInstructorSupabase,
+  getAdminCertifiedInstructors,
 } from "./supabase-db";
 import { sendPasswordResetEmail, sendMail } from "./_core/mailer";
 import {
@@ -392,13 +397,13 @@ export const appRouter = router({
         return r;
       }),
   }),
-
-  // ─── Public Certified Instructors ──────────────────────────────────────────
+  // ─── Public Certified Instructors ──────────────────────────────────────────────
   certifiedInstructor: router({
     list: publicProcedure
       .input(z.object({ page: z.number().default(1), limit: z.number().default(100) }).optional())
       .query(async ({ input }) => {
-        return getCertifiedInstructors({ publishedOnly: true, page: input?.page ?? 1, limit: input?.limit ?? 100 });
+        // Supabase REST API 사용 (Drizzle ORM 직접 DB 연결 불가 환경)
+        return getCertifiedInstructorsSupabase({ publishedOnly: true, page: input?.page ?? 1, limit: input?.limit ?? 100 });
       }),
     byId: publicProcedure
       .input(z.object({ id: z.number() }))
@@ -407,9 +412,7 @@ export const appRouter = router({
         if (!item) throw new TRPCError({ code: "NOT_FOUND" });
         return item;
       }),
-  }),
-
-  // ─── Public Popups ────────────────────────────────────────────────────────────
+  }), // ─── Public Popups ────────────────────────────────────────────────────────────
   popup: router({
     active: publicProcedure.query(async () => {
       return getPopups({ activeOnly: true });
@@ -1567,7 +1570,7 @@ export const appRouter = router({
       .input(z.object({ page: z.number().default(1), limit: z.number().default(100) }).optional())
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return getCertifiedInstructors({ page: input?.page ?? 1, limit: input?.limit ?? 100 });
+        return getAdminCertifiedInstructors({ page: input?.page ?? 1, limit: input?.limit ?? 100 });
       }),
     createCertifiedInstructor: protectedProcedure
       .input(z.object({
@@ -1580,7 +1583,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return createCertifiedInstructor({ ...input, authorId: ctx.user.id });
+        return createCertifiedInstructorSupabase({ ...input, authorId: ctx.user.id });
       }),
     updateCertifiedInstructor: protectedProcedure
       .input(z.object({
@@ -1595,14 +1598,14 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         const { id, ...data } = input;
-        await updateCertifiedInstructor(id, data);
+        await updateCertifiedInstructorSupabase(id, data);
         return { success: true };
       }),
     deleteCertifiedInstructor: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        await deleteCertifiedInstructor(input.id);
+        await deleteCertifiedInstructorSupabase(input.id);
         return { success: true };
       }),
     uploadCertifiedInstructorImage: protectedProcedure

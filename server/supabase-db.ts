@@ -296,6 +296,28 @@ export async function getPublishedGalleryPosts(options?: {
 
   let query = supabasePublic
     .from("gallery_posts")
+    .select("id, title, content, coverImageUrl, coverImageKey, isPublished, viewCount, createdAt", { count: "exact" })
+    .eq("isPublished", true)
+    .order("createdAt", { ascending: false })
+    .range(from, to);
+
+  const { data, error, count } = await query;
+  if (error) throw new Error(`갤러리 조회 실패: ${error.message}`);
+  return { items: data ?? [], total: count ?? 0 };
+}
+
+export async function _getPublishedGalleryPostsOLD(options?: {
+  category?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 20;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  let query = supabasePublic
+    .from("gallery_posts")
     .select(`*, gallery_images ( id, image_url, alt_text, sort_order )`, { count: "exact" })
     .eq("is_published", true)
     .order("created_at", { ascending: false })
@@ -372,11 +394,11 @@ export async function getPublishedMagazinePosts(options?: {
   let query = supabasePublic
     .from("magazine_posts")
     .select(
-      "id, title, slug, category, excerpt, thumbnail_url, author_name, published_at, view_count, created_at",
+      "id, title, subtitle, content, coverImageUrl, coverImageKey, isPublished, viewCount, createdAt",
       { count: "exact" }
     )
-    .eq("is_published", true)
-    .order("published_at", { ascending: false })
+    .eq("isPublished", true)
+    .order("createdAt", { ascending: false })
     .range(from, to);
 
   if (options?.category && options.category !== "all") {
@@ -490,33 +512,110 @@ export async function getExperienceCenters(region?: string) {
   return data ?? [];
 }
 
+/// ============================================================
+// 공인강사 (certified_instructors) - camelCase 컬럼 기준
 // ============================================================
-// 공인강사 (certified_instructors)
-// ============================================================
-
 export async function getCertifiedInstructorsSupabase(options?: {
-  region?: string;
-  level?: string;
+  page?: number;
+  limit?: number;
+  publishedOnly?: boolean;
+}) {
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 100;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+  let query = supabasePublic
+    .from("certified_instructors")
+    .select("id, imageUrl, imageKey, name, description, sortOrder, isPublished, createdAt", { count: "exact" })
+    .order("sortOrder", { ascending: true })
+    .order("createdAt", { ascending: false })
+    .range(from, to);
+  if (options?.publishedOnly !== false) {
+    query = query.eq("isPublished", true);
+  }
+  const { data, error, count } = await query;
+  if (error) throw new Error(`인증강사 조회 실패: ${error.message}`);
+  return { items: data ?? [], total: count ?? 0 };
+}
+
+export async function createCertifiedInstructorSupabase(data: {
+  imageUrl: string;
+  imageKey?: string;
+  name?: string;
+  description?: string;
+  sortOrder?: number;
+  isPublished?: boolean;
+  authorId?: number;
+}) {
+  const { data: result, error } = await supabaseAdmin
+    .from("certified_instructors")
+    .insert({
+      imageUrl: data.imageUrl,
+      imageKey: data.imageKey ?? null,
+      name: data.name ?? null,
+      description: data.description ?? null,
+      sortOrder: data.sortOrder ?? 0,
+      isPublished: data.isPublished ?? true,
+      authorId: data.authorId ?? null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`인증강사 등록 실패: ${error.message}`);
+  return result;
+}
+
+export async function updateCertifiedInstructorSupabase(
+  id: number,
+  data: {
+    imageUrl?: string;
+    imageKey?: string;
+    name?: string;
+    description?: string;
+    sortOrder?: number;
+    isPublished?: boolean;
+  }
+) {
+  const updateData: Record<string, unknown> = {};
+  if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+  if (data.imageKey !== undefined) updateData.imageKey = data.imageKey;
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
+  if (data.isPublished !== undefined) updateData.isPublished = data.isPublished;
+  updateData.updatedAt = new Date().toISOString();
+  const { data: result, error } = await supabaseAdmin
+    .from("certified_instructors")
+    .update(updateData)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(`인증강사 수정 실패: ${error.message}`);
+  return result;
+}
+
+export async function deleteCertifiedInstructorSupabase(id: number) {
+  const { error } = await supabaseAdmin.from("certified_instructors").delete().eq("id", id);
+  if (error) throw new Error(`인증강사 삭제 실패: ${error.message}`);
+  return true;
+}
+
+export async function getAdminCertifiedInstructors(options?: {
   page?: number;
   limit?: number;
 }) {
   const page = options?.page ?? 1;
-  const limit = options?.limit ?? 20;
+  const limit = options?.limit ?? 100;
   const from = (page - 1) * limit;
   const to = from + limit - 1;
-
-  let query = supabasePublic
+  const { data, error, count } = await supabaseAdmin
     .from("certified_instructors")
     .select("*", { count: "exact" })
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
+    .order("sortOrder", { ascending: true })
+    .order("createdAt", { ascending: false })
     .range(from, to);
-
-  if (options?.region) query = query.eq("region", options.region);
-  if (options?.level) query = query.eq("level", options.level);
-
-  const { data, error, count } = await query;
-  if (error) throw new Error(`공인강사 조회 실패: ${error.message}`);
+  if (error) throw new Error(`관리자 인증강사 조회 실패: ${error.message}`);
   return { items: data ?? [], total: count ?? 0 };
 }
 
@@ -547,7 +646,7 @@ export async function getActivePopupsSupabase(pagePath?: string) {
 }
 
 // ============================================================
-// 관리자 갤러리 CRUD (Supabase gallery_posts)
+// 관리자 갤러리 CRUD (Supabase gallery_posts) - camelCase 컬럼 기준
 // ============================================================
 
 export async function getAdminGalleryPosts(options?: {
@@ -562,7 +661,7 @@ export async function getAdminGalleryPosts(options?: {
   const { data, error, count } = await supabaseAdmin
     .from("gallery_posts")
     .select("*", { count: "exact" })
-    .order("created_at", { ascending: false })
+    .order("createdAt", { ascending: false })
     .range(from, to);
   if (error) throw new Error(`관리자 갤러리 조회 실패: ${error.message}`);
   return { items: data ?? [], total: count ?? 0 };
@@ -580,10 +679,13 @@ export async function createAdminGalleryPost(data: {
     .from("gallery_posts")
     .insert({
       title: data.title,
-      description: data.content ?? "",
-      thumbnail_url: data.coverImageUrl ?? null,
-      is_published: data.isPublished ?? true,
-      category: "general",
+      content: data.content ?? "",
+      coverImageUrl: data.coverImageUrl ?? null,
+      coverImageKey: data.coverImageKey ?? null,
+      isPublished: data.isPublished ?? true,
+      authorId: data.authorId ?? null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     })
     .select()
     .single();
@@ -603,10 +705,11 @@ export async function updateAdminGalleryPost(
 ) {
   const updateData: Record<string, unknown> = {};
   if (data.title !== undefined) updateData.title = data.title;
-  if (data.content !== undefined) updateData.description = data.content;
-  if (data.coverImageUrl !== undefined) updateData.thumbnail_url = data.coverImageUrl;
-  if (data.isPublished !== undefined) updateData.is_published = data.isPublished;
-  updateData.updated_at = new Date().toISOString();
+  if (data.content !== undefined) updateData.content = data.content;
+  if (data.coverImageUrl !== undefined) updateData.coverImageUrl = data.coverImageUrl;
+  if (data.coverImageKey !== undefined) updateData.coverImageKey = data.coverImageKey;
+  if (data.isPublished !== undefined) updateData.isPublished = data.isPublished;
+  updateData.updatedAt = new Date().toISOString();
 
   const { data: result, error } = await supabaseAdmin
     .from("gallery_posts")
@@ -625,7 +728,7 @@ export async function deleteAdminGalleryPost(id: string) {
 }
 
 // ============================================================
-// 관리자 매거진 CRUD (Supabase magazine_posts)
+// 관리자 매거진 CRUD (Supabase magazine_posts) - camelCase 컬럼 기준
 // ============================================================
 
 export async function getAdminMagazinePosts(options?: {
@@ -640,7 +743,7 @@ export async function getAdminMagazinePosts(options?: {
   const { data, error, count } = await supabaseAdmin
     .from("magazine_posts")
     .select("*", { count: "exact" })
-    .order("created_at", { ascending: false })
+    .order("createdAt", { ascending: false })
     .range(from, to);
   if (error) throw new Error(`관리자 매거진 조회 실패: ${error.message}`);
   return { items: data ?? [], total: count ?? 0 };
@@ -655,19 +758,18 @@ export async function createAdminMagazinePost(data: {
   isPublished?: boolean;
   authorId?: number;
 }) {
-  // slug 자동 생성
-  const slug = `post-${Date.now()}`;
   const { data: result, error } = await supabaseAdmin
     .from("magazine_posts")
     .insert({
       title: data.title,
-      slug,
-      category: "general",
+      subtitle: data.subtitle ?? "",
       content: data.content ?? "",
-      excerpt: data.subtitle ?? "",
-      thumbnail_url: data.coverImageUrl ?? null,
-      is_published: data.isPublished ?? true,
-      published_at: data.isPublished ? new Date().toISOString() : null,
+      coverImageUrl: data.coverImageUrl ?? null,
+      coverImageKey: data.coverImageKey ?? null,
+      isPublished: data.isPublished ?? true,
+      authorId: data.authorId ?? null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     })
     .select()
     .single();
@@ -688,14 +790,12 @@ export async function updateAdminMagazinePost(
 ) {
   const updateData: Record<string, unknown> = {};
   if (data.title !== undefined) updateData.title = data.title;
-  if (data.subtitle !== undefined) updateData.excerpt = data.subtitle;
+  if (data.subtitle !== undefined) updateData.subtitle = data.subtitle;
   if (data.content !== undefined) updateData.content = data.content;
-  if (data.coverImageUrl !== undefined) updateData.thumbnail_url = data.coverImageUrl;
-  if (data.isPublished !== undefined) {
-    updateData.is_published = data.isPublished;
-    if (data.isPublished) updateData.published_at = new Date().toISOString();
-  }
-  updateData.updated_at = new Date().toISOString();
+  if (data.coverImageUrl !== undefined) updateData.coverImageUrl = data.coverImageUrl;
+  if (data.coverImageKey !== undefined) updateData.coverImageKey = data.coverImageKey;
+  if (data.isPublished !== undefined) updateData.isPublished = data.isPublished;
+  updateData.updatedAt = new Date().toISOString();
 
   const { data: result, error } = await supabaseAdmin
     .from("magazine_posts")
