@@ -1874,11 +1874,41 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
         const { nanoid: nid } = await import('nanoid');
+        const sharp = (await import('sharp')).default;
         const suffix = nid(8);
-        const ext = input.fileName.split('.').pop() ?? 'jpg';
-        const key = `design-files/${suffix}-${input.fileName}`;
+        const baseName = input.fileName.replace(/\.[^.]+$/, '');
         const buffer = Buffer.from(input.base64Data, 'base64');
+        const isImage = input.contentType.startsWith('image/');
+
+        // 원본 업로드
+        const key = `design-files/${suffix}-${input.fileName}`;
         const { url } = await storagePut(key, buffer, input.contentType);
+
+        // 이미지인 경우 썸네일(150px), 중간(600px) 자동 생성
+        let thumbnailUrl: string | undefined;
+        let mediumUrl: string | undefined;
+        if (isImage) {
+          try {
+            const thumbBuffer = await sharp(buffer)
+              .resize(150, 150, { fit: 'cover', withoutEnlargement: true })
+              .jpeg({ quality: 80 })
+              .toBuffer();
+            const thumbKey = `design-files/${suffix}-${baseName}_thumb.jpg`;
+            const { url: tUrl } = await storagePut(thumbKey, thumbBuffer, 'image/jpeg');
+            thumbnailUrl = tUrl;
+
+            const medBuffer = await sharp(buffer)
+              .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+              .jpeg({ quality: 85 })
+              .toBuffer();
+            const medKey = `design-files/${suffix}-${baseName}_medium.jpg`;
+            const { url: mUrl } = await storagePut(medKey, medBuffer, 'image/jpeg');
+            mediumUrl = mUrl;
+          } catch (e) {
+            console.error('[uploadDesignFile] resize error:', e);
+          }
+        }
+
         const file = await createDesignFile({
           fileName: input.fileName,
           fileKey: key,
@@ -1888,7 +1918,7 @@ export const appRouter = router({
           folder: input.folder ?? 'ROOT',
           uploadedBy: ctx.user.id,
         });
-        return { url, key, file };
+        return { url, key, file, thumbnailUrl, mediumUrl };
       }),
 
     deleteDesignFile: protectedProcedure

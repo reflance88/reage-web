@@ -947,6 +947,142 @@
   </div>
 </section>
 
+<!-- CREAM PRODUCTS SECTION (DB 연동) -->
+<section id="cream-products" class="section section-light">
+  <div class="container">
+    <div class="fade-in" style="text-align:center; margin-bottom:60px;">
+      <div class="eyebrow">REAGE CREAM SERIES</div>
+      <div class="gold-line"></div>
+      <h2 class="section-title">레아쥬 크림 시리즈</h2>
+      <p class="section-sub" style="max-width:560px; margin:0 auto;">레아쥬 미세전류 테라피의 효과를 극대화하는 전문 크림 시리즈입니다.</p>
+    </div>
+    <div id="cream-products-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:32px;">
+      <div style="text-align:center; padding:60px; color:var(--gray); grid-column:1/-1;">제품 정보를 불러오는 중...</div>
+    </div>
+  </div>
+</section>
+<style>
+  #cream-products .product-card {
+    background: #fff;
+    border: 1px solid #E8E6E3;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: box-shadow 0.25s, transform 0.25s;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  #cream-products .product-card:hover {
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+    transform: translateY(-4px);
+  }
+  #cream-products .product-card-img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    background: #F7F5F2;
+  }
+  #cream-products .product-card-img-placeholder {
+    width: 100%;
+    height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #F7F5F2;
+    font-size: 48px;
+    color: #C9A96E;
+  }
+  #cream-products .product-card-body {
+    padding: 20px;
+  }
+  #cream-products .product-card-series {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: #C9A96E;
+    font-weight: 600;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  #cream-products .product-card-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1A1412;
+    margin-bottom: 8px;
+  }
+  #cream-products .product-card-summary {
+    font-size: 13px;
+    color: #6B6B6B;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  #cream-products .product-card-price-label {
+    font-size: 11px;
+    color: #6B6B6B;
+    margin-bottom: 2px;
+  }
+  #cream-products .product-card-price {
+    font-size: 18px;
+    font-weight: 700;
+    color: #6B0F1A;
+  }
+  @media (max-width: 768px) {
+  }
+</style>
+<script>
+(function() {
+  async function loadCreamProducts() {
+    var grid = document.getElementById("cream-products-grid");
+    try {
+      var res = await fetch("/api/trpc/product.list?input=%7B%22json%22%3Anull%7D");
+      var data = await res.json();
+      var products = (data && data.result && data.result.data && data.result.data.json) ? data.result.data.json : [];
+      var visible = products.filter(function(p) { return p.visible !== false && p.isActive !== false; });
+      if (visible.length === 0) {
+        grid.innerHTML = "<div style='text-align:center;padding:60px;color:#6B6B6B;grid-column:1/-1'>등록된 제품이 없습니다.</div>";
+        return;
+      }
+      var userRole = "normal";
+      try {
+        var meRes = await fetch("/api/trpc/auth.me?input=%7B%22json%22%3Anull%7D", { credentials: "include" });
+        var meData = await meRes.json();
+        userRole = (meData && meData.result && meData.result.data && meData.result.data.json && meData.result.data.json.memberRole) ? meData.result.data.json.memberRole : "normal";
+      } catch(e) {}
+      grid.innerHTML = visible.map(function(p) {
+        var price = p.priceConsumer;
+        var priceLabel = "일반 판매가";
+        if (userRole === "pro" && p.pricePro) { price = p.pricePro; priceLabel = "전문가 판매가"; }
+        else if (userRole === "membership" && p.priceMembership) { price = p.priceMembership; priceLabel = "멤버십 판매가"; }
+        var priceStr = price ? Number(price).toLocaleString("ko-KR") + "원" : "가격 문의";
+        var imgHtml = p.imageUrl
+          ? "<img src='" + p.imageUrl + "' alt='" + p.name + "' class='product-card-img' />"
+          : "<div class='product-card-img-placeholder'>🧴</div>";
+        return "<a href='/product/" + p.slug + "' class='product-card'>" +
+          imgHtml +
+          "<div class='product-card-body'>" +
+          "<div class='product-card-series'>REAGE CREAM SERIES</div>" +
+          "<div class='product-card-name'>" + p.name + "</div>" +
+          "<div class='product-card-summary'>" + (p.summaryDescription || p.description || "") + "</div>" +
+          "<div class='product-card-price-label'>" + priceLabel + "</div>" +
+          "<div class='product-card-price'>" + priceStr + "</div>" +
+          "</div></a>";
+      }).join("");
+    } catch(e) {
+      grid.innerHTML = "<div style='text-align:center;padding:60px;color:#6B6B6B;grid-column:1/-1'>제품 정보를 불러오는 중 오류가 발생했습니다.</div>";
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", loadCreamProducts);
+  } else {
+    loadCreamProducts();
+  }
+})();
+</script>
+
 <!-- ════════════════════════════════════
      ⑧ CTA
 ════════════════════════════════════ -->

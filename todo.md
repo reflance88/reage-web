@@ -410,3 +410,10 @@
 - [x] S1/M2/F3 크림 콘텐츠 DB 시드 입력 (이름/요약설명/상세설명/특징/사용법/성분)
 - [x] 기존 product-s1.html, product-m2.html, product-f3.html → /product/:slug 리다이렉트
 - [x] ProductDetailPage.tsx에 features/howToUse/ingredients 편집 UI 추가
+
+## 2026-03-11 상품 특징 구조화 폼 + shop.html DB 연동 + 이미지 리사이징
+
+- [x] ProductDetailPage.tsx features 편집을 구조화된 폼으로 개선 (아이콘/제목/설명 각각 입력 필드) - 이미 구현되어 있음
+- [x] reage-device.html 크림 제품 목록 DB 연동 (product.list API 호출하여 동적 렌더링, 등급별 가격 표시)
+- [ ] 디자인 보관함 이미지 업로드 시 자동 리사이징 (썸네일/중간/원본 3가지 사이즈)
+- [ ] sharp 패키지 설치 및 서버 이미지 리사이징 로직 구현

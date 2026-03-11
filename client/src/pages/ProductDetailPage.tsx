@@ -99,6 +99,17 @@ function Select({ value, onChange, options }: {
   );
 }
 
+// features 아이템 타입
+type FeatureItem = { icon: string; title: string; desc: string };
+
+function parseFeaturesJson(raw: string): FeatureItem[] {
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  return [];
+}
+
 export default function ProductDetailPage({ productId, onBack }: { productId: number; onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>("basic");
   const { data: product, refetch } = trpc.admin.allProducts.useQuery(undefined, {
@@ -113,8 +124,36 @@ export default function ProductDetailPage({ productId, onBack }: { productId: nu
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [imagePickerTarget, setImagePickerTarget] = useState<"imageUrl" | "thumbnailUrl">("imageUrl");
   const [imageSearchText, setImageSearchText] = useState("");
+  // features 구조화 편집 상태
+  const [featuresItems, setFeaturesItems] = useState<FeatureItem[] | null>(null);
   const set = (key: string, value: any) => setForm(f => ({ ...f, [key]: value }));
   const get = (key: string, fallback: any = "") => form[key] !== undefined ? form[key] : (product as any)?.[key] ?? fallback;
+
+  // features 초기화 (product 로드 후 한 번만)
+  const getFeaturesItems = (): FeatureItem[] => {
+    if (featuresItems !== null) return featuresItems;
+    const raw = get("features", "[]");
+    return parseFeaturesJson(raw);
+  };
+
+  const updateFeaturesItem = (idx: number, field: keyof FeatureItem, value: string) => {
+    const items = [...getFeaturesItems()];
+    items[idx] = { ...items[idx], [field]: value };
+    setFeaturesItems(items);
+    set("features", JSON.stringify(items));
+  };
+
+  const addFeaturesItem = () => {
+    const items = [...getFeaturesItems(), { icon: "✓", title: "", desc: "" }];
+    setFeaturesItems(items);
+    set("features", JSON.stringify(items));
+  };
+
+  const removeFeaturesItem = (idx: number) => {
+    const items = getFeaturesItems().filter((_, i) => i !== idx);
+    setFeaturesItems(items);
+    set("features", JSON.stringify(items));
+  };
 
   // 디자인 보관함 이미지 목록
   const { data: designFilesData } = trpc.adminExt.getDesignFiles.useQuery(
@@ -348,17 +387,63 @@ export default function ProductDetailPage({ productId, onBack }: { productId: nu
           {activeTab === "content" && (
             <div>
               <div style={{ padding: "14px 16px", background: "#F9F8F7", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: "14px" }}>상세페이지 콘텐츠 (홈페이지 연동)</div>
-              <Field label="상품 특징 (JSON)">
+              {/* 상품 특징 구조화 폼 */}
+              <Field label="상품 특징">
                 <div style={{ flex: 1 }}>
-                  <Textarea
-                    value={get("features")}
-                    onChange={v => set("features", v)}
-                    placeholder={'[{"icon":"⚡","title":"특징 제목","desc":"특징 설명"}]'}
-                    rows={6}
-                  />
-                  <p style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>
-                    JSON 형식: [{'{'}"icon": "⚡", "title": "제목", "desc": "설명"{'}'}{'}'}] — 홈페이지 상품 상세페이지의 특징 아이콘 목록에 반영됩니다.
-                  </p>
+                  <div style={{ marginBottom: "8px", fontSize: "12px", color: C.muted }}>홈페이지 상품 상세페이지의 특징 아이콘 목록에 반영됩니다.</div>
+                  {getFeaturesItems().map((item, idx) => (
+                    <div key={idx} style={{
+                      display: "flex", gap: "8px", alignItems: "flex-start",
+                      marginBottom: "10px", padding: "10px 12px",
+                      background: "#FAFAFA", border: `1px solid ${C.border}`, borderRadius: "6px",
+                    }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                          <div style={{ width: "60px", flexShrink: 0 }}>
+                            <div style={{ fontSize: "11px", color: C.muted, marginBottom: "2px" }}>아이콘</div>
+                            <input
+                              type="text"
+                              value={item.icon}
+                              onChange={e => updateFeaturesItem(idx, "icon", e.target.value)}
+                              placeholder="⚡"
+                              style={{ width: "100%", padding: "5px 8px", border: `1px solid ${C.border}`, borderRadius: "4px", fontSize: "16px", textAlign: "center" }}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: "11px", color: C.muted, marginBottom: "2px" }}>제목</div>
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={e => updateFeaturesItem(idx, "title", e.target.value)}
+                              placeholder="특징 제목 입력"
+                              style={{ width: "100%", padding: "5px 8px", border: `1px solid ${C.border}`, borderRadius: "4px", fontSize: "13px" }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: "11px", color: C.muted, marginBottom: "2px" }}>설명</div>
+                          <input
+                            type="text"
+                            value={item.desc}
+                            onChange={e => updateFeaturesItem(idx, "desc", e.target.value)}
+                            placeholder="특징 설명 입력"
+                            style={{ width: "100%", padding: "5px 8px", border: `1px solid ${C.border}`, borderRadius: "4px", fontSize: "13px" }}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeFeaturesItem(idx)}
+                        style={{ padding: "4px 8px", background: "#FEE2E2", color: "#DC2626", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", flexShrink: 0, marginTop: "18px" }}
+                      >삭제</button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={addFeaturesItem}
+                    style={{ padding: "7px 16px", background: C.primary, color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "13px" }}
+                  >+ 특징 추가</button>
+                  {getFeaturesItems().length === 0 && (
+                    <p style={{ fontSize: "12px", color: C.muted, marginTop: "8px" }}>특징 항목이 없습니다. '+ 특징 추가' 버튼으로 추가하세요.</p>
+                  )}
                 </div>
               </Field>
               <Field label="사용법">
