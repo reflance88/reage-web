@@ -22,6 +22,7 @@ export interface InsertContactInquiry {
   education_course?: string;
   current_status?: string;
   message?: string;
+  privacy_agreed?: boolean;
   metadata?: Record<string, unknown>;
 }
 

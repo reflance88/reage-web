@@ -5,6 +5,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { sendInquiryNotification } from "../email-inquiry";
 import {
   createContactInquiry,
   getContactInquiries,
@@ -46,6 +47,7 @@ export const sbContactRouter = router({
         education_course: z.string().optional(),
         current_status: z.string().optional(),
         message: z.string().optional(),
+        privacy_agreed: z.boolean().optional().default(false),
         metadata: z.record(z.string(), z.unknown()).optional(),
       })
     )
@@ -54,6 +56,13 @@ export const sbContactRouter = router({
         ...input,
         email: input.email || undefined,
       });
+      // 문의 접수 알림 이메일 발송 (비동기, 실패해도 문의 저장에는 영향 없음)
+      sendInquiryNotification({
+        ...result,
+        id: result.id,
+      }).catch((err) =>
+        console.error("[InquiryMail] 알림 이메일 발송 실패:", err)
+      );
       return { success: true, id: result.id };
     }),
 
@@ -72,6 +81,22 @@ export const sbContactRouter = router({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
       return getContactInquiries(input);
+    }),
+
+  // 관리자: 문의 전체 목록 내보내기 (엑셀용 전체 데이터)
+  exportAll: protectedProcedure
+    .input(
+      z.object({
+        status: z.enum(["received", "contacted", "closed"]).optional(),
+        inquiry_type: z.enum(["trial", "introduction", "education"]).optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      // 엑셀 내보내기는 전체 데이터 필요 - 측에서 여러 페이지 반복하는 대신 한번에 전체 가져오기
+      return getContactInquiries({ ...input, page: 1, limit: 10000 });
     }),
 
   // 관리자: 문의 상태 변경

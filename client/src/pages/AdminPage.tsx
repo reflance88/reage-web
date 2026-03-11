@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import PromotionSection from "./PromotionSection";
 import { useState, useMemo, useRef } from "react";
+import * as XLSX from "xlsx";
 import OrderDetailModal from "@/components/OrderDetailModal";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -1257,6 +1258,82 @@ function CustomerSection({ subPage }: { subPage: string }) {
   );
 }
 
+// ─── 엑셀 내보내기 버튼 ─────────────────────────────────────────────────────────
+function ExportButton({ statusFilter, typeFilter }: { statusFilter: string; typeFilter: string }) {
+  const [exporting, setExporting] = useState(false);
+  const utils = trpc.useUtils();
+
+  const TYPE_LABEL: Record<string, string> = {
+    trial: "체험예약",
+    introduction: "도입상담",
+    education: "교육문의",
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    received: "접수",
+    contacted: "연락완료",
+    closed: "종료",
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const result = await utils.sbContact.exportAll.fetch({
+        status: statusFilter !== "all" ? (statusFilter as any) : undefined,
+        inquiry_type: typeFilter !== "all" ? (typeFilter as any) : undefined,
+      });
+
+      const rows = (result?.items ?? []).map((item: any) => ({
+        "접수번호": item.id,
+        "문의유형": TYPE_LABEL[item.inquiry_type] ?? item.inquiry_type,
+        "이름": item.name ?? "",
+        "연락처": item.phone ?? "",
+        "이메일": item.email ?? "",
+        "상호명": item.shop_name ?? "",
+        "지역": item.region ?? "",
+        "선호날짜": item.preferred_date ?? "",
+        "교육프로그램": item.education_program ?? "",
+        "문의내용": item.message ?? "",
+        "개인정보동의": item.privacy_agreed ? "동의" : "미동의",
+        "상태": STATUS_LABEL[item.status] ?? item.status,
+        "관리자메모": item.admin_memo ?? "",
+        "접수일시": item.created_at ? new Date(item.created_at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) : "",
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      // 열 너비 자동 설정
+      ws["!cols"] = [
+        { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 24 },
+        { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 40 },
+        { wch: 12 }, { wch: 10 }, { wch: 30 }, { wch: 22 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "문의목록");
+      const now = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `REAGE_문의목록_${now}.xlsx`);
+      toast.success(`${rows.length}건 엑셀 파일 다운로드 완료`);
+    } catch (e: any) {
+      toast.error("엑셀 내보내기 실패: " + e.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleExport}
+      disabled={exporting}
+      style={{
+        display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap",
+        padding: "5px 14px", fontSize: "13px", borderRadius: "8px",
+        border: `1px solid ${C.border}`, background: C.white, cursor: exporting ? "not-allowed" : "pointer",
+        color: C.text, opacity: exporting ? 0.6 : 1,
+      }}
+    >
+      {exporting ? "내보내는 중..." : "📥 엑셀 내보내기"}
+    </button>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: INQUIRY (Supabase contact_inquiries)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1320,6 +1397,7 @@ function InquirySection() {
           ]}
         />
         <span style={{ fontSize: "13px", color: C.muted, marginLeft: "auto" }}>전체 {total}건</span>
+        <ExportButton statusFilter={statusFilter} typeFilter={typeFilter} />
       </div>
 
       {/* 문의 목록 테이블 */}

@@ -334,3 +334,16 @@
 - [x] 관리자 페이지에 Supabase 문의 목록 조회 기능 추가
 - [x] 관리자 페이지에 문의 상태 변경 기능 추가 (received/contacted/closed)
 - [x] 관리자 페이지에 문의 상세 모달 추가
+
+## 문의 알림 이메일 / 엑셀 내보내기 / 개인정보 동의 연동
+
+- [x] 이메일 발송 라이브러리 선택 및 설치 (Resend 또는 Nodemailer)
+- [x] 이메일 발송 서버 헬퍼 구현 (server/email.ts)
+- [x] sbContact.submit 뮤테이션에 이메일 알림 발송 연동 (reflance88@gmail.com)
+- [x] 이메일 템플릿 작성 (문의 유형, 이름, 연락잘, 내용 포함)
+- [x] 관리자 페이지 문의 목록 엑셀 내보내기 버튼 추가
+- [x] 엑셀 내보내기 tRPC 엔드포인트 구현 (sbContact.export)
+- [x] contact.html 개인정보 동의 체크박스 값 payload에 포함 (privacy_agreed)
+- [x] supabase-db.ts InsertContactInquiry에 privacy_agreed 필드 추가
+- [x] server/routers/supabase.ts zod 스키마에 privacy_agreed 추가
+- [x] 이메일 발송 vitest 테스트 작성

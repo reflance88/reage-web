@@ -121,6 +121,11 @@
     .form-submit { width: 100%; padding: 16px; background: var(--wine); color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background .25s, transform .2s; margin-top: 8px; }
     .form-submit:hover { background: var(--wine-light); transform: translateY(-2px); }
     .form-privacy { font-size: 12px; color: var(--gray); text-align: center; margin-top: 16px; line-height: 1.6; }
+    .privacy-check-wrap { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; padding: 14px 16px; background: #F7F5F2; border-radius: 10px; border: 1px solid #E8E6E3; }
+    .privacy-check-wrap input[type="checkbox"] { width: 18px; height: 18px; min-width: 18px; accent-color: var(--wine); cursor: pointer; margin-top: 1px; }
+    .privacy-check-label { font-size: 12.5px; color: #555; line-height: 1.65; cursor: pointer; }
+    .privacy-check-label strong { color: var(--wine); }
+    .privacy-check-label a { color: var(--wine); text-decoration: underline; }
     .success-msg { display: none; text-align: center; padding: 40px 20px; }
     .success-msg.show { display: block; }
     .success-icon { font-size: 56px; margin-bottom: 16px; }
@@ -360,8 +365,15 @@
               <label class="form-label">문의 내용</label>
               <textarea class="form-textarea" name="message" placeholder="체험 관련 문의 사항이 있으시면 자유롭게 작성해주세요."></textarea>
             </div>
+            <div class="privacy-check-wrap">
+              <input type="checkbox" id="privacy-trial" name="privacy_agreed" value="true" required />
+              <label class="privacy-check-label" for="privacy-trial">
+                <strong>[필수] 개인정보 수집 및 이용 동의</strong><br>
+                수집 항목: 성명, 연락처, 이메일 / 이용 목적: 체험 예약 확인 및 안내 / 보유 기간: 상담 종료 후 1년<br>
+                위 개인정보 수집에 동의하지 않으실 수 있으나, 동의를 거부하실 경우 신청이 제한될 수 있습니다.
+              </label>
+            </div>
             <button type="submit" class="form-submit">체험 예약 신청하기</button>
-            <p class="form-privacy">입력하신 정보는 예약 확인 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
           </form>
         </div>
 
@@ -402,8 +414,15 @@
               <label class="form-label">문의 내용</label>
               <textarea class="form-textarea" placeholder="도입 관련 궁금하신 점을 자유롭게 작성해주세요."></textarea>
             </div>
+            <div class="privacy-check-wrap">
+              <input type="checkbox" id="privacy-intro" name="privacy_agreed" value="true" required />
+              <label class="privacy-check-label" for="privacy-intro">
+                <strong>[필수] 개인정보 수집 및 이용 동의</strong><br>
+                수집 항목: 성명, 연락처, 샵명, 지역 / 이용 목적: 도입 상담 진행 및 안내 / 보유 기간: 상담 종료 후 1년<br>
+                위 개인정보 수집에 동의하지 않으실 수 있으나, 동의를 거부하실 경우 신청이 제한될 수 있습니다.
+              </label>
+            </div>
             <button type="submit" class="form-submit">도입 상담 신청하기</button>
-            <p class="form-privacy">입력하신 정보는 상담 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
           </form>
         </div>
 
@@ -449,8 +468,15 @@
               <label class="form-label">문의 내용</label>
               <textarea class="form-textarea" placeholder="교육 관련 궁금하신 점을 자유롭게 작성해주세요."></textarea>
             </div>
+            <div class="privacy-check-wrap">
+              <input type="checkbox" id="privacy-edu" name="privacy_agreed" value="true" required />
+              <label class="privacy-check-label" for="privacy-edu">
+                <strong>[필수] 개인정보 수집 및 이용 동의</strong><br>
+                수집 항목: 성명, 연락처, 샵명 / 이용 목적: 교육 안내 및 상담 진행 / 보유 기간: 상담 종료 후 1년<br>
+                위 개인정보 수집에 동의하지 않으실 수 있으나, 동의를 거부하실 경우 신청이 제한될 수 있습니다.
+              </label>
+            </div>
             <button type="submit" class="form-submit">교육 문의 신청하기</button>
-            <p class="form-privacy">입력하신 정보는 교육 안내 목적으로만 사용되며, 제3자에게 제공되지 않습니다.</p>
           </form>
         </div>
 
@@ -619,10 +645,12 @@
       education_course: formData.get('education_course') || undefined,
       current_status: formData.get('current_status') || undefined,
       message: formData.get('message') || undefined,
+      privacy_agreed: formData.get('privacy_agreed') === 'true',
     };
 
-    // 빈 값 제거
+    // 빈 값 제거 (privacy_agreed는 boolean이므로 제외)
     Object.keys(payload).forEach(k => {
+      if (k === 'privacy_agreed') return;
       if (payload[k] === '' || payload[k] === undefined || payload[k] === null) delete payload[k];
     });
 
