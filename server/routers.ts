@@ -838,6 +838,8 @@ export const appRouter = router({
         dateTo: z.date().optional(),
         page: z.number().default(1),
         limit: z.number().default(20),
+        sortCol: z.string().optional(),
+        sortDir: z.enum(["asc", "desc"]).optional(),
       }))
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });

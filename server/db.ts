@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
   AdminAuditLog,
@@ -518,6 +518,8 @@ export async function searchOrders(opts: {
   dateTo?: Date;
   page?: number;
   limit?: number;
+  sortCol?: string;
+  sortDir?: "asc" | "desc";
 }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
@@ -613,9 +615,22 @@ export async function searchOrders(opts: {
     }
   }
 
+  // 정렬 컴럼 매핑
+  const sortColMap: Record<string, any> = {
+    "주문일": orders.createdAt,
+    "주문번호": orders.orderId,
+    "주문명": orders.orderName,
+    "총 상품 구매금액": orders.totalAmount,
+    "총 실결제금액": orders.totalAmount,
+    "결제상태": orders.status,
+    "배송상태": orders.shippingStatus,
+  };
+  const sortField = (opts.sortCol && sortColMap[opts.sortCol]) ? sortColMap[opts.sortCol] : orders.createdAt;
+  const sortOrder = opts.sortDir === "asc" ? asc(sortField) : desc(sortField);
+
   const rows = await (conditions.length > 0
-    ? query.where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(limit).offset(offset)
-    : query.orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
+    ? query.where(and(...conditions)).orderBy(sortOrder).limit(limit).offset(offset)
+    : query.orderBy(sortOrder).limit(limit).offset(offset));
 
   // totalCount for pagination
   let countQuery2 = db.select({ count: sql<number>`COUNT(*)` }).from(orders).leftJoin(users, eq(orders.userId, users.id));

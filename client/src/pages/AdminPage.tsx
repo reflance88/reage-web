@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import PromotionSection from "./PromotionSection";
 import ProductDetailPage from "./ProductDetailPage";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import OrderDetailModal from "@/components/OrderDetailModal";
 import { toast } from "sonner";
@@ -308,15 +308,37 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
 }
 
 // ─── Table ─────────────────────────────────────────────────────────────────────
-function Table({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
+function Table({ headers, rows, sortCol, sortDir, onSort }: {
+  headers: string[];
+  rows: React.ReactNode[][];
+  sortCol?: string;
+  sortDir?: "asc" | "desc";
+  onSort?: (col: string) => void;
+}) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
         <thead>
           <tr style={{ background: "#F9F8F7" }}>
-            {headers.map((h, i) => (
-              <th key={i} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700, color: C.muted, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{h}</th>
-            ))}
+            {headers.map((h, i) => {
+              const isSortable = onSort && h !== "관리" && h !== "";
+              const isActive = sortCol === h;
+              return (
+                <th
+                  key={i}
+                  onClick={isSortable ? () => onSort(h) : undefined}
+                  style={{
+                    padding: "10px 14px", textAlign: "left", fontWeight: 700,
+                    color: isActive ? C.primary : C.muted,
+                    borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap",
+                    cursor: isSortable ? "pointer" : "default",
+                    userSelect: "none",
+                  }}
+                >
+                  {h}{isActive ? (sortDir === "asc" ? " ↑" : " ↓") : (isSortable ? " ⇅" : "")}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -557,7 +579,7 @@ function ShippingDetailModal({ order, onClose, onSave }: { order: any; onClose: 
 }
 
 // ─── Order Dashboard ─────────────────────────────────────────────────────────
-function OrderDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
+function OrderDashboard({ onNavigate }: { onNavigate?: (id: string, opts?: { statusFilter?: string }) => void }) {
   const [orderDays, setOrderDays] = useState(30);
   const dashboard = trpc.admin.dashboard.useQuery();
   const chartsOrder = trpc.admin.dashboardCharts.useQuery({ days: orderDays });
@@ -610,19 +632,19 @@ function OrderDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
               <td style={{ padding: "12px", fontWeight: 600, borderLeft: `3px solid ${C.blue}` }}>총 주문 금액</td>
               <td style={{ padding: "12px", textAlign: "right", color: C.blue, fontWeight: 700 }}>{krw(d?.todayRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.todayOrders ?? 0}건</span></td>
               <td style={{ padding: "12px", textAlign: "right", color: C.primary, fontWeight: 700 }}>{krw(d?.monthRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.monthOrders ?? 0}건</span></td>
-              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => onNavigate?.("order-all")}>주문조회</Btn></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => onNavigate?.("order-all", { statusFilter: "all" })}>주문조회</Btn></td>
             </tr>
             <tr style={{ borderBottom: `1px solid ${C.border}`, background: "#F0FFF4" }}>
               <td style={{ padding: "12px", fontWeight: 600, borderLeft: `3px solid ${C.green}` }}>총 실 결제 금액</td>
               <td style={{ padding: "12px", textAlign: "right", color: C.blue, fontWeight: 700 }}>{krw(d?.todayNetRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.todayOrders ?? 0}건</span></td>
               <td style={{ padding: "12px", textAlign: "right", color: C.primary, fontWeight: 700 }}>{krw(d?.monthNetRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.monthOrders ?? 0}건</span></td>
-              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => onNavigate?.("order-all")}>결제조회</Btn></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => onNavigate?.("order-all", { statusFilter: "paid" })}>결제조회</Btn></td>
             </tr>
             <tr style={{ borderBottom: `1px solid ${C.border}` }}>
               <td style={{ padding: "12px", color: C.muted }}>총 환불 금액</td>
               <td style={{ padding: "12px", textAlign: "right", color: "#991B1B", fontWeight: 700 }}>{krw(d?.todayRefundAmount ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>0건</span></td>
               <td style={{ padding: "12px", textAlign: "right", color: "#991B1B", fontWeight: 700 }}>{krw(d?.monthRefundAmount ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>0건</span></td>
-              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => onNavigate?.("order-refund")}>환불조회</Btn></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => onNavigate?.("order-refund", {})}>환불조회</Btn></td>
             </tr>
           </tbody>
         </table>
@@ -671,11 +693,16 @@ function OrderDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
 }
 
 // ─── Ord// ─── Order Section ────────────────────────────────────────────
-function OrderSection({ subPage, onNavigate }: { subPage: string; onNavigate?: (id: string) => void }) {
+function OrderSection({ subPage, onNavigate, initialStatusFilter }: { subPage: string; onNavigate?: (id: string, opts?: { statusFilter?: string }) => void; initialStatusFilter?: string }) {
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState<"orderId" | "name" | "email" | "productName">("orderId");
   const [viewType, setViewType] = useState<"order" | "item">("order");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter ?? "all");
+
+  // initialStatusFilter가 바뀌면 필터 초기화
+  useEffect(() => {
+    if (initialStatusFilter !== undefined) setStatusFilter(initialStatusFilter);
+  }, [initialStatusFilter]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -736,6 +763,8 @@ function OrderSection({ subPage, onNavigate }: { subPage: string; onNavigate?: (
       dateTo: dateTo ? new Date(dateTo) : undefined,
       page,
       limit: pageSize,
+      sortCol: subPage === "order-all" ? sortCol : undefined,
+      sortDir: subPage === "order-all" ? sortDir : undefined,
     },
     { enabled: !isShippingPage && !isCsPage }
   );
@@ -759,7 +788,7 @@ function OrderSection({ subPage, onNavigate }: { subPage: string; onNavigate?: (
 
   // ─── Order Dashboard ─────────────────────────────────────────────────────────
   if (subPage === "order-dashboard") {
-    return <OrderDashboard onNavigate={onNavigate} />;
+    return <OrderDashboard onNavigate={onNavigate as any} />;
   }
 
   // ─── Shipping pages ───────────────────────────────────────────────────────────
@@ -1115,6 +1144,9 @@ function OrderSection({ subPage, onNavigate }: { subPage: string; onNavigate?: (
           headers={subPage === "order-all"
             ? ["주문일", "주문번호", "회원", "주문명", "총 상품 구매금액", "총 실결제금액", "결제수단", "결제상태", "배송상태", "관리"]
             : ["주문번호", "회원", "주문명", "금액", "결제상태", "배송상태", "결제일", "관리"]}
+          sortCol={subPage === "order-all" ? sortCol : undefined}
+          sortDir={subPage === "order-all" ? sortDir : undefined}
+          onSort={subPage === "order-all" ? (col) => { toggleSort(col); setPage(1); } : undefined}
           rows={(orders.data?.items ?? []).map((item: any) => {
             const o = item.o;
             const paymentMethodLabel = o.paymentMethod === "card" ? "카드" : o.paymentMethod === "bank_transfer" || o.paymentMethod === "virtualAccount" ? "무통장입금" : o.paymentMethod === "tosspay" ? "토스페이" : o.paymentMethod === "kakaopay" ? "카카오페이" : o.paymentMethod ?? "—";
@@ -3520,6 +3552,13 @@ export default function AdminPage() {
   const [, navigate] = useLocation();
   const me = trpc.auth.me.useQuery();
   const [activePage, setActivePage] = useState("dashboard");
+  const [orderInitialFilter, setOrderInitialFilter] = useState<string | undefined>(undefined);
+
+  const navigateTo = (page: string, opts?: { statusFilter?: string }) => {
+    if (opts?.statusFilter !== undefined) setOrderInitialFilter(opts.statusFilter);
+    else setOrderInitialFilter(undefined);
+    setActivePage(page);
+  };
 
   if (me.isLoading) {
     return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontSize: "14px", color: C.muted }}>로딩 중...</div>;
@@ -3538,7 +3577,7 @@ export default function AdminPage() {
 
   const renderContent = () => {
     if (activePage === "dashboard") return <DashboardSection />;
-    if (activePage.startsWith("order-") || activePage === "order") return <OrderSection subPage={activePage} onNavigate={setActivePage} />;
+    if (activePage.startsWith("order-") || activePage === "order") return <OrderSection subPage={activePage} onNavigate={(p, opts) => navigateTo(p, opts)} initialStatusFilter={orderInitialFilter} />;
     if (activePage.startsWith("product-") || activePage === "product") return <ProductSection subPage={activePage} />;
     if (activePage.startsWith("customer-") || activePage === "customer") return <CustomerSection subPage={activePage} />;
     if (activePage.startsWith("board-") || activePage === "board") return <BoardSection subPage={activePage} />;
@@ -3551,7 +3590,7 @@ export default function AdminPage() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: "'Pretendard', 'Apple SD Gothic Neo', sans-serif" }}>
-      <Sidebar active={activePage} onSelect={setActivePage} />
+      <Sidebar active={activePage} onSelect={(p) => navigateTo(p)} />
       <main style={{ flex: 1, padding: "28px 32px", overflowY: "auto", minWidth: 0 }}>
         {renderContent()}
       </main>
