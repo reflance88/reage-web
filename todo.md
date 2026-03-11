@@ -517,3 +517,10 @@
 - [x] 갤러리 관리자-홈페이지 연동 수정 (camelCase 콜럼 일치)
 - [x] 매거진 관리자-홈페이지 연동 수정 (camelCase 콜럼 일치)
 - [x] 인증강사 Supabase REST API 전환 (Drizzle ORM 직접 DB 연결 불가 환경 대응)
+
+## OAuth 콜백 실패 오류 수정 (2026-03-11)
+
+- [x] OAuth callback failed 원인 파악 — SUPABASE_DATABASE_URL이 직접 연결 호스트(샌드박스 DNS 차단)를 가리키고 있었음
+- [x] SUPABASE_DATABASE_URL을 Transaction Pooler URL(ap-southeast-1, 포트 6543)로 변경
+- [x] upsertUser DB 저장 테스트 성공 확인
+- [x] vitest 33 passed / 1 skipped 전체 통과
