@@ -15,6 +15,7 @@ const SignupPage = lazy(() => import("./pages/SignupPage"));
 const FindIdPage = lazy(() => import("./pages/FindIdPage"));
 const FindPasswordPage = lazy(() => import("./pages/FindPasswordPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
+const ProductPage = lazy(() => import("./pages/ProductPage"));
 
 function Home() {
   window.location.replace("/index-main.html");
@@ -44,6 +45,7 @@ function Router() {
         <Route path="/payment/success" component={PaymentSuccessPage} />
         <Route path="/payment/fail" component={PaymentFailPage} />
         <Route path="/admin" component={AdminPage} />
+        <Route path="/product/:slug" component={ProductPage} />
       </Switch>
     </Suspense>
   );

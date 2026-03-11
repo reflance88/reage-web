@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const C = {
   bg: "#F7F5F2",
@@ -16,12 +17,13 @@ const C = {
   green: "#166534",
 };
 
-type Tab = "basic" | "sale" | "image" | "shipping" | "seo" | "memo";
+type Tab = "basic" | "sale" | "image" | "content" | "shipping" | "seo" | "memo";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "basic", label: "기본정보" },
   { id: "sale", label: "판매정보" },
   { id: "image", label: "이미지정보" },
+  { id: "content", label: "상세페이지 콘텐츠" },
   { id: "shipping", label: "배송정보" },
   { id: "seo", label: "SEO설정" },
   { id: "memo", label: "메모" },
@@ -108,14 +110,39 @@ export default function ProductDetailPage({ productId, onBack }: { productId: nu
   });
 
   const [form, setForm] = useState<Record<string, any>>({});
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [imagePickerTarget, setImagePickerTarget] = useState<"imageUrl" | "thumbnailUrl">("imageUrl");
+  const [imageSearchText, setImageSearchText] = useState("");
   const set = (key: string, value: any) => setForm(f => ({ ...f, [key]: value }));
   const get = (key: string, fallback: any = "") => form[key] !== undefined ? form[key] : (product as any)?.[key] ?? fallback;
+
+  // 디자인 보관함 이미지 목록
+  const { data: designFilesData } = trpc.adminExt.getDesignFiles.useQuery(
+    { folder: "" },
+    { enabled: showImagePicker }
+  );
+  const designImages = (designFilesData ?? []).filter((f: any) =>
+    f.mimeType?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.fileName)
+  );
 
   if (!product) return (
     <div style={{ padding: "40px", textAlign: "center", color: C.muted }}>상품을 불러오는 중...</div>
   );
 
   const p = product as any;
+
+  // 이미지 선택 팝업 열기
+  const openImagePicker = (target: "imageUrl" | "thumbnailUrl") => {
+    setImagePickerTarget(target);
+    setImageSearchText("");
+    setShowImagePicker(true);
+  };
+
+  const selectImage = (url: string) => {
+    set(imagePickerTarget, url);
+    setShowImagePicker(false);
+    toast.success("이미지가 선택되었습니다.");
+  };
 
   const handleSave = () => {
     if (Object.keys(form).length === 0) { toast("변경된 내용이 없습니다."); return; }
@@ -272,7 +299,13 @@ export default function ProductDetailPage({ productId, onBack }: { productId: nu
               <div style={{ padding: "14px 16px", background: "#F9F8F7", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: "14px" }}>이미지 정보</div>
               <Field label="대표 이미지 URL">
                 <div style={{ flex: 1 }}>
-                  <Input value={get("imageUrl")} onChange={v => set("imageUrl", v)} placeholder="이미지 URL 입력 (https://...)" />
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <Input value={get("imageUrl")} onChange={v => set("imageUrl", v)} placeholder="이미지 URL 입력 (https://...)" />
+                    <button
+                      onClick={() => openImagePicker("imageUrl")}
+                      style={{ padding: "7px 12px", background: C.primary, color: "#fff", border: "none", borderRadius: "4px", fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap" }}
+                    >📁 보관함</button>
+                  </div>
                   {get("imageUrl") && (
                     <div style={{ marginTop: "8px" }}>
                       <img src={get("imageUrl")} alt="미리보기" style={{ width: "100px", height: "100px", objectFit: "cover", border: `1px solid ${C.border}`, borderRadius: "4px" }} onError={e => (e.currentTarget.style.display = "none")} />
@@ -282,7 +315,13 @@ export default function ProductDetailPage({ productId, onBack }: { productId: nu
               </Field>
               <Field label="썸네일 이미지 URL">
                 <div style={{ flex: 1 }}>
-                  <Input value={get("thumbnailUrl")} onChange={v => set("thumbnailUrl", v)} placeholder="썸네일 URL 입력 (https://...)" />
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <Input value={get("thumbnailUrl")} onChange={v => set("thumbnailUrl", v)} placeholder="썸네일 URL 입력 (https://...)" />
+                    <button
+                      onClick={() => openImagePicker("thumbnailUrl")}
+                      style={{ padding: "7px 12px", background: C.primary, color: "#fff", border: "none", borderRadius: "4px", fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap" }}
+                    >📁 보관함</button>
+                  </div>
                   {get("thumbnailUrl") && (
                     <div style={{ marginTop: "8px" }}>
                       <img src={get("thumbnailUrl")} alt="썸네일 미리보기" style={{ width: "80px", height: "80px", objectFit: "cover", border: `1px solid ${C.border}`, borderRadius: "4px" }} onError={e => (e.currentTarget.style.display = "none")} />
@@ -300,6 +339,60 @@ export default function ProductDetailPage({ productId, onBack }: { productId: nu
                       </a>
                     </div>
                   )}
+                </div>
+              </Field>
+            </div>
+          )}
+
+          {/* 상세페이지 콘텐츠 탭 */}
+          {activeTab === "content" && (
+            <div>
+              <div style={{ padding: "14px 16px", background: "#F9F8F7", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: "14px" }}>상세페이지 콘텐츠 (홈페이지 연동)</div>
+              <Field label="상품 특징 (JSON)">
+                <div style={{ flex: 1 }}>
+                  <Textarea
+                    value={get("features")}
+                    onChange={v => set("features", v)}
+                    placeholder={'[{"icon":"⚡","title":"특징 제목","desc":"특징 설명"}]'}
+                    rows={6}
+                  />
+                  <p style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>
+                    JSON 형식: [{'{'}"icon": "⚡", "title": "제목", "desc": "설명"{'}'}{'}'}] — 홈페이지 상품 상세페이지의 특징 아이콘 목록에 반영됩니다.
+                  </p>
+                </div>
+              </Field>
+              <Field label="사용법">
+                <div style={{ flex: 1 }}>
+                  <Textarea
+                    value={get("howToUse")}
+                    onChange={v => set("howToUse", v)}
+                    placeholder="사용법을 입력하세요. (홈페이지 상세페이지 '사용법' 탭에 표시됩니다)"
+                    rows={6}
+                  />
+                </div>
+              </Field>
+              <Field label="성분">
+                <div style={{ flex: 1 }}>
+                  <Textarea
+                    value={get("ingredients")}
+                    onChange={v => set("ingredients", v)}
+                    placeholder="성분 정보를 입력하세요. (홈페이지 상세페이지 '성분' 탭에 표시됩니다)"
+                    rows={6}
+                  />
+                </div>
+              </Field>
+              <Field label="동적 상세페이지 링크">
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={{ fontSize: "13px", color: C.blue, fontWeight: 600 }}>/product/{p.slug}</span>
+                    <a
+                      href={`/product/${p.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: "12px", color: C.blue, textDecoration: "underline" }}
+                    >홈페이지에서 보기 ↗</a>
+                  </div>
+                  <p style={{ fontSize: "11px", color: C.muted, marginTop: "4px" }}>이 URL로 홈페이지 상품 상세페이지에 자동 연결됩니다.</p>
                 </div>
               </Field>
             </div>
@@ -390,6 +483,57 @@ export default function ProductDetailPage({ productId, onBack }: { productId: nu
           </button>
         </div>
       </div>
+
+      {/* 디자인 보관함 이미지 선택 팝업 */}
+      <Dialog open={showImagePicker} onOpenChange={setShowImagePicker}>
+        <DialogContent style={{ maxWidth: "700px", maxHeight: "80vh", overflow: "auto" }}>
+          <DialogHeader>
+            <DialogTitle>📁 디자인 보관함에서 이미지 선택</DialogTitle>
+          </DialogHeader>
+          <div style={{ marginBottom: "12px" }}>
+            <input
+              type="text"
+              value={imageSearchText}
+              onChange={e => setImageSearchText(e.target.value)}
+              placeholder="파일명 검색..."
+              style={{ width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "6px", fontSize: "13px" }}
+            />
+          </div>
+          {designImages.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px", color: C.muted, fontSize: "14px" }}>
+              디자인 보관함에 이미지가 없습니다.<br />
+              <span style={{ fontSize: "12px" }}>어드민 페이지 → 디자인 → 파일업로더에서 이미지를 먼저 업로드하세요.</span>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
+              {designImages
+                .filter((f: any) => !imageSearchText || f.fileName.toLowerCase().includes(imageSearchText.toLowerCase()))
+                .map((f: any) => (
+                  <div
+                    key={f.id}
+                    onClick={() => selectImage(f.fileUrl)}
+                    style={{
+                      cursor: "pointer", border: `2px solid ${C.border}`, borderRadius: "8px",
+                      overflow: "hidden", transition: "border-color 0.15s",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = C.primary)}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = C.border)}
+                  >
+                    <img
+                      src={f.fileUrl}
+                      alt={f.fileName}
+                      style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
+                      onError={e => { (e.currentTarget as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23eee' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='12'%3E이미지%3C/text%3E%3C/svg%3E"; }}
+                    />
+                    <div style={{ padding: "4px 6px", fontSize: "10px", color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {f.fileName}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

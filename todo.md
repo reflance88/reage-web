@@ -398,3 +398,15 @@
 - [x] 디자인/파일 DB 테이블 설계 + Supabase SQL 생성 (docs/supabase-schema.sql)
 - [x] 상품 DB Supabase 확인 (priceMembership 필드 추가, DB 마이그레이션 완료)
 - [x] 장바구니 '제품 정보를 불러오는 중' 오류 수정 (tRPC v11 json 래핑 방식 수정)
+
+## 2026-03-11 동적 상품 상세페이지 + 등급별 가격 + 이미지 연동
+
+- [x] DB 스키마 확장: features(JSON), howToUse(text), ingredients(text) 필드 추가
+- [x] DB 마이그레이션 실행
+- [x] product.bySlug API 전체 필드 반환 (features, howToUse, ingredients, priceMembership 포함)
+- [x] 동적 상품 상세페이지 React 컴포넌트 구현 (/product/:slug)
+- [x] 등급별 가격 표시 (일반/전문가/멤버십 등급에 따라 해당 가격 표시 + 등급 배지)
+- [x] 관리자 상품 등록/수정에 디자인 보관함 이미지 선택 팝업 연동 (Dialog 컴포넌트)
+- [x] S1/M2/F3 크림 콘텐츠 DB 시드 입력 (이름/요약설명/상세설명/특징/사용법/성분)
+- [x] 기존 product-s1.html, product-m2.html, product-f3.html → /product/:slug 리다이렉트
+- [x] ProductDetailPage.tsx에 features/howToUse/ingredients 편집 UI 추가

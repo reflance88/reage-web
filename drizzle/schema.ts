@@ -116,6 +116,10 @@ export const products = mysqlTable("products", {
   seoKeywords: varchar("seoKeywords", { length: 500 }),
   seoImageAlt: varchar("seoImageAlt", { length: 200 }),
   adminMemo: text("adminMemo"),
+  // 동적 상세페이지 콘텐츠 필드
+  features: text("features"),           // JSON string: [{icon, title, desc}]
+  howToUse: text("howToUse"),            // 사용법 텍스트
+  ingredients: text("ingredients"),      // 성분 텍스트
   thumbnailUrl: text("thumbnailUrl"),
   detailPageUrl: varchar("detailPageUrl", { length: 500 }),
   sortOrder: int("sortOrder").default(0),
