@@ -1961,11 +1961,10 @@ document.addEventListener('DOMContentLoaded', function() {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ json: {
-            monthly_clients: clients,
+            sessions_per_day: Math.round(clients * 25 / 22), // 일 25일 기준 일일 세션 수
             price_per_session: price,
-            reorder_rate: rate,
-            monthly_revenue: Math.round(monthly),
-            annual_revenue: Math.round(annual),
+            working_days: 22,
+            calculated_monthly: Math.round(monthly),
           }}),
         });
       } catch(e) { /* silent */ }

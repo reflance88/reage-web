@@ -319,12 +319,11 @@ export const sbLogRouter = router({
   recordSimulator: publicProcedure
     .input(
       z.object({
-        monthly_clients: z.number(),
+        sessions_per_day: z.number(),
         price_per_session: z.number(),
-        reorder_rate: z.number(),
-        monthly_revenue: z.number(),
-        annual_revenue: z.number(),
-        session_id: z.string().optional(),
+        working_days: z.number(),
+        calculated_monthly: z.number(),
+        ip_hash: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {

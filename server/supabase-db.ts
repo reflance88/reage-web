@@ -331,12 +331,11 @@ export async function recordDownloadLog(data: {
 }
 
 export async function recordRevenueSimulatorLog(data: {
-  monthly_clients: number;
+  sessions_per_day: number;
   price_per_session: number;
-  reorder_rate: number;
-  monthly_revenue: number;
-  annual_revenue: number;
-  session_id?: string;
+  working_days: number;
+  calculated_monthly: number;
+  ip_hash?: string;
 }) {
   const { error } = await supabaseAdmin.from("revenue_simulator_logs").insert(data);
   if (error) console.warn("[SimulatorLog] 기록 실패:", error.message);
