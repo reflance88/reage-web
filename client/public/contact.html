@@ -603,11 +603,11 @@
     // 폼 데이터 수집
     const formData = new FormData(form);
     const typeMap = {
-      '체험 예약': 'experience_booking',
-      '도입 상담': 'business_consultation',
-      '교육 문의': 'education_inquiry',
+      '체험 예약': 'trial',
+      '도입 상담': 'introduction',
+      '교육 문의': 'education',
     };
-    const inquiry_type = typeMap[type] || 'general';
+    const inquiry_type = typeMap[type] || 'trial';
 
     const payload = {
       inquiry_type,

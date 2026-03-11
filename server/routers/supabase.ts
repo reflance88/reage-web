@@ -36,12 +36,7 @@ export const sbContactRouter = router({
   submit: publicProcedure
     .input(
       z.object({
-        inquiry_type: z.enum([
-          "experience_booking",
-          "business_consultation",
-          "education_inquiry",
-          "general",
-        ]),
+        inquiry_type: z.enum(["trial", "introduction", "education"]),
         name: z.string().min(1).max(50),
         phone: z.string().min(9).max(20),
         email: z.string().email().optional(),
@@ -66,15 +61,8 @@ export const sbContactRouter = router({
   list: protectedProcedure
     .input(
       z.object({
-        status: z.string().optional(),
-        inquiry_type: z
-          .enum([
-            "experience_booking",
-            "business_consultation",
-            "education_inquiry",
-            "general",
-          ])
-          .optional(),
+        status: z.enum(["received", "contacted", "closed"]).optional(),
+        inquiry_type: z.enum(["trial", "introduction", "education"]).optional(),
         page: z.number().default(1),
         limit: z.number().default(20),
       })
@@ -91,7 +79,7 @@ export const sbContactRouter = router({
     .input(
       z.object({
         id: z.string(),
-        status: z.enum(["pending", "in_progress", "resolved", "closed"]),
+        status: z.enum(["received", "contacted", "closed"]),
         admin_memo: z.string().optional(),
       })
     )

@@ -46,6 +46,12 @@ function StatusBadge({ status }: { status: string }) {
     pending:  { bg: "#FEF3C7", color: "#B45309", label: "대기" },
     approved: { bg: "#DCFCE7", color: "#166534", label: "승인" },
     rejected: { bg: "#FEE2E2", color: "#991B1B", label: "반려" },
+    received: { bg: "#EFF6FF", color: "#1D4ED8", label: "접수" },
+    contacted:{ bg: "#FEF3C7", color: "#B45309", label: "연락완료" },
+    closed:   { bg: "#DCFCE7", color: "#166534", label: "종료" },
+    trial:    { bg: "#EDE9FE", color: "#5B21B6", label: "체험예약" },
+    introduction: { bg: "#FEF3C7", color: "#B45309", label: "도입상담" },
+    education:{ bg: "#DCFCE7", color: "#166534", label: "교육문의" },
     paid:     { bg: "#DCFCE7", color: "#166534", label: "결제완료" },
     created:  { bg: "#EFF6FF", color: "#1D4ED8", label: "생성됨" },
     failed:   { bg: "#FEE2E2", color: "#991B1B", label: "실패" },
@@ -137,6 +143,7 @@ const NAV: NavItem[] = [
       { id: "customer-manage", label: "회원 관리" },
       { id: "customer-verification", label: "사업자 인증" },
       { id: "customer-membership", label: "멤버십 관리" },
+      { id: "customer-inquiry", label: "문의 관리" },
     ],
   },
   {
@@ -1110,7 +1117,12 @@ function CustomerSection({ subPage }: { subPage: string }) {
   const title = subPage === "customer-dashboard" ? "고객 대시보드"
     : subPage === "customer-search" ? "회원 조회"
     : subPage === "customer-manage" ? "회원 관리"
+    : subPage === "customer-inquiry" ? "문의 관리"
     : "사업자 인증";
+
+  if (subPage === "customer-inquiry") {
+    return <InquirySection />;
+  }
 
   if (subPage === "customer-dashboard") {
     return (
@@ -1241,6 +1253,167 @@ function CustomerSection({ subPage }: { subPage: string }) {
             ])}
         />
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: INQUIRY (Supabase contact_inquiries)
+// ═══════════════════════════════════════════════════════════════════════════════
+function InquirySection() {
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [selectedInquiry, setSelectedInquiry] = useState<any>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [adminMemo, setAdminMemo] = useState("");
+
+  const inquiries = trpc.sbContact.list.useQuery({
+    status: statusFilter !== "all" ? (statusFilter as any) : undefined,
+    inquiry_type: typeFilter !== "all" ? (typeFilter as any) : undefined,
+    page,
+    limit: 20,
+  });
+
+  const updateStatus = trpc.sbContact.updateStatus.useMutation({
+    onSuccess: () => {
+      toast.success("문의 상태가 변경되었습니다.");
+      inquiries.refetch();
+      setDetailOpen(false);
+    },
+    onError: (e) => toast.error("상태 변경 실패: " + e.message),
+  });
+
+  const openDetail = (item: any) => {
+    setSelectedInquiry(item);
+    setAdminMemo(item.admin_memo ?? "");
+    setDetailOpen(true);
+  };
+
+  const total = inquiries.data?.total ?? 0;
+  const totalPages = Math.ceil(total / 20);
+
+  return (
+    <div>
+      <SectionHeader title="문의 관리" />
+      {/* 필터 바 */}
+      <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
+        <FilterSelect
+          value={statusFilter}
+          onChange={(v) => { setStatusFilter(v); setPage(1); }}
+          options={[
+            { value: "all", label: "전체 상태" },
+            { value: "received", label: "접수" },
+            { value: "contacted", label: "연락완료" },
+            { value: "closed", label: "종료" },
+          ]}
+        />
+        <FilterSelect
+          value={typeFilter}
+          onChange={(v) => { setTypeFilter(v); setPage(1); }}
+          options={[
+            { value: "all", label: "전체 유형" },
+            { value: "trial", label: "체험예약" },
+            { value: "introduction", label: "도입상담" },
+            { value: "education", label: "교육문의" },
+          ]}
+        />
+        <span style={{ fontSize: "13px", color: C.muted, marginLeft: "auto" }}>전체 {total}건</span>
+      </div>
+
+      {/* 문의 목록 테이블 */}
+      <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
+        <Table
+          headers={["유형", "이름", "연락처", "상호명", "지역", "상태", "접수일", "관리"]}
+          rows={(inquiries.data?.items ?? []).map((item: any) => [
+            <StatusBadge status={item.inquiry_type} />,
+            item.name ?? "—",
+            item.phone ?? "—",
+            item.shop_name ?? "—",
+            item.region ?? "—",
+            <StatusBadge status={item.status} />,
+            fmtDate(item.created_at),
+            <Btn size="sm" variant="outline" onClick={() => openDetail(item)}>상세</Btn>,
+          ])}
+        />
+      </div>
+
+      {/* 페이지네이션 */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", gap: "8px", justifyContent: "center", marginTop: "16px" }}>
+          <Btn size="sm" variant="outline" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>← 이전</Btn>
+          <span style={{ fontSize: "13px", padding: "6px 12px", color: C.muted }}>{page} / {totalPages}</span>
+          <Btn size="sm" variant="outline" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>다음 →</Btn>
+        </div>
+      )}
+
+      {/* 문의 상세 모달 */}
+      {detailOpen && selectedInquiry && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
+          <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "600px", maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "17px", fontWeight: 800 }}>문의 상세</h3>
+              <button onClick={() => setDetailOpen(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer" }}>✕</button>
+            </div>
+
+            <div style={{ display: "grid", gap: "12px", fontSize: "13px", marginBottom: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>문의 유형</span><StatusBadge status={selectedInquiry.inquiry_type} /></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>이름</span><span style={{ fontWeight: 600 }}>{selectedInquiry.name}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>연락처</span><span>{selectedInquiry.phone}</span></div>
+              {selectedInquiry.email && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>이메일</span><span>{selectedInquiry.email}</span></div>}
+              {selectedInquiry.shop_name && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>상호명</span><span>{selectedInquiry.shop_name}</span></div>}
+              {selectedInquiry.region && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>지역</span><span>{selectedInquiry.region}</span></div>}
+              {selectedInquiry.preferred_date && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>선호 날짜</span><span>{selectedInquiry.preferred_date}</span></div>}
+              {selectedInquiry.education_program && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>교육 코스</span><span>{selectedInquiry.education_program}</span></div>}
+              {selectedInquiry.message && (
+                <div>
+                  <div style={{ color: C.muted, marginBottom: "6px" }}>문의 내용</div>
+                  <div style={{ background: C.bg, borderRadius: "8px", padding: "12px", fontSize: "13px", lineHeight: 1.7 }}>{selectedInquiry.message}</div>
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>접수일</span><span>{fmtDate(selectedInquiry.created_at)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ color: C.muted }}>상태</span>
+                <FilterSelect
+                  value={selectedInquiry.status}
+                  onChange={(v) => {
+                    updateStatus.mutate({ id: String(selectedInquiry.id), status: v as any, admin_memo: adminMemo });
+                    setSelectedInquiry({ ...selectedInquiry, status: v });
+                  }}
+                  options={[
+                    { value: "received", label: "접수" },
+                    { value: "contacted", label: "연락완료" },
+                    { value: "closed", label: "종료" },
+                  ]}
+                />
+              </div>
+            </div>
+
+            {/* 관리자 메모 */}
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "6px", color: C.text }}>관리자 메모</div>
+              <textarea
+                value={adminMemo}
+                onChange={(e) => setAdminMemo(e.target.value)}
+                placeholder="내부 메모 입력..."
+                rows={3}
+                style={{ width: "100%", padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", fontSize: "13px", fontFamily: "inherit", resize: "vertical", outline: "none" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <Btn variant="outline" onClick={() => setDetailOpen(false)}>닫기</Btn>
+              <Btn
+                onClick={() => updateStatus.mutate({ id: String(selectedInquiry.id), status: selectedInquiry.status as any, admin_memo: adminMemo })}
+                disabled={updateStatus.isPending}
+              >
+                {updateStatus.isPending ? "저장 중..." : "메모 저장"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

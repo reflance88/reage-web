@@ -322,3 +322,15 @@
 - [x] index-main.html 수익 시뮬레이터 → sbLog.revenueSimulator API 연동
 - [x] TypeScript 에러 0개 확인
 - [x] 전체 vitest 테스트 9/9 통과
+
+## 문의 폼 오류 수정 및 관리자 문의 관리 기능
+
+- [x] inquiry_type ENUM 불일치 수정 (DB: trial/introduction/education, 코드: experience_booking/business_consultation/education_inquiry/general)
+- [x] inquiry_status ENUM 불일치 수정 (DB: received/contacted/closed, 코드: pending/in_progress/resolved/closed)
+- [x] contact.html 폼 inquiry_type 값 DB ENUM에 맞게 수정
+- [x] supabase-db.ts 타입 정의 DB ENUM에 맞게 수정
+- [x] server/routers/supabase.ts zod 스키마 DB ENUM에 맞게 수정
+- [x] Supabase 문의 저장 실제 테스트 (성공 확인)
+- [x] 관리자 페이지에 Supabase 문의 목록 조회 기능 추가
+- [x] 관리자 페이지에 문의 상태 변경 기능 추가 (received/contacted/closed)
+- [x] 관리자 페이지에 문의 상세 모달 추가

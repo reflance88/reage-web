@@ -8,11 +8,8 @@ import { supabaseAdmin, supabasePublic } from "./_core/supabase";
 // 문의 (contact_inquiries)
 // ============================================================
 
-export type InquiryType =
-  | "experience_booking"
-  | "business_consultation"
-  | "education_inquiry"
-  | "general";
+export type InquiryType = "trial" | "introduction" | "education";
+export type InquiryStatus = "received" | "contacted" | "closed";
 
 export interface InsertContactInquiry {
   inquiry_type: InquiryType;
@@ -31,7 +28,7 @@ export interface InsertContactInquiry {
 export async function createContactInquiry(data: InsertContactInquiry) {
   const { data: result, error } = await supabaseAdmin
     .from("contact_inquiries")
-    .insert({ ...data, status: "pending" })
+    .insert({ ...data, status: "received" })
     .select()
     .single();
   if (error) throw new Error(`문의 저장 실패: ${error.message}`);
@@ -65,7 +62,7 @@ export async function getContactInquiries(options?: {
 
 export async function updateInquiryStatus(
   id: string,
-  status: "pending" | "in_progress" | "resolved" | "closed",
+  status: InquiryStatus,
   adminMemo?: string
 ) {
   const { data, error } = await supabaseAdmin
