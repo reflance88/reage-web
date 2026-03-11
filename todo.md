@@ -425,3 +425,15 @@
 - [x] reage-device.html 제품소개 드롭다운 DB 연동 (product-nav-dropdown id 추가)
 - [x] 전체 HTML 헤더 제품소개 드롭다운 DB 연동 (header-products.js 공통 스크립트 13개 파일 적용)
 - [x] reage-device.html 크림 제품 목록 DB 연동 - 이미 완료되어 있음 (등급별 가격 표시 포함)
+
+## 2026-03-11 관리자 페이지 7가지 개선
+
+- [x] 디자인 보관함 파일 목록에 thumbnailUrl 우선 사용 (48px 썸네일 표시, 원본 폴백)
+- [x] 드래그앤드롭 업로더 확인 - 이미 구현되어 있음 (Drag & Drop 영역 + Add Files 버튼)
+- [x] 레아주→레아쥬 텍스트 수정 (product-s1.html.bak 4건 수정, 실제 HTML 파일에는 이미 레아쥬 사용 중)
+- [x] 주문 팝업(OrderDetailModal) 크기 확장 (max-w-5xl → w-[95vw] max-w-[1400px])
+- [x] 주문 대시보드 실시간 매출현황 개선 (총 실결제금액, 총 환불금액 행 추가, 이번달 데이터 연동)
+- [x] getDashboardSummary에 monthOrders/monthRevenue/todayNetRevenue/monthNetRevenue/환불금액 추가
+- [x] 입금전 관리 - 입금확인 버튼 추가 (클릭 시 created→paid 상태 변경, confirm 다이얼로그)
+- [x] 전체 주문조회 컬럼 추가 (주문일, 총 상품 구매금액, 총 실결제금액, 결제수단)
+- [x] 관리자 대시보드 데이터 연동 확인 (이미 trpc.admin.dashboard.useQuery()로 연동됨)

@@ -594,6 +594,17 @@ export async function getDashboardSummary() {
   const [returnCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(and(eq(orderReturns.status, "completed"), sql`${orderReturns.processedAt} >= ${today}`));
   const [refundCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${today}`));
 
+  // 이번 달 데이터
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const [monthOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`));
+  const [monthRevenue] = await db.select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`));
+  // 실결제금액 = 총 주문금액 - 환불금액 (취소 완료된 금액 제외)
+  const [todayRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${today}`));
+  const [monthRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${monthStart}`));
+  const [totalRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(eq(orderRefunds.status, "completed"));
+
   return {
     pendingVerifications: Number(pendingVerifs?.count ?? 0),
     totalUsers: Number(totalUsers?.count ?? 0),
@@ -613,6 +624,16 @@ export async function getDashboardSummary() {
     exchangeCompleted: Number(exchangeCompleted?.count ?? 0),
     returnCompleted: Number(returnCompleted?.count ?? 0),
     refundCompleted: Number(refundCompleted?.count ?? 0),
+    // 이번 달
+    monthOrders: Number(monthOrders?.count ?? 0),
+    monthRevenue: Number(monthRevenue?.total ?? 0),
+    // 환불 금액
+    todayRefundAmount: Number(todayRefundAmount?.total ?? 0),
+    monthRefundAmount: Number(monthRefundAmount?.total ?? 0),
+    totalRefundAmount: Number(totalRefundAmount?.total ?? 0),
+    // 실결제금액 = 주문금액 - 환불금액
+    todayNetRevenue: Number(todayRevenue?.total ?? 0) - Number(todayRefundAmount?.total ?? 0),
+    monthNetRevenue: Number(monthRevenue?.total ?? 0) - Number(monthRefundAmount?.total ?? 0),
   };
 }
 

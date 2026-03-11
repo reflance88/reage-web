@@ -592,7 +592,10 @@ function OrderDashboard() {
       </div>
       {/* 실시간 매출 현황 */}
       <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, padding: "24px", marginBottom: "20px" }}>
-        <div style={{ fontSize: "14px", fontWeight: 700, marginBottom: "16px", color: C.text }}>실시간 매출 현황</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, color: C.text }}>실시간 매출 현황</div>
+          <div style={{ fontSize: "11px", color: C.muted }}>최종 업데이트: {new Date().toLocaleString("ko-KR")}</div>
+        </div>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -603,11 +606,23 @@ function OrderDashboard() {
             </tr>
           </thead>
           <tbody>
-            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-              <td style={{ padding: "12px" }}>총 주문 금액</td>
+            <tr style={{ borderBottom: `1px solid ${C.border}`, background: "#F0F7FF" }}>
+              <td style={{ padding: "12px", fontWeight: 600, borderLeft: `3px solid ${C.blue}` }}>총 주문 금액</td>
               <td style={{ padding: "12px", textAlign: "right", color: C.blue, fontWeight: 700 }}>{krw(d?.todayRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.todayOrders ?? 0}건</span></td>
-              <td style={{ padding: "12px", textAlign: "right", color: C.primary, fontWeight: 700 }}>{krw(d?.totalPaidAmount ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.totalOrders ?? 0}건</span></td>
-              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline">주문조회</Btn></td>
+              <td style={{ padding: "12px", textAlign: "right", color: C.primary, fontWeight: 700 }}>{krw(d?.monthRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.monthOrders ?? 0}건</span></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => {}}>주문조회</Btn></td>
+            </tr>
+            <tr style={{ borderBottom: `1px solid ${C.border}`, background: "#F0FFF4" }}>
+              <td style={{ padding: "12px", fontWeight: 600, borderLeft: `3px solid ${C.green}` }}>총 실 결제 금액</td>
+              <td style={{ padding: "12px", textAlign: "right", color: C.blue, fontWeight: 700 }}>{krw(d?.todayNetRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.todayOrders ?? 0}건</span></td>
+              <td style={{ padding: "12px", textAlign: "right", color: C.primary, fontWeight: 700 }}>{krw(d?.monthNetRevenue ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>{d?.monthOrders ?? 0}건</span></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => {}}>결제조회</Btn></td>
+            </tr>
+            <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+              <td style={{ padding: "12px", color: C.muted }}>총 환불 금액</td>
+              <td style={{ padding: "12px", textAlign: "right", color: "#991B1B", fontWeight: 700 }}>{krw(d?.todayRefundAmount ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>0건</span></td>
+              <td style={{ padding: "12px", textAlign: "right", color: "#991B1B", fontWeight: 700 }}>{krw(d?.monthRefundAmount ?? 0)}<br /><span style={{ fontSize: "11px", color: C.muted }}>0건</span></td>
+              <td style={{ padding: "12px", textAlign: "right" }}><Btn size="sm" variant="outline" onClick={() => {}}>환불조회</Btn></td>
             </tr>
           </tbody>
         </table>
@@ -968,14 +983,33 @@ function OrderSection({ subPage }: { subPage: string }) {
       </div>
       <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "hidden" }}>
         <Table
-          headers={["주문번호", "회원", "주문명", "금액", "결제상태", "배송상태", "결제일", "관리"]}
+          headers={subPage === "order-all"
+            ? ["주문일", "주문번호", "회원", "주문명", "총 상품 구매금액", "총 실결제금액", "결제수단", "결제상태", "배송상태", "관리"]
+            : ["주문번호", "회원", "주문명", "금액", "결제상태", "배송상태", "결제일", "관리"]}
           rows={(orders.data?.items ?? []).map((item: any) => {
             const o = item.o;
+            const paymentMethodLabel = o.paymentMethod === "card" ? "카드" : o.paymentMethod === "bank_transfer" || o.paymentMethod === "virtualAccount" ? "무통장입금" : o.paymentMethod === "tosspay" ? "토스페이" : o.paymentMethod === "kakaopay" ? "카카오페이" : o.paymentMethod ?? "—";
+            if (subPage === "order-all") {
+              return [
+                <div style={{ fontSize: "11px", color: C.muted }}>{fmtDate(o.createdAt)}</div>,
+                <button style={{ fontFamily: "monospace", fontSize: "11px", color: C.blue, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }} onClick={() => setDetailOrderId(o.orderId)}>{o.orderId}</button>,
+                <div><div style={{ fontWeight: 600 }}>{item.userName ?? "—"}</div><div style={{ fontSize: "11px", color: C.muted }}>{item.userEmail ?? "—"}</div></div>,
+                o.orderName ?? "—",
+                <span style={{ fontWeight: 600 }}>{krw(o.totalAmount)}</span>,
+                <span style={{ fontWeight: 600, color: C.primary }}>{krw(o.totalAmount)}</span>,
+                <span style={{ fontSize: "12px", padding: "2px 8px", borderRadius: "4px", background: "#F3F4F6" }}>{paymentMethodLabel}</span>,
+                <StatusBadge status={o.status} />,
+                <ShippingBadge status={o.shippingStatus ?? "none"} />,
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <Btn size="sm" variant="outline" onClick={() => setDetailOrderId(o.orderId)}>상세</Btn>
+                  {o.status !== "cancelled" && (
+                    <Btn size="sm" variant="danger" onClick={() => setCancelConfirm(o.orderId)}>취소</Btn>
+                  )}
+                </div>,
+              ];
+            }
             return [
-              <button
-                style={{ fontFamily: "monospace", fontSize: "11px", color: C.blue, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}
-                onClick={() => setDetailOrderId(o.orderId)}
-              >{o.orderId}</button>,
+              <button style={{ fontFamily: "monospace", fontSize: "11px", color: C.blue, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }} onClick={() => setDetailOrderId(o.orderId)}>{o.orderId}</button>,
               <div><div style={{ fontWeight: 600 }}>{item.userName ?? "—"}</div><div style={{ fontSize: "11px", color: C.muted }}>{item.userEmail ?? "—"}</div></div>,
               o.orderName ?? "—",
               krw(o.totalAmount),
@@ -984,6 +1018,13 @@ function OrderSection({ subPage }: { subPage: string }) {
               fmtDate(o.paidAt),
               <div style={{ display: "flex", gap: "4px" }}>
                 <Btn size="sm" variant="outline" onClick={() => setDetailOrderId(o.orderId)}>상세</Btn>
+                {subPage === "order-unpaid" && o.status === "created" && (
+                  <Btn size="sm" variant="primary" onClick={() => {
+                    if (window.confirm(`주문번호 ${o.orderId}의 입금을 확인하시겠습니까?\n입금 확인 시 결제완료 상태로 변경됩니다.`)) {
+                      updateStatus.mutate({ orderId: o.orderId, status: "paid" });
+                    }
+                  }}>입금확인</Btn>
+                )}
                 {o.status !== "cancelled" && (
                   <Btn size="sm" variant="danger" onClick={() => setCancelConfirm(o.orderId)}>취소</Btn>
                 )}
@@ -3376,7 +3417,7 @@ function DesignDashboardSection() {
         {(files.data ?? []).slice(0, 10).map((f: any) => (
           <div key={f.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
             {f.mimeType?.startsWith("image/") ? (
-              <img src={f.fileUrl} alt={f.fileName} style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px", border: `1px solid ${C.border}` }} onError={(e: React.SyntheticEvent<HTMLImageElement>) => (e.currentTarget.style.display = "none")} />
+              <img src={f.thumbnailUrl || f.fileUrl} alt={f.fileName} style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px", border: `1px solid ${C.border}` }} onError={(e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.src = f.fileUrl; }} />
             ) : (
               <div style={{ width: "48px", height: "48px", background: "#F3F4F6", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>📄</div>
             )}
@@ -3419,7 +3460,7 @@ function DesignLibrarySection() {
             {(files.data ?? []).map((f: any) => (
               <div key={f.id} style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", overflow: "hidden", position: "relative" }}>
                 {f.mimeType?.startsWith("image/") ? (
-                  <img src={f.fileUrl} alt={f.fileName} style={{ width: "100%", height: "100px", objectFit: "cover" }} onError={(e: React.SyntheticEvent<HTMLImageElement>) => (e.currentTarget.style.display = "none")} />
+                  <img src={f.thumbnailUrl || f.fileUrl} alt={f.fileName} style={{ width: "100%", height: "100px", objectFit: "cover" }} onError={(e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.src = f.fileUrl; }} />
                 ) : (
                   <div style={{ height: "100px", background: "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px" }}>📄</div>
                 )}
@@ -3567,7 +3608,7 @@ function FileUploaderSection({ embedded = false }: { embedded?: boolean }) {
                     <td style={{ padding: "10px 12px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         {f.mimeType?.startsWith("image/") ? (
-                          <img src={f.fileUrl} alt={f.fileName} style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px", border: `1px solid ${C.border}` }} onError={(e: React.SyntheticEvent<HTMLImageElement>) => (e.currentTarget.style.display = "none")} />
+                          <img src={f.thumbnailUrl || f.fileUrl} alt={f.fileName} style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "6px", border: `1px solid ${C.border}`, flexShrink: 0 }} onError={(e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.src = f.fileUrl; }} />
                         ) : (
                           <span style={{ fontSize: "20px" }}>📄</span>
                         )}

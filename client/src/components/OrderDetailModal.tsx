@@ -141,7 +141,7 @@ export default function OrderDetailModal({ orderId, onClose }: Props) {
 
   return (
     <Dialog open={!!orderId} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="w-[95vw] max-w-[1400px] max-h-[92vh] overflow-y-auto p-0">
         {/* 헤더 */}
         <div className="bg-gray-800 text-white px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-6 text-sm">
