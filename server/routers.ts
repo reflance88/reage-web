@@ -137,6 +137,16 @@ import {
 import { storagePut } from "./storage";
 import { sendPasswordResetEmail } from "./_core/mailer";
 import {
+  sbContactRouter,
+  sbReviewRouter,
+  sbGalleryRouter,
+  sbMagazineRouter,
+  sbLogRouter,
+  sbExperienceCenterRouter,
+  sbInstructorRouter,
+  sbPopupRouter,
+} from "./routers/supabase";
+import {
   sendOrderCompleteAlimtalk,
   sendAdminNewOrderAlimtalk,
   sendShippingStartedAlimtalk,
@@ -177,6 +187,15 @@ async function cancelTossPayment(paymentKey: string, cancelReason: string) {
 
 export const appRouter = router({
   system: systemRouter,
+  // ─── Supabase 연동 라우터 ──────────────────────────────────────────────────
+  sbContact: sbContactRouter,
+  sbReview: sbReviewRouter,
+  sbGallery: sbGalleryRouter,
+  sbMagazine: sbMagazineRouter,
+  sbLog: sbLogRouter,
+  sbExperienceCenter: sbExperienceCenterRouter,
+  sbInstructor: sbInstructorRouter,
+  sbPopup: sbPopupRouter,
 
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),

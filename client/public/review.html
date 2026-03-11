@@ -518,10 +518,10 @@
       const params = category === 'all'
         ? { limit: 200 }
         : { category, limit: 200 };
-      const qs = encodeURIComponent(JSON.stringify(params));
-      const res = await fetch(`/api/trpc/review.list?input=${qs}`);
+      const batchInput = encodeURIComponent(JSON.stringify({ '0': { json: params } }));
+      const res = await fetch(`/api/trpc/sbReview.list?batch=1&input=${batchInput}`, { credentials: 'include' });
       const json = await res.json();
-      const items = json?.result?.data?.json?.items ?? json?.result?.data?.json ?? [];
+      const items = (Array.isArray(json) ? json[0]?.result?.data?.json?.items : json?.result?.data?.json?.items) ?? [];
 
       renderPhotos(items);
     } catch (e) {

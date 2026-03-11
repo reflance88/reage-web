@@ -307,3 +307,18 @@
 ## 모바일 렌더링 수정
 
 - [x] 모바일에서 IntersectionObserver 미작동으로 텍스트/이미지 opacity:0 고정 문제 수정 (index-main.html) - CSS 폴백 + DOMContentLoaded 래핑
+
+## Supabase 전체 연동
+
+- [x] @supabase/supabase-js 패키지 설치
+- [x] server/_core/supabase.ts 서버 클라이언트 모듈 생성
+- [x] server/supabase-db.ts DB 헬퍼 모듈 생성 (contact_inquiries, reviews, gallery, magazine, logs)
+- [x] server/routers/supabase.ts tRPC 라우터 생성 (sbContact, sbReview, sbGallery, sbMagazine, sbLog)
+- [x] server/routers.ts에 Supabase 라우터 등록
+- [x] contact.html 문의 폼 → sbContact.create API 연동
+- [x] review.html → sbReview.list API 연동
+- [x] gallery.html → sbGallery.list API 연동
+- [x] magazine.html → sbMagazine.list API 연동
+- [x] index-main.html 수익 시뮬레이터 → sbLog.revenueSimulator API 연동
+- [x] TypeScript 에러 0개 확인
+- [x] 전체 vitest 테스트 9/9 통과

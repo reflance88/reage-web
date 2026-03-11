@@ -1942,14 +1942,34 @@ document.addEventListener('DOMContentLoaded', function() {
     updateFloatingCta();
   }, { passive: true });
 
-  /* 14. 매울 시뮬레이터 */
+  /* 14. 수익 시뮬레이터 */
+  let simLogTimer = null;
   function calcRevenue() {
     const clients = parseFloat(document.getElementById('sim-clients').value) || 0;
     const price   = parseFloat(document.getElementById('sim-price').value) || 0;
     const rate    = parseFloat(document.getElementById('sim-rate').value) || 0;
     const monthly = clients * 25 * price * (1 + rate / 100 * 1.5);
+    const annual  = monthly * 12;
     document.getElementById('sim-result').textContent =
       '₩ ' + Math.round(monthly).toLocaleString('ko-KR');
+    // 2초 디바운스 후 Supabase 로그 기록
+    clearTimeout(simLogTimer);
+    simLogTimer = setTimeout(async () => {
+      try {
+        await fetch('/api/trpc/sbLog.recordSimulator', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ json: {
+            monthly_clients: clients,
+            price_per_session: price,
+            reorder_rate: rate,
+            monthly_revenue: Math.round(monthly),
+            annual_revenue: Math.round(annual),
+          }}),
+        });
+      } catch(e) { /* silent */ }
+    }, 2000);
   }
   calcRevenue();
 

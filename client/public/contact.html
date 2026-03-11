@@ -590,10 +590,63 @@
     document.getElementById('successMsg').classList.remove('show');
   }
 
-  function submitForm(e, type) {
+  async function submitForm(e, type) {
     e.preventDefault();
-    document.querySelectorAll('.form-body').forEach(b => b.classList.remove('active'));
-    document.getElementById('successMsg').classList.add('show');
+    const form = e.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+
+    // 버튼 로딩 상태
+    submitBtn.disabled = true;
+    submitBtn.textContent = '제출 중...';
+
+    // 폼 데이터 수집
+    const formData = new FormData(form);
+    const typeMap = {
+      '체험 예약': 'experience_booking',
+      '도입 상담': 'business_consultation',
+      '교육 문의': 'education_inquiry',
+    };
+    const inquiry_type = typeMap[type] || 'general';
+
+    const payload = {
+      inquiry_type,
+      name: formData.get('name') || '',
+      phone: formData.get('phone') || '',
+      shop_name: formData.get('shop') || undefined,
+      region: formData.get('region') || undefined,
+      preferred_date: formData.get('date') || undefined,
+      education_course: formData.get('education_course') || undefined,
+      current_status: formData.get('current_status') || undefined,
+      message: formData.get('message') || undefined,
+    };
+
+    // 빈 값 제거
+    Object.keys(payload).forEach(k => {
+      if (payload[k] === '' || payload[k] === undefined || payload[k] === null) delete payload[k];
+    });
+
+    try {
+      const response = await fetch('/api/trpc/sbContact.submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ json: payload }),
+      });
+
+      const result = await response.json();
+      if (result.error) throw new Error(result.error.message || '제출 실패');
+
+      // 성공 처리
+      document.querySelectorAll('.form-body').forEach(b => b.classList.remove('active'));
+      document.getElementById('successMsg').classList.add('show');
+      form.reset();
+    } catch (err) {
+      console.error('[문의 제출 오류]', err);
+      alert('제출 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.\n문의: 010-9679-9498');
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
   }
 
   // URL 파라미터로 탭 자동 선택
