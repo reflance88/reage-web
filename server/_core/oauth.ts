@@ -50,19 +50,14 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
-      // DB 저장 실패 시에도 로그인은 계속 진행 (네트워크 차단 등 일시적 오류 대응)
-      try {
-        await db.upsertUser({
-          openId: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
-          lastSignedIn: new Date(),
-        });
-      } catch (dbError) {
-        console.warn("[OAuth] DB upsert failed (non-fatal):", dbError);
-        // DB 저장 실패해도 세션 발급은 계속 진행
-      }
+      // DB에 사용자 정보 저장 (실패 시 로그인 차단 — users 테이블 필수)
+      await db.upsertUser({
+        openId: userInfo.openId,
+        name: userInfo.name || null,
+        email: userInfo.email ?? null,
+        loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+        lastSignedIn: new Date(),
+      });
 
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {
         name: userInfo.name || "",
