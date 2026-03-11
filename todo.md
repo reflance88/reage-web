@@ -469,3 +469,16 @@
 - [ ] 엑셀 기본양식(주문번호기준) 초기 데이터 삽입
 - [ ] 엑셀 기본양식(품목주문기준) 초기 데이터 삽입
 - [ ] Supabase SQL 생성 (이전 SQL 요청 이후 추가된 모든 테이블)
+
+## 헤더 드롭다운 버그 수정 + 리치 에디터 + 갤러리/매거진 연동 (2026-03-11)
+
+- [x] 헤더 갤러리 드롭다운 버그 수정 (gallery.html, magazine.html에서 인증강사 세부카테고리 누락 수정)
+- [x] 관리자 페이지 갤러리/매거진 글 작성 리치 텍스트 에디터 구현 (Tiptap 기반, 이미지 업로드/글씨체/크기/굵기/색상/정렬 등)
+- [x] 관리자 갤러리/매거진 CRUD를 Supabase gallery_posts/magazine_posts 테이블로 통합
+- [x] gallery.html DB 데이터 있을 때 정적 더미 아이템 숨기기
+- [x] magazine.html DB 데이터 있을 때 정적 더미 아이템 숨기기
+- [x] 주문 대시보드 바로가기 버튼 연결 (주문조회→전체, 결제조회→결제완료 필터, 환불조회→환불관리)
+- [x] 전체 주문조회 헤더 클릭 정렬 기능 추가 (주문일/주문번호/금액/상태 등)
+- [x] searchOrders db 함수 및 라우터에 sortCol/sortDir 파라미터 추가
+- [x] Supabase PostgreSQL 연결 전환 (drizzle-orm/node-postgres, schema-pg.ts)
+- [x] TypeScript 오류 0개, vitest 33 passed / 1 skipped

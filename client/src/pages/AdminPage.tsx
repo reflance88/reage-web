@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import RichTextEditor from "@/components/RichTextEditor";
 import PromotionSection from "./PromotionSection";
 import ProductDetailPage from "./ProductDetailPage";
 import { useState, useMemo, useRef, useEffect } from "react";
@@ -2093,6 +2094,22 @@ function PostEditor({
     reader.readAsDataURL(file);
   };
 
+  // 리치 에디터 내 이미지 업로드 핸들러
+  const handleEditorImageUpload = async (file: File): Promise<string> => {
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = ev => resolve((ev.target?.result as string).split(",")[1]);
+      reader.readAsDataURL(file);
+    });
+    const result = await uploadImage.mutateAsync({
+      fileBase64: base64,
+      fileName: file.name,
+      fileMimeType: file.type,
+      postType: type,
+    });
+    return result.url;
+  };
+
   const handleSave = async () => {
     setUploading(true);
     try {
@@ -2147,9 +2164,13 @@ function PostEditor({
         </div>
         <div>
           <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>내용</label>
-          <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="내용을 입력하세요. HTML 태그 사용 가능합니다."
-            rows={12}
-            style={{ width: "100%", padding: "12px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", lineHeight: 1.7, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
+          <RichTextEditor
+            value={content}
+            onChange={setContent}
+            onImageUpload={handleEditorImageUpload}
+            placeholder="내용을 입력하세요..."
+            minHeight={400}
+          />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <input type="checkbox" id="isPublished" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} />
@@ -2581,7 +2602,7 @@ function ReviewSection() {
 function BoardSection({ subPage }: { subPage: string }) {
   const [view, setView] = useState<"list" | "create" | "edit">("list");
   const [editPost, setEditPost] = useState<any>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<null | { id: number; type: "gallery" | "magazine" }>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<null | { id: string; type: "gallery" | "magazine" }>(null);
 
   const galleryPosts = trpc.admin.galleryPosts.useQuery({ page: 1, limit: 50 });
   const magazinePosts = trpc.admin.magazinePosts.useQuery({ page: 1, limit: 50 });
@@ -2683,7 +2704,7 @@ function BoardSection({ subPage }: { subPage: string }) {
             fmtDate(p.createdAt),
             <div style={{ display: "flex", gap: "6px" }}>
               <Btn size="sm" variant="outline" onClick={() => { setEditPost(p); setView("edit"); }}>수정</Btn>
-              <Btn size="sm" variant="danger" onClick={() => setDeleteConfirm({ id: p.id, type })}>삭제</Btn>
+              <Btn size="sm" variant="danger" onClick={() => setDeleteConfirm({ id: String(p.id), type })}>삭제</Btn>
             </div>,
           ])}
         />

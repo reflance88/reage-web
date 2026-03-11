@@ -203,6 +203,7 @@
         <div class="nav-dropdown">
           <a href="gallery.html">갤러리</a>
           <a href="magazine.html" class="active">매거진</a>
+          <a href="instructor.html">인증강사</a>
         </div>
       </div>
     </nav>
@@ -565,9 +566,17 @@ async function loadMagazineFromDB() {
     if (!res.ok) return;
     const data = await res.json();
     const posts = data[0]?.result?.data?.json?.items;
-    if (!posts || posts.length === 0) return;
 
     const grid = document.getElementById('articlesGrid');
+
+    // DB 데이터가 있으면 정적 더미 아이템 숨기기
+    if (posts && posts.length > 0) {
+      const staticItems = grid.querySelectorAll('.article-card[data-category]:not([data-category="db"])');
+      staticItems.forEach(el => el.style.display = 'none');
+    }
+
+    if (!posts || posts.length === 0) return;
+
     const fragment = document.createDocumentFragment();
     posts.forEach((post, i) => {
       const card = document.createElement('div');
@@ -575,16 +584,25 @@ async function loadMagazineFromDB() {
       card.setAttribute('data-category', 'db');
       card.style.transitionDelay = (i * 0.1) + 's';
       card.style.cursor = 'pointer';
-      card.onclick = () => { window.location.href = `/magazine-detail.html?id=${post.id}`; };
-      const dateStr = post.createdAt ? new Date(post.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace('.', '') : '';
-      // 초반 부분 텍스트 추출 (100자)
-      const excerpt = post.content ? post.content.substring(0, 100) + (post.content.length > 100 ? '...' : '') : '';
+      card.onclick = () => { window.location.href = '/magazine-detail.html?id=' + post.id; };
+      const dateStr = post.publishedAt || post.published_at || post.createdAt || post.created_at
+        ? new Date(post.publishedAt || post.published_at || post.createdAt || post.created_at)
+            .toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
+            .replace(/\. /g, '.').replace(/\.$/, '')
+        : '';
+      // excerpt 또는 content 앞부분 표시
+      const excerptText = post.excerpt || post.subtitle || (post.content ? post.content.replace(/<[^>]+>/g, '').substring(0, 120) + '...' : '');
+      const coverImg = post.thumbnailUrl || post.thumbnail_url || post.coverImageUrl || post.cover_image_url;
+      const catLabel = {
+        japan: '🇯🇵 일본 소식', korea: '🇰🇷 한국 소식',
+        ai: '🤖 AI·기술', news: '📰 레아주 뉴스', general: 'MAGAZINE'
+      }[post.category] || 'MAGAZINE';
       card.innerHTML = `
-        <div class="article-img" style="${post.coverImageUrl ? `background-image:url('${post.coverImageUrl}');background-size:cover;background-position:center;` : ''}">${post.coverImageUrl ? '' : '📝'}</div>
+        <div class="article-img" style="${coverImg ? `background-image:url('${coverImg}');background-size:cover;background-position:center;` : ''}">${coverImg ? '' : '📝'}</div>
         <div class="article-body">
-          <span class="article-category">MAGAZINE</span>
+          <span class="article-category">${catLabel}</span>
           <h3 class="article-title">${post.title}</h3>
-          ${post.subtitle ? `<p class="article-excerpt">${post.subtitle}</p>` : (excerpt ? `<p class="article-excerpt">${excerpt}</p>` : '')}
+          ${excerptText ? `<p class="article-excerpt">${excerptText}</p>` : ''}
           <div class="article-meta"><span class="article-date">${dateStr}</span><span class="article-read">읽기 →</span></div>
         </div>`;
       fragment.appendChild(card);

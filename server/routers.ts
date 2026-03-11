@@ -149,6 +149,16 @@ import {
   deleteExcelTemplate,
 } from "./db";
 import { storagePut } from "./storage";
+import {
+  getAdminGalleryPosts,
+  createAdminGalleryPost,
+  updateAdminGalleryPost,
+  deleteAdminGalleryPost,
+  getAdminMagazinePosts,
+  createAdminMagazinePost,
+  updateAdminMagazinePost,
+  deleteAdminMagazinePost,
+} from "./supabase-db";
 import { sendPasswordResetEmail, sendMail } from "./_core/mailer";
 import {
   sbContactRouter,
@@ -913,7 +923,7 @@ export const appRouter = router({
       .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }))
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return getGalleryPosts(input);
+        return getAdminGalleryPosts(input);
       }),
 
     createGalleryPost: protectedProcedure
@@ -926,12 +936,12 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return createGalleryPost({ ...input, authorId: ctx.user.id });
+        return createAdminGalleryPost({ ...input, authorId: ctx.user.id });
       }),
 
     updateGalleryPost: protectedProcedure
       .input(z.object({
-        id: z.number(),
+        id: z.string(),
         title: z.string().min(1).optional(),
         content: z.string().optional(),
         coverImageUrl: z.string().optional(),
@@ -941,15 +951,14 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         const { id, ...data } = input;
-        return updateGalleryPost(id, data);
+        return updateAdminGalleryPost(id, data);
       }),
 
     deleteGalleryPost: protectedProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ id: z.string() }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        await deletePostImagesByPost("gallery" as const, input.id);
-        return deleteGalleryPost(input.id);
+        return deleteAdminGalleryPost(input.id);
       }),
 
     // ─── Magazine ──────────────────────────────────────────────────────────────
@@ -957,7 +966,7 @@ export const appRouter = router({
       .input(z.object({ page: z.number().default(1), limit: z.number().default(20) }))
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return getMagazinePosts(input);
+        return getAdminMagazinePosts(input);
       }),
 
     createMagazinePost: protectedProcedure
@@ -971,12 +980,12 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return createMagazinePost({ ...input, authorId: ctx.user.id });
+        return createAdminMagazinePost({ ...input, authorId: ctx.user.id });
       }),
 
     updateMagazinePost: protectedProcedure
       .input(z.object({
-        id: z.number(),
+        id: z.string(),
         title: z.string().min(1).optional(),
         subtitle: z.string().optional(),
         content: z.string().optional(),
@@ -987,15 +996,14 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         const { id, ...data } = input;
-        return updateMagazinePost(id, data);
+        return updateAdminMagazinePost(id, data);
       }),
 
     deleteMagazinePost: protectedProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ id: z.string() }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        await deletePostImagesByPost("magazine" as const, input.id);
-        return deleteMagazinePost(input.id);
+        return deleteAdminMagazinePost(input.id);
       }),
 
     // ─── Reviews ────────────────────────────────────────────────────────────

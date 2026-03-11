@@ -545,3 +545,170 @@ export async function getActivePopupsSupabase(pagePath?: string) {
 
   return result;
 }
+
+// ============================================================
+// 관리자 갤러리 CRUD (Supabase gallery_posts)
+// ============================================================
+
+export async function getAdminGalleryPosts(options?: {
+  page?: number;
+  limit?: number;
+}) {
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 20;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data, error, count } = await supabaseAdmin
+    .from("gallery_posts")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+  if (error) throw new Error(`관리자 갤러리 조회 실패: ${error.message}`);
+  return { items: data ?? [], total: count ?? 0 };
+}
+
+export async function createAdminGalleryPost(data: {
+  title: string;
+  content?: string;
+  coverImageUrl?: string;
+  coverImageKey?: string;
+  isPublished?: boolean;
+  authorId?: number;
+}) {
+  const { data: result, error } = await supabaseAdmin
+    .from("gallery_posts")
+    .insert({
+      title: data.title,
+      description: data.content ?? "",
+      thumbnail_url: data.coverImageUrl ?? null,
+      is_published: data.isPublished ?? true,
+      category: "general",
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`갤러리 글 저장 실패: ${error.message}`);
+  return result;
+}
+
+export async function updateAdminGalleryPost(
+  id: string,
+  data: {
+    title?: string;
+    content?: string;
+    coverImageUrl?: string;
+    coverImageKey?: string;
+    isPublished?: boolean;
+  }
+) {
+  const updateData: Record<string, unknown> = {};
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.content !== undefined) updateData.description = data.content;
+  if (data.coverImageUrl !== undefined) updateData.thumbnail_url = data.coverImageUrl;
+  if (data.isPublished !== undefined) updateData.is_published = data.isPublished;
+  updateData.updated_at = new Date().toISOString();
+
+  const { data: result, error } = await supabaseAdmin
+    .from("gallery_posts")
+    .update(updateData)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(`갤러리 글 수정 실패: ${error.message}`);
+  return result;
+}
+
+export async function deleteAdminGalleryPost(id: string) {
+  const { error } = await supabaseAdmin.from("gallery_posts").delete().eq("id", id);
+  if (error) throw new Error(`갤러리 글 삭제 실패: ${error.message}`);
+  return true;
+}
+
+// ============================================================
+// 관리자 매거진 CRUD (Supabase magazine_posts)
+// ============================================================
+
+export async function getAdminMagazinePosts(options?: {
+  page?: number;
+  limit?: number;
+}) {
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 20;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data, error, count } = await supabaseAdmin
+    .from("magazine_posts")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+  if (error) throw new Error(`관리자 매거진 조회 실패: ${error.message}`);
+  return { items: data ?? [], total: count ?? 0 };
+}
+
+export async function createAdminMagazinePost(data: {
+  title: string;
+  subtitle?: string;
+  content?: string;
+  coverImageUrl?: string;
+  coverImageKey?: string;
+  isPublished?: boolean;
+  authorId?: number;
+}) {
+  // slug 자동 생성
+  const slug = `post-${Date.now()}`;
+  const { data: result, error } = await supabaseAdmin
+    .from("magazine_posts")
+    .insert({
+      title: data.title,
+      slug,
+      category: "general",
+      content: data.content ?? "",
+      excerpt: data.subtitle ?? "",
+      thumbnail_url: data.coverImageUrl ?? null,
+      is_published: data.isPublished ?? true,
+      published_at: data.isPublished ? new Date().toISOString() : null,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`매거진 글 저장 실패: ${error.message}`);
+  return result;
+}
+
+export async function updateAdminMagazinePost(
+  id: string,
+  data: {
+    title?: string;
+    subtitle?: string;
+    content?: string;
+    coverImageUrl?: string;
+    coverImageKey?: string;
+    isPublished?: boolean;
+  }
+) {
+  const updateData: Record<string, unknown> = {};
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.subtitle !== undefined) updateData.excerpt = data.subtitle;
+  if (data.content !== undefined) updateData.content = data.content;
+  if (data.coverImageUrl !== undefined) updateData.thumbnail_url = data.coverImageUrl;
+  if (data.isPublished !== undefined) {
+    updateData.is_published = data.isPublished;
+    if (data.isPublished) updateData.published_at = new Date().toISOString();
+  }
+  updateData.updated_at = new Date().toISOString();
+
+  const { data: result, error } = await supabaseAdmin
+    .from("magazine_posts")
+    .update(updateData)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(`매거진 글 수정 실패: ${error.message}`);
+  return result;
+}
+
+export async function deleteAdminMagazinePost(id: string) {
+  const { error } = await supabaseAdmin.from("magazine_posts").delete().eq("id", id);
+  if (error) throw new Error(`매거진 글 삭제 실패: ${error.message}`);
+  return true;
+}

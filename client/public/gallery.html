@@ -205,6 +205,7 @@
         <div class="nav-dropdown">
           <a href="gallery.html" class="active">갤러리</a>
           <a href="magazine.html">매거진</a>
+          <a href="instructor.html">인증강사</a>
         </div>
       </div>
     </nav>
@@ -578,9 +579,17 @@ async function loadGalleryFromDB() {
     if (!res.ok) return;
     const data = await res.json();
     const posts = data[0]?.result?.data?.json?.items;
-    if (!posts || posts.length === 0) return;
 
     const grid = document.getElementById('galleryGrid');
+
+    // DB 데이터가 있으면 정적 더미 아이템 숨기기
+    if (posts && posts.length > 0) {
+      const staticItems = grid.querySelectorAll('.gallery-item[data-category]:not([data-category="db"])');
+      staticItems.forEach(el => el.style.display = 'none');
+    }
+
+    if (!posts || posts.length === 0) return;
+
     // DB 게시물을 기존 정적 콘텐츠 앞에 삽입
     const fragment = document.createDocumentFragment();
     posts.forEach((post, i) => {
@@ -589,23 +598,25 @@ async function loadGalleryFromDB() {
       item.setAttribute('data-category', 'db');
       item.setAttribute('data-id', post.id);
       item.style.transitionDelay = (i * 0.05) + 's';
+      item.style.cursor = 'pointer';
       // DB 게시물은 상세 페이지로 이동
-      item.setAttribute('onclick', `window.location.href='/gallery-detail.html?id=${post.id}'`);
-      if (post.coverImageUrl) {
+      item.onclick = () => { window.location.href = '/gallery-detail.html?id=' + post.id; };
+      const coverImg = post.thumbnailUrl || post.thumbnail_url || post.coverImageUrl || post.cover_image_url;
+      if (coverImg) {
         item.innerHTML = `
-          <div class="gallery-item-img" style="background-image:url('${post.coverImageUrl}');background-size:cover;background-position:center;">&nbsp;</div>
+          <div class="gallery-item-img" style="background-image:url('${coverImg}');background-size:cover;background-position:center;min-height:200px;">&nbsp;</div>
           <div class="gallery-overlay">
             <div class="gallery-overlay-text">
-              <div class="gallery-overlay-tag">GALLERY</div>
+              <div class="gallery-overlay-tag">${(post.category || 'GALLERY').toUpperCase()}</div>
               <div class="gallery-overlay-title">${post.title}</div>
             </div>
           </div>`;
       } else {
         item.innerHTML = `
-          <div class="gallery-item-img">📸</div>
+          <div class="gallery-item-img" style="min-height:200px;background:#e8e6e3;display:flex;align-items:center;justify-content:center;font-size:40px;">📸</div>
           <div class="gallery-overlay">
             <div class="gallery-overlay-text">
-              <div class="gallery-overlay-tag">GALLERY</div>
+              <div class="gallery-overlay-tag">${(post.category || 'GALLERY').toUpperCase()}</div>
               <div class="gallery-overlay-title">${post.title}</div>
             </div>
           </div>`;
