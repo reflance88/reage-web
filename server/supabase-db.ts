@@ -76,6 +76,80 @@ export async function updateInquiryStatus(
   return data;
 }
 
+/**
+ * 문의 통계 데이터 조회
+ * - 요약 KPI (전체, 이번달, 미처리, 처리율)
+ * - 월별 문의 건수 (최근 12개월)
+ * - 유형별 비율
+ * - 상태별 처리현황
+ */
+export async function getInquiryStats() {
+  // 전체 데이터 한 번에 가져오기 (created_at, inquiry_type, status 필드만)
+  const { data, error } = await supabaseAdmin
+    .from("contact_inquiries")
+    .select("id, inquiry_type, status, created_at")
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(`통계 조회 실패: ${error.message}`);
+  const rows = data ?? [];
+
+  const now = new Date();
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // KPI
+  const total = rows.length;
+  const thisMonth = rows.filter((r) => new Date(r.created_at) >= thisMonthStart).length;
+  const unhandled = rows.filter((r) => r.status === "received").length;
+  const handled = rows.filter((r) => r.status === "contacted" || r.status === "closed").length;
+  const processingRate = total > 0 ? Math.round((handled / total) * 100) : 0;
+
+  // 월별 문의 건수 (최근 12개월)
+  const monthlyMap: Record<string, { month: string; total: number; trial: number; introduction: number; education: number }> = {};
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    monthlyMap[key] = { month: key, total: 0, trial: 0, introduction: 0, education: 0 };
+  }
+  for (const r of rows) {
+    const d = new Date(r.created_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (monthlyMap[key]) {
+      monthlyMap[key].total++;
+      if (r.inquiry_type === "trial") monthlyMap[key].trial++;
+      else if (r.inquiry_type === "introduction") monthlyMap[key].introduction++;
+      else if (r.inquiry_type === "education") monthlyMap[key].education++;
+    }
+  }
+  const monthly = Object.values(monthlyMap);
+
+  // 유형별 비율
+  const trialCount = rows.filter((r) => r.inquiry_type === "trial").length;
+  const introCount = rows.filter((r) => r.inquiry_type === "introduction").length;
+  const eduCount = rows.filter((r) => r.inquiry_type === "education").length;
+  const byType = [
+    { name: "체험예약", value: trialCount, color: "#6B0F1A" },
+    { name: "도입상담", value: introCount, color: "#C9A96E" },
+    { name: "교육문의", value: eduCount, color: "#4B5563" },
+  ];
+
+  // 상태별 처리현황
+  const receivedCount = rows.filter((r) => r.status === "received").length;
+  const contactedCount = rows.filter((r) => r.status === "contacted").length;
+  const closedCount = rows.filter((r) => r.status === "closed").length;
+  const byStatus = [
+    { name: "접수", value: receivedCount, color: "#F59E0B" },
+    { name: "연락완료", value: contactedCount, color: "#3B82F6" },
+    { name: "종료", value: closedCount, color: "#10B981" },
+  ];
+
+  return {
+    kpi: { total, thisMonth, unhandled, processingRate },
+    monthly,
+    byType,
+    byStatus,
+  };
+}
+
 // ============================================================
 // 후기 (reviews)
 // ============================================================

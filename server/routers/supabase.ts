@@ -10,6 +10,7 @@ import {
   createContactInquiry,
   getContactInquiries,
   updateInquiryStatus,
+  getInquiryStats,
   getPublishedReviews,
   createReviewSupabase,
   updateReviewSupabase,
@@ -114,6 +115,14 @@ export const sbContactRouter = router({
       }
       return updateInquiryStatus(input.id, input.status, input.admin_memo);
     }),
+
+  // 관리자: 문의 통계
+  stats: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN" });
+    }
+    return getInquiryStats();
+  }),
 });
 
 // ============================================================

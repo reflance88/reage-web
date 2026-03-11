@@ -347,3 +347,13 @@
 - [x] supabase-db.ts InsertContactInquiry에 privacy_agreed 필드 추가
 - [x] server/routers/supabase.ts zod 스키마에 privacy_agreed 추가
 - [x] 이메일 발송 vitest 테스트 작성
+
+## 문의 통계 대시보드
+
+- [x] supabase-db.ts에 통계 쿼리 함수 추가 (월별, 유형별, 상태별)
+- [x] sbContact.stats tRPC 엔드포인트 구현
+- [x] 관리자 사이드바에 '문의 통계' 메뉴 추가
+- [x] 월별 문의 건수 막대 차트 구현 (최근 12개월)
+- [x] 유형별 비율 파이 차트 구현 (체험예약/도입상담/교육문의)
+- [x] 처리율 현황 카드 구현 (접수/연락완료/종료 건수 및 비율)
+- [x] 요약 KPI 카드 구현 (전체 문의, 이번 달, 미처리, 처리율)- [x] 통계 vitest 테스트 작성

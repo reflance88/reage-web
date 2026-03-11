@@ -172,6 +172,7 @@ const NAV: NavItem[] = [
     id: "stats", label: "통계",
     children: [
       { id: "stats-dashboard", label: "통계 대시보드" },
+      { id: "stats-inquiry", label: "문의 통계" },
       { id: "stats-sales", label: "매출 분석" },
       { id: "stats-product", label: "상품 분석" },
       { id: "stats-customer", label: "고객 분석" },
@@ -2140,6 +2141,183 @@ function BoardSection({ subPage }: { subPage: string }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: INQUIRY STATS
+// ═══════════════════════════════════════════════════════════════════════════════
+function InquiryStatsSection() {
+  const stats = trpc.sbContact.stats.useQuery();
+  const d = stats.data;
+
+  if (stats.isLoading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 300, color: C.muted }}>
+        데이터를 불러오는 중...
+      </div>
+    );
+  }
+  if (stats.error) {
+    return (
+      <div style={{ padding: 32, color: "#dc2626", textAlign: "center" }}>
+        통계 데이터를 불러오지 못했습니다.
+      </div>
+    );
+  }
+
+  const kpi = d?.kpi ?? { total: 0, thisMonth: 0, unhandled: 0, processingRate: 0 };
+  const monthly = d?.monthly ?? [];
+  const byType = d?.byType ?? [];
+  const byStatus = d?.byStatus ?? [];
+
+  // 월 레이블 포맷 (2025-03 → 3월)
+  const fmtMonth = (m: string) => {
+    const [, mm] = m.split("-");
+    return `${parseInt(mm)}월`;
+  };
+
+  // 코어 스타일
+  const card = (label: string, value: string | number, sub?: string, accent?: string) => (
+    <div style={{
+      background: C.white, borderRadius: 12, padding: "20px 24px",
+      border: `1px solid ${C.border}`, flex: 1, minWidth: 0,
+    }}>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 32, fontWeight: 800, color: accent ?? C.text, lineHeight: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div>
+      <SectionHeader title="문의 통계" />
+
+      {/* KPI 카드 */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 24, flexWrap: "wrap" }}>
+        {card("전체 문의", kpi.total, "누적 접수 건수")}
+        {card("이번 달 문의", kpi.thisMonth, "이번 달 접수", C.primary)}
+        {card("미처리 문의", kpi.unhandled, "접수 상태 대기 중", "#D97706")}
+        {card("처리율", `${kpi.processingRate}%`, "연락완료 + 종료 기준", "#059669")}
+      </div>
+
+      {/* 월별 문의 건수 차트 */}
+      <div style={{
+        background: C.white, borderRadius: 12, padding: "20px 24px",
+        border: `1px solid ${C.border}`, marginBottom: 24,
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>월별 문의 건수 (최근 12개월)</div>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={monthly} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+            <XAxis dataKey="month" tickFormatter={fmtMonth} tick={{ fontSize: 11 }} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+            <Tooltip
+              labelFormatter={(l) => `${l}`}
+              formatter={(v: number, name: string) => [
+                `${v}건`,
+                name === "trial" ? "체험예약" : name === "introduction" ? "도입상담" : "교육문의",
+              ]}
+            />
+            <Legend formatter={(v) => v === "trial" ? "체험예약" : v === "introduction" ? "도입상담" : "교육문의"} />
+            <Bar dataKey="trial" stackId="a" fill="#6B0F1A" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="introduction" stackId="a" fill="#C9A96E" />
+            <Bar dataKey="education" stackId="a" fill="#4B5563" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* 유형별 비율 + 상태별 처리현황 */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+        {/* 유형별 파이 차트 */}
+        <div style={{
+          background: C.white, borderRadius: 12, padding: "20px 24px",
+          border: `1px solid ${C.border}`,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>유형별 비율</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <ResponsiveContainer width={160} height={160}>
+              <PieChart>
+                <Pie
+                  data={byType}
+                  cx="50%" cy="50%"
+                  innerRadius={45} outerRadius={72}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  {byType.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number) => [`${v}건`, ""]} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ flex: 1 }}>
+              {byType.map((item) => (
+                <div key={item.name} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 12, height: 12, borderRadius: 3, background: item.color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, fontSize: 13, color: C.text }}>{item.name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{item.value}건</div>
+                  <div style={{ fontSize: 12, color: C.muted, minWidth: 36, textAlign: "right" }}>
+                    {kpi.total > 0 ? `${Math.round((item.value / kpi.total) * 100)}%` : "0%"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 상태별 처리현황 */}
+        <div style={{
+          background: C.white, borderRadius: 12, padding: "20px 24px",
+          border: `1px solid ${C.border}`,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>상태별 처리현황</div>
+          {byStatus.map((item) => {
+            const pct = kpi.total > 0 ? Math.round((item.value / kpi.total) * 100) : 0;
+            return (
+              <div key={item.name} style={{ marginBottom: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: item.color }} />
+                    <span style={{ fontSize: 13, color: C.text }}>{item.name}</span>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{item.value}건 <span style={{ color: C.muted, fontWeight: 400 }}>({pct}%)</span></span>
+                </div>
+                <div style={{ height: 8, background: C.border, borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{
+                    height: "100%", width: `${pct}%`,
+                    background: item.color, borderRadius: 4,
+                    transition: "width 0.6s ease",
+                  }} />
+                </div>
+              </div>
+            );
+          })}
+          <div style={{
+            marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}`,
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}>
+            <span style={{ fontSize: 13, color: C.muted }}>전체 처리율</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: "#059669" }}>{kpi.processingRate}%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 새로고침 버튼 */}
+      <div style={{ textAlign: "right" }}>
+        <button
+          onClick={() => stats.refetch()}
+          style={{
+            padding: "6px 16px", fontSize: 13, borderRadius: 8,
+            border: `1px solid ${C.border}`, background: C.white,
+            cursor: "pointer", color: C.muted,
+          }}
+        >
+          🔄 새로고침
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: STATS
 // ═══════════════════════════════════════════════════════════════════════════════
 const DOW_LABELS = ["", "일", "월", "화", "수", "목", "금", "토"];
@@ -2155,6 +2333,7 @@ function StatsSection({ subPage }: { subPage: string }) {
   const pageViewStats = trpc.admin.pageViewStats.useQuery({ days: 30 });  const orderStats2 = trpc.admin.dashboardCharts.useQuery({ days: 30 });
 
   const title = subPage === "stats-dashboard" ? "통계 대시보드"
+    : subPage === "stats-inquiry" ? "문의 통계"
     : subPage === "stats-sales" ? "매출 분석"
     : subPage === "stats-product" ? "상품 분석"
     : subPage === "stats-customer" ? "고객 분석"
@@ -2187,6 +2366,9 @@ function StatsSection({ subPage }: { subPage: string }) {
     );
   }
 
+  if (subPage === "stats-inquiry") {
+    return <InquiryStatsSection />;
+  }
   if (subPage === "stats-sales") {
     return (
       <div>
