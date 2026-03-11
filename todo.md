@@ -496,3 +496,7 @@
 ## OAuth 로그인 에러 수정 (2026-03-11)
 
 - [ ] OAuth callback failed 오류 원인 파악 및 수정
+
+## 메인 영상 Vimeo 교체 (2026-03-11)
+
+- [x] index-main.html 메인 플로우 영상을 YouTube에서 Vimeo(1172530952)로 교체

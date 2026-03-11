@@ -239,13 +239,9 @@
       border: none;
       display: block;
     }
-    /* 유튜브 제목/공유 버튼 차단 오버레이 */
+    /* Vimeo로 교체 후 오버레이 불필요 (display:none 유지) */
     .video-overlay-block {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      background: transparent;
-      cursor: default;
+      display: none;
     }
     /* 하단 그라데이션 페이드 */
     .video-fade-bottom {
@@ -1132,16 +1128,14 @@
     <span class="vt-dot"></span>
     <span class="vt-label">Brand Film</span>
   </div>
-  <!-- 유튜브 16:9 임베드 -->
+  <!-- Vimeo 16:9 임베드 -->
   <div class="video-wrapper">
     <iframe
-      src="https://www.youtube.com/embed/LY5Wwt3vfi0?autoplay=1&mute=0&rel=0&modestbranding=1&color=white&loop=1&playlist=LY5Wwt3vfi0"
+      src="https://player.vimeo.com/video/1172530952?autoplay=1&muted=0&loop=1&title=0&byline=0&portrait=0&badge=0&autopause=0&player_id=0&app_id=58479"
       title="REAGE 브랜드 영상"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
       allowfullscreen
     ></iframe>
-    <!-- 유튜브 제목/공유 UI 차단 -->
-    <div class="video-overlay-block"></div>
   </div>
   <!-- 하단 페이드 -->
   <div class="video-fade-bottom"></div>
