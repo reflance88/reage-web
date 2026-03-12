@@ -288,11 +288,20 @@ export function registerOAuthRoutes(app: Express) {
       console.warn("[Auth] Supabase signOut error (non-fatal):", e);
     }
 
-    // 쿠키 삭제 (access token은 만료까지 유효하지만 refresh token 무효화로 갱신 불가)
-    const cookieOptions = getSessionCookieOptions(req);
-    res.clearCookie("sb-access-token", cookieOptions);
-    res.clearCookie("sb-refresh-token", cookieOptions);
-    res.clearCookie(COOKIE_NAME, cookieOptions); // Manus OAuth 쿠키도 함께 삭제
+    // 쿠키 삭제
+    // - COOKIE_NAME(app_session_id): getSessionCookieOptions 사용 (sameSite:none, 설정 시와 동일)
+    // - sb-access-token / sb-refresh-token: _setSupabaseCookies와 동일한 sameSite:lax
+    const sessionCookieOptions = getSessionCookieOptions(req);
+    const isProduction = process.env.NODE_ENV === "production";
+    const sbClearOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax" as const,
+      path: "/",
+    };
+    res.clearCookie("sb-access-token", sbClearOptions);
+    res.clearCookie("sb-refresh-token", sbClearOptions);
+    res.clearCookie(COOKIE_NAME, sessionCookieOptions); // Manus OAuth 쿠키 (sameSite:none)
     res.json({ ok: true });
   });
 }

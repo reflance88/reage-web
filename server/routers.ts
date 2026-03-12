@@ -225,7 +225,13 @@ export const appRouter = router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      // Manus OAuth 쿠키 삭제 (sameSite:none)
+      ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
+      // Supabase Auth 쿠키 삭제 (sameSite:lax 로 설정되어 있으므로 동일하게 삭제)
+      const isProduction = process.env.NODE_ENV === "production";
+      const sbClearOptions = { httpOnly: true, secure: isProduction, sameSite: "lax" as const, path: "/" };
+      ctx.res.clearCookie("sb-access-token", sbClearOptions);
+      ctx.res.clearCookie("sb-refresh-token", sbClearOptions);
       return { success: true } as const;
     }),
 

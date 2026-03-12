@@ -23,7 +23,7 @@
   // 로그아웃 처리
   async function handleLogout() {
     try {
-      await fetch('/api/auth/email/signout', {
+      await fetch('/api/auth/signout', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
