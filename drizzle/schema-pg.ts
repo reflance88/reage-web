@@ -16,6 +16,7 @@ import {
   boolean,
   timestamp,
   numeric,
+  uuid,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -105,7 +106,7 @@ export type InsertBusinessVerification = typeof businessVerifications.$inferInse
 // 3. products (상품)
 // ─────────────────────────────────────────────
 export const products = pgTable("products", {
-  id:                     serial("id").primaryKey(),
+  id:                     uuid("id").primaryKey().defaultRandom(),
   slug:                   varchar("slug", { length: 100 }).notNull().unique(),
   name:                   varchar("name", { length: 200 }).notNull(),
   description:            text("description"),
@@ -226,7 +227,7 @@ export type InsertOrder = typeof orders.$inferInsert;
 export const orderItems = pgTable("order_items", {
   id:          serial("id").primaryKey(),
   orderId:     integer("orderId").notNull().references(() => orders.id),
-  productId:   integer("productId").notNull().references(() => products.id),
+  productId:   uuid("productId").notNull(),
   productName: varchar("productName", { length: 200 }).notNull(),
   quantity:    integer("quantity").notNull(),
   unitPrice:   numeric("unitPrice", { precision: 12, scale: 0 }).notNull(),

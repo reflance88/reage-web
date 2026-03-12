@@ -1255,7 +1255,7 @@ function OrderSection({ subPage, onNavigate, initialStatusFilter }: { subPage: s
 function ProductSection({ subPage }: { subPage: string }) {
   const productsQuery = trpc.admin.allProducts.useQuery();
   const utils = trpc.useUtils();
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
   const [filterVisible, setFilterVisible] = useState<"all" | "visible" | "hidden">("all");
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -1263,14 +1263,14 @@ function ProductSection({ subPage }: { subPage: string }) {
   const PAGE_SIZE = 20;
 
   // 체크박스 일괄 노출 상태 변경
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const bulkUpdateVisible = trpc.admin.updateProduct.useMutation;
   const bulkVisibleMutation = trpc.admin.updateProduct.useMutation({
     onSuccess: () => { utils.admin.allProducts.invalidate(); },
     onError: (e) => toast.error(e.message),
   });
 
-  const handleToggleSelect = (id: number) => {
+  const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
   const handleBulkVisible = async (visible: boolean, pagedItems: any[]) => {

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
-export type CartItem = { productId: number; quantity: number; name: string; priceConsumer: number; pricePro: number };
+export type CartItem = { productId: string; quantity: number; name: string; priceConsumer: number; pricePro: number };
 
 function formatPrice(n: number) {
   return n.toLocaleString("ko-KR") + "원";
@@ -31,14 +31,14 @@ export default function CartPage() {
     localStorage.setItem("reage_cart", JSON.stringify(items));
   };
 
-  const updateQty = (productId: number, delta: number) => {
+  const updateQty = (productId: string, delta: number) => {
     const updated = cartItems.map((item) =>
       item.productId === productId ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
     );
     saveCart(updated);
   };
 
-  const removeItem = (productId: number) => {
+  const removeItem = (productId: string) => {
     saveCart(cartItems.filter((i) => i.productId !== productId));
   };
 

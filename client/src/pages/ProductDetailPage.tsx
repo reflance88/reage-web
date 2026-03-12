@@ -110,7 +110,7 @@ function parseFeaturesJson(raw: string): FeatureItem[] {
   return [];
 }
 
-export default function ProductDetailPage({ productId, onBack }: { productId: number; onBack: () => void }) {
+export default function ProductDetailPage({ productId, onBack }: { productId: string; onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>("basic");
   const { data: product, refetch } = trpc.admin.allProducts.useQuery(undefined, {
     select: (data) => data.find((p: any) => p.id === productId),

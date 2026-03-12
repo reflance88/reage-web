@@ -280,101 +280,12 @@
       <p>레아쥬 매거진 편집팀이 엄선한 최신 정보를 전달합니다.</p>
     </div>
     <div class="articles-grid" id="articlesGrid" style="position:relative;">
-
-      <!-- 일본 소식 -->
-      <div class="article-card stagger-card" data-category="japan">
-        <div class="article-img">🗾</div>
-        <div class="article-body">
-          <span class="article-category cat-japan">🇯🇵 일본 소식</span>
-          <h3 class="article-title">일본 레아쥬테라피 교육 현장 — 2024 연수 보고</h3>
-          <p class="article-excerpt">2024년 일본 현지 연수에서 확인한 최신 테크닉과 프로토콜 업데이트. 일본 본사와의 기술 협력 현황을 공유합니다.</p>
-          <div class="article-meta"><span class="article-date">2024.11.15</span><span class="article-read">읽기 →</span></div>
-        </div>
+      <!-- DB 데이터가 없을 때 표시할 빈 상태 -->
+      <div id="magazineEmpty" style="display:none; grid-column:1/-1; text-align:center; padding:80px 20px; color:var(--gray);">
+        <div style="font-size:48px; margin-bottom:16px;">📝</div>
+        <p style="font-size:16px; font-weight:500; margin-bottom:8px;">매거진 콘텐츠를 준비 중입니다.</p>
+        <p style="font-size:13px;">관리자가 글을 등록하면 이곳에 표시됩니다.</p>
       </div>
-
-      <div class="article-card stagger-card" data-category="japan" style="transition-delay:.1s">
-        <div class="article-img">🏯</div>
-        <div class="article-body">
-          <span class="article-category cat-japan">🇯🇵 일본 소식</span>
-          <h3 class="article-title">일본 에스테틱 업계의 올핸드 테라피 확산 현황</h3>
-          <p class="article-excerpt">도쿄·오사카 중심으로 올핸드 미세전류 테라피가 급속도로 확산되고 있습니다. 현지 에스테틱 원장들의 생생한 인터뷰를 담았습니다.</p>
-          <div class="article-meta"><span class="article-date">2024.10.28</span><span class="article-read">읽기 →</span></div>
-        </div>
-      </div>
-
-      <!-- 한국 소식 -->
-      <div class="article-card stagger-card" data-category="korea" style="transition-delay:.2s">
-        <div class="article-img">🌸</div>
-        <div class="article-body">
-          <span class="article-category cat-korea">🇰🇷 한국 소식</span>
-          <h3 class="article-title">2024 한국 뷰티 트렌드 — 자연주의 테라피의 귀환</h3>
-          <p class="article-excerpt">기계 의존에서 벗어나 손의 감각을 회복하는 자연주의 테라피가 한국 에스테틱 시장에서 주목받고 있습니다.</p>
-          <div class="article-meta"><span class="article-date">2024.11.05</span><span class="article-read">읽기 →</span></div>
-        </div>
-      </div>
-
-      <div class="article-card stagger-card" data-category="korea" style="transition-delay:.3s">
-        <div class="article-img">💆‍♀️</div>
-        <div class="article-body">
-          <span class="article-category cat-korea">🇰🇷 한국 소식</span>
-          <h3 class="article-title">강남 에스테틱 원장들이 선택한 레아쥬 — 도입 사례 인터뷰</h3>
-          <p class="article-excerpt">레아쥬를 도입한 강남 에스테틱 원장님들의 솔직한 이야기. 도입 전후 매출 변화와 고객 반응을 공유합니다.</p>
-          <div class="article-meta"><span class="article-date">2024.10.15</span><span class="article-read">읽기 →</span></div>
-        </div>
-      </div>
-
-      <!-- AI·기술 -->
-      <div class="article-card stagger-card" data-category="ai" style="transition-delay:.4s">
-        <div class="article-img">🤖</div>
-        <div class="article-body">
-          <span class="article-category cat-ai">🤖 AI·기술</span>
-          <h3 class="article-title">AI가 분석한 미세전류 테라피의 과학적 근거</h3>
-          <p class="article-excerpt">최신 AI 기반 생체 신호 분석 연구에서 미세전류가 세포 재생에 미치는 영향이 과학적으로 입증되고 있습니다. 최신 연구 결과를 정리했습니다.</p>
-          <div class="article-meta"><span class="article-date">2024.12.01</span><span class="article-read">읽기 →</span></div>
-        </div>
-      </div>
-
-      <div class="article-card stagger-card" data-category="ai" style="transition-delay:.5s">
-        <div class="article-img">💡</div>
-        <div class="article-body">
-          <span class="article-category cat-ai">🤖 AI·기술</span>
-          <h3 class="article-title">에스테틱 원장을 위한 AI 활용 가이드 — SNS 마케팅부터 고객 관리까지</h3>
-          <p class="article-excerpt">AI 도구를 활용해 에스테틱 운영 효율을 높이는 실용적인 방법을 소개합니다. ChatGPT, Canva AI, 예약 자동화 툴 활용법.</p>
-          <div class="article-meta"><span class="article-date">2024.11.20</span><span class="article-read">읽기 →</span></div>
-        </div>
-      </div>
-
-      <!-- 레아쥬 뉴스 -->
-      <div class="article-card stagger-card" data-category="news" style="transition-delay:.6s">
-        <div class="article-img">📢</div>
-        <div class="article-body">
-          <span class="article-category cat-news">📰 레아쥬 뉴스</span>
-          <h3 class="article-title">레아쥬 아카데미 강남 오픈 — 매주 목요일 정기 교육 시작</h3>
-          <p class="article-excerpt">서울 강남구 학동로에 레아쥬 공식 아카데미가 오픈했습니다. 매주 목요일 11시, 인증강사 라이센스 교육이 정기 진행됩니다.</p>
-          <div class="article-meta"><span class="article-date">2024.09.01</span><span class="article-read">읽기 →</span></div>
-        </div>
-      </div>
-
-      <div class="article-card stagger-card" data-category="news" style="transition-delay:.7s">
-        <div class="article-img">🌏</div>
-        <div class="article-body">
-          <span class="article-category cat-news">📰 레아쥬 뉴스</span>
-          <h3 class="article-title">레아쥬 아시아 총판 — 한국·일본 넘어 아시아 확장 계획 발표</h3>
-          <p class="article-excerpt">(주)리플런스가 레아쥬 아시아 총판으로서 동남아시아 진출 계획을 발표했습니다. 2025년 싱가포르·대만 진출을 목표로 합니다.</p>
-          <div class="article-meta"><span class="article-date">2024.08.15</span><span class="article-read">읽기 →</span></div>
-        </div>
-      </div>
-
-      <div class="article-card stagger-card" data-category="ai" style="transition-delay:.8s">
-        <div class="article-img">⚡</div>
-        <div class="article-body">
-          <span class="article-category cat-ai">🤖 AI·기술</span>
-          <h3 class="article-title">미세전류와 피부 세포 — 최신 바이오테크 연구 동향</h3>
-          <p class="article-excerpt">미세전류가 콜라겐 합성, 세포 재생, 림프 순환에 미치는 영향에 대한 최신 연구 결과를 정리했습니다. 레아쥬 기술의 과학적 배경.</p>
-          <div class="article-meta"><span class="article-date">2024.07.30</span><span class="article-read">읽기 →</span></div>
-        </div>
-      </div>
-
     </div>
     <!-- 더보기 버튼 -->
     <div id="loadMoreWrap" style="text-align:center; margin-top:48px;">
@@ -575,7 +486,10 @@ async function loadMagazineFromDB() {
       staticItems.forEach(el => el.style.display = 'none');
     }
 
-    if (!posts || posts.length === 0) return;
+    if (!posts || posts.length === 0) {
+      document.getElementById('magazineEmpty').style.display = 'block';
+      return;
+    }
 
     const fragment = document.createDocumentFragment();
     posts.forEach((post, i) => {

@@ -749,6 +749,16 @@ export async function getAdminMagazinePosts(options?: {
   return { items: data ?? [], total: count ?? 0 };
 }
 
+function generateSlug(title: string): string {
+  const timestamp = Date.now();
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣\s]/g, '')
+    .replace(/\s+/g, '-')
+    .substring(0, 50);
+  return `${base}-${timestamp}`;
+}
+
 export async function createAdminMagazinePost(data: {
   title: string;
   subtitle?: string;
@@ -758,9 +768,11 @@ export async function createAdminMagazinePost(data: {
   isPublished?: boolean;
   authorId?: number;
 }) {
+  const slug = generateSlug(data.title);
   const { data: result, error } = await supabaseAdmin
     .from("magazine_posts")
     .insert({
+      slug,
       title: data.title,
       subtitle: data.subtitle ?? "",
       content: data.content ?? "",

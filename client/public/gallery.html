@@ -258,132 +258,12 @@
 <section id="gallery-main">
   <div class="container">
     <div class="gallery-grid" id="galleryGrid">
-
-      <div class="gallery-item stagger-card" data-category="salon" onclick="openLightbox(this)">
-        <div class="gallery-item-img tall">🤲</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">SALON</div>
-            <div class="gallery-overlay-title">강남 레아쥬 에스테틱 — 시술 현장</div>
-          </div>
-        </div>
+      <!-- DB 데이터가 없을 때 표시할 빈 상태 -->
+      <div id="galleryEmpty" style="display:none; grid-column:1/-1; text-align:center; padding:80px 20px; color:var(--gray);">
+        <div style="font-size:48px; margin-bottom:16px;">📸</div>
+        <p style="font-size:16px; font-weight:500; margin-bottom:8px;">갤러리 콘텐츠를 준비 중입니다.</p>
+        <p style="font-size:13px;">관리자가 사진을 등록하면 이곳에 표시됩니다.</p>
       </div>
-
-      <div class="gallery-item stagger-card" data-category="education" onclick="openLightbox(this)" style="transition-delay:.05s">
-        <div class="gallery-item-img">🎓</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">EDUCATION</div>
-            <div class="gallery-overlay-title">레아쥬 인증강사 교육 현장</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="japan" onclick="openLightbox(this)" style="transition-delay:.1s">
-        <div class="gallery-item-img wide">🇯🇵</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">JAPAN</div>
-            <div class="gallery-overlay-title">일본 레아쥬테라피 교육사진</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="expo" onclick="openLightbox(this)" style="transition-delay:.15s">
-        <div class="gallery-item-img">🏛️</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">EXPO</div>
-            <div class="gallery-overlay-title">창원 박람회 2019</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="salon" onclick="openLightbox(this)" style="transition-delay:.2s">
-        <div class="gallery-item-img tall">💆</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">SALON</div>
-            <div class="gallery-overlay-title">원장님 시술 현장 — 올핸드 테라피</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="product" onclick="openLightbox(this)" style="transition-delay:.25s">
-        <div class="gallery-item-img">⚡</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">PRODUCT</div>
-            <div class="gallery-overlay-title">레아쥬 기기 — 제품 촬영</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="education" onclick="openLightbox(this)" style="transition-delay:.3s">
-        <div class="gallery-item-img">👩‍🏫</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">EDUCATION</div>
-            <div class="gallery-overlay-title">레아쥬 메디컬 라이센스 교육</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="japan" onclick="openLightbox(this)" style="transition-delay:.35s">
-        <div class="gallery-item-img tall">🗾</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">JAPAN</div>
-            <div class="gallery-overlay-title">일본 레아쥬테라피 교육사진 2</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="expo" onclick="openLightbox(this)" style="transition-delay:.4s">
-        <div class="gallery-item-img">🎪</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">EXPO</div>
-            <div class="gallery-overlay-title">건대 박람회 2019.12.11</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="salon" onclick="openLightbox(this)" style="transition-delay:.45s">
-        <div class="gallery-item-img">🌸</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">SALON</div>
-            <div class="gallery-overlay-title">레아쥬 에스테틱 인테리어</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="product" onclick="openLightbox(this)" style="transition-delay:.5s">
-        <div class="gallery-item-img wide">🧴</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">PRODUCT</div>
-            <div class="gallery-overlay-title">레아쥬 S1·M2·F3 크림 라인업</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="gallery-item stagger-card" data-category="education" onclick="openLightbox(this)" style="transition-delay:.55s">
-        <div class="gallery-item-img">🤝</div>
-        <div class="gallery-overlay">
-          <div class="gallery-overlay-text">
-            <div class="gallery-overlay-tag">EDUCATION</div>
-            <div class="gallery-overlay-title">창업 현장 학습 교육</div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <div style="text-align:center; margin-top:48px;">
-      <p style="font-size:13px; color:var(--gray); margin-bottom:20px;">실제 현장 사진은 순차적으로 업데이트됩니다.</p>
-      <a href="contact.html" class="btn-wine" style="padding:14px 36px;">사진 제공 문의</a>
     </div>
   </div>
 </section>
@@ -588,7 +468,10 @@ async function loadGalleryFromDB() {
       staticItems.forEach(el => el.style.display = 'none');
     }
 
-    if (!posts || posts.length === 0) return;
+    if (!posts || posts.length === 0) {
+      document.getElementById('galleryEmpty').style.display = 'block';
+      return;
+    }
 
     // DB 게시물을 기존 정적 콘텐츠 앞에 삽입
     const fragment = document.createDocumentFragment();

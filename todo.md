@@ -524,3 +524,22 @@
 - [x] SUPABASE_DATABASE_URL을 Transaction Pooler URL(ap-southeast-1, 포트 6543)로 변경
 - [x] upsertUser DB 저장 테스트 성공 확인
 - [x] vitest 33 passed / 1 skipped 전체 통과
+
+## 4가지 수정 작업 (2026-03-11)
+
+- [ ] 팝업 "오늘 하루 닫지 않기" → "오늘 하루 보지 않기" 텍스트 수정
+- [ ] 매거진 글쓰기 저장 오류 원인 분석 및 수정
+- [ ] 매거진 저장 후 글 목록 페이지로 이동
+- [ ] 갤러리/매거진 홈페이지 정적 데이터 제거 및 DB 연동으로 교체
+- [ ] 상품 대시보드 및 상품등록 기능 복구 (DB 스키마 포함)
+
+## products id UUID 타입 불일치 수정 (2026-03-12)
+- [x] schema-pg.ts: order_items.productId를 integer → uuid로 변경 (외래키 타입 불일치 해결)
+- [x] routers.ts: updateProduct/deleteProduct id 타입을 z.number() → z.string()으로 변경
+- [x] routers.ts: createAuditLog targetId를 0으로 고정 (uuid string → integer 타입 불일치 우회)
+- [x] routers.ts: order.create items.productId를 z.number() → z.string()으로 변경
+- [x] AdminPage.tsx: selectedProductId/selectedIds 타입을 number → string으로 변경
+- [x] ProductDetailPage.tsx: productId prop 타입을 number → string으로 변경
+- [x] CartPage.tsx: CartItem.productId 타입을 number → string으로 변경
+- [x] TypeScript 오류 0개 확인
+- [x] vitest 33 passed / 1 skipped 전체 통과

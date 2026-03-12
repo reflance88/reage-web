@@ -15,6 +15,13 @@
       "when": 1773229016126,
       "tag": "0001_handy_trauma",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773299663846,
+      "tag": "0002_amused_moon_knight",
+      "breakpoints": true
     }
   ]
 }

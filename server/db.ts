@@ -130,7 +130,7 @@ export async function getProductBySlug(slug: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function getProductById(id: number) {
+export async function getProductById(id: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(products).where(eq(products.id, id)).limit(1);
@@ -335,7 +335,7 @@ export async function getAuditLogs(targetType?: string, targetId?: number) {
 }
 
 // ─── Product Admin ─────────────────────────────────────────────────────────────
-export async function updateProduct(id: number, data: {
+export async function updateProduct(id: string, data: {
   priceConsumer?: string;
   pricePro?: string;
   priceMembership?: string | null;
@@ -458,7 +458,7 @@ export async function createProduct(data: {
   return result[0];
 }
 
-export async function deleteProduct(id: number) {
+export async function deleteProduct(id: string) {
   const db = await getDb();
   if (!db) throw new Error('DB not available');
   await db.delete(products).where(eq(products.id, id));

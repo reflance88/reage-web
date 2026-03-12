@@ -655,7 +655,7 @@ export const appRouter = router({
 
     updateProduct: protectedProcedure
       .input(z.object({
-        id: z.number(),
+        id: z.string(),
         priceConsumer: z.string().optional(),
         pricePro: z.string().optional(),
         priceMembership: z.string().optional(),
@@ -699,7 +699,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: "UPDATE_PRODUCT",
           targetType: "product",
-          targetId: id,
+          targetId: 0,
           before: JSON.stringify(before),
           after: JSON.stringify(after),
         });
@@ -755,7 +755,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: 'CREATE_PRODUCT',
           targetType: 'product',
-          targetId: product?.id ?? 0,
+          targetId: 0,
           before: null,
           after: JSON.stringify(product),
         });
@@ -763,7 +763,7 @@ export const appRouter = router({
       }),
 
     deleteProduct: protectedProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ id: z.string() }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
         const before = await getProductById(input.id);
@@ -772,7 +772,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: 'DELETE_PRODUCT',
           targetType: 'product',
-          targetId: input.id,
+          targetId: 0,
           before: JSON.stringify(before),
           after: null,
         });
@@ -1405,7 +1405,7 @@ export const appRouter = router({
   order: router({
     create: protectedProcedure
       .input(z.object({
-        items: z.array(z.object({ productId: z.number(), quantity: z.number().min(1) })),
+        items: z.array(z.object({ productId: z.string(), quantity: z.number().min(1) })),
         recipientName: z.string().min(1, "수령인 이름을 입력해주세요."),
         recipientPhone: z.string().min(1, "연락처를 입력해주세요."),
         shippingZipCode: z.string().min(1, "우편번호를 입력해주세요."),
