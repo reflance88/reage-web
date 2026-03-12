@@ -590,3 +590,14 @@
 - [ ] oauth.ts 구글 로그인 콜백에서 Supabase 세션 생성 후 sb-* 쿠키 설정
 - [ ] 로그아웃 시 Manus OAuth 폴백 차단 (COOKIE_NAME 삭제 후 재인증 방지)
 - [ ] header-auth.js 로그아웃 엔드포인트 최종 확인
+
+## 카카오 name 필드 profiles 저장 (2026-03-12)
+- [ ] oauth.ts 콜백에서 카카오 user_metadata.name → profiles.name 저장
+- [ ] name 없을 경우 이메일 앞부분을 기본값으로 사용
+
+## 네이버 로그인 제거 (2026-03-12)
+- [x] LoginPage.tsx 네이버 버튼 제거
+- [x] SignupPage.tsx 네이버 버튼 제거 및 Supabase OAuth로 교체
+- [x] const.ts getSocialLoginUrl에서 naver 타입 제거
+- [x] server/_core/socialOAuth.ts 파일 삭제 (네이버 OAuth 코드 전체)
+- [x] server/_core/index.ts에서 socialOAuth import 및 등록 제거

@@ -10,7 +10,6 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { register3PLWebhookRoutes } from "../webhooks/3pl";
 // 자체 서버 이전 시 사용: KAKAO_CLIENT_ID, NAVER_CLIENT_ID/SECRET, GOOGLE_CLIENT_ID/SECRET, APP_BASE_URL 환경변수 설정 후 활성화
-import { registerSocialOAuthRoutes } from "./socialOAuth";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -43,12 +42,6 @@ async function startServer() {
   registerSupabaseOAuthRoutes(app);
   // Supabase Auth 이메일 인증 엔드포인트
   registerEmailAuthRoutes(app);
-  // 자체 서버 소셔 OAuth 라우트 (카카오/네이버/구글)
-  // 환경변수가 설정된 경우에만 자동 활성화
-  if (process.env.KAKAO_CLIENT_ID || process.env.NAVER_CLIENT_ID || process.env.GOOGLE_CLIENT_ID) {
-    registerSocialOAuthRoutes(app);
-    console.log("[OAuth] Social login routes registered (Kakao/Naver/Google)");
-  }
   // 3PL Webhook endpoint
   register3PLWebhookRoutes(app);
   // tRPC API

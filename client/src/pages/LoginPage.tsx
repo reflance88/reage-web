@@ -85,22 +85,6 @@ export default function LoginPage() {
             카카오로 1초 로그인
           </button>
 
-          {/* 네이버는 Supabase에서 지원하지 않으므로 일단 표시만 유지 (클릭 시 toast) */}
-          <button
-            onClick={() => toast.error("네이버 로그인은 준비 중입니다. Google 또는 Kakao로 로그인해 주세요.")}
-            style={{
-              width: "100%", padding: "13px", borderRadius: "10px", border: "none",
-              background: "#03C75A", color: "#fff", fontSize: "14px", fontWeight: 600,
-              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
-              transition: "opacity .2s"
-            }}
-            onMouseOver={e => (e.currentTarget.style.opacity = "0.88")}
-            onMouseOut={e => (e.currentTarget.style.opacity = "1")}
-          >
-            <span style={{ fontSize: "16px", fontWeight: 900, fontFamily: "sans-serif" }}>N</span>
-            네이버로 1초 로그인
-          </button>
-
           <button
             onClick={() => handleSocialLogin("google")}
             style={{
