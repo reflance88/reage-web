@@ -585,3 +585,8 @@
 - [ ] pnpm db:push 실행
 - [ ] 전체 인증 흐름 검증 (로그인/로그아웃/refresh)
 - [ ] public.users DROP 승인 요청
+
+## 로그아웃 수정 (2026-03-12)
+- [ ] oauth.ts 구글 로그인 콜백에서 Supabase 세션 생성 후 sb-* 쿠키 설정
+- [ ] 로그아웃 시 Manus OAuth 폴백 차단 (COOKIE_NAME 삭제 후 재인증 방지)
+- [ ] header-auth.js 로그아웃 엔드포인트 최종 확인

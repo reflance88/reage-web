@@ -3,7 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
+import { registerOAuthRoutes, registerSupabaseOAuthRoutes } from "./oauth";
 import { registerEmailAuthRoutes } from "./emailAuth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -37,8 +37,10 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // Manus OAuth callback (현재 사용 중)
+  // Manus OAuth callback (레거시 — 이메일 로그인 콜백용)
   registerOAuthRoutes(app);
+  // Supabase OAuth (Google, Kakao) — 소셜 로그인 버튼에서 사용
+  registerSupabaseOAuthRoutes(app);
   // Supabase Auth 이메일 인증 엔드포인트
   registerEmailAuthRoutes(app);
   // 자체 서버 소셔 OAuth 라우트 (카카오/네이버/구글)

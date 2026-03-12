@@ -53,7 +53,7 @@
         ${cartBadge}
       </a>`;
 
-    const loginBtn = `<a href="/mypage" style="padding:9px 18px;border-radius:8px;border:1.5px solid #6B0F1A;background:transparent;color:#6B0F1A;font-size:13px;font-weight:600;text-decoration:none;transition:all .2s;" onmouseover="this.style.background='#6B0F1A';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#6B0F1A'">로그인</a>`;
+    const loginBtn = `<a href="/login" style="padding:9px 18px;border-radius:8px;border:1.5px solid #6B0F1A;background:transparent;color:#6B0F1A;font-size:13px;font-weight:600;text-decoration:none;transition:all .2s;" onmouseover="this.style.background='#6B0F1A';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#6B0F1A'">로그인</a>`;
     const mypageBtn = `<a href="/mypage" style="padding:9px 18px;border-radius:8px;background:#6B0F1A;color:#fff;font-size:13px;font-weight:600;text-decoration:none;transition:background .2s;" onmouseover="this.style.background='#8B1525'" onmouseout="this.style.background='#6B0F1A'">마이페이지</a>`;
     const logoutBtn = `<button id="reage-logout-btn" style="padding:9px 18px;border-radius:8px;border:1.5px solid #E8E6E3;background:transparent;color:#666;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='#999';this.style.color='#333'" onmouseout="this.style.borderColor='#E8E6E3';this.style.color='#666'">로그아웃</button>`;
 

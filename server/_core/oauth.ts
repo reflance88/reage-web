@@ -32,6 +32,113 @@ function parseReturnPath(state: string): string {
   }
 }
 
+const SITE_URL = process.env.NODE_ENV === "production"
+  ? "https://reageweb-aerfeijb.manus.space"
+  : "http://localhost:3000";
+
+/**
+ * Supabase OAuth 흐름:
+ * 1. GET /api/auth/social/:provider → Supabase signInWithOAuth URL 생성 → 리다이렉트
+ * 2. Supabase → GET /api/auth/callback?code=... → exchangeCodeForSession → sb-* 쿠키 설정 → 홈 리다이렉트
+ */
+export function registerSupabaseOAuthRoutes(app: Express) {
+  // ─── 1. 소셜 로그인 시작 ───────────────────────────────────────────────────
+  // GET /api/auth/social/:provider (google | kakao)
+  app.get("/api/auth/social/:provider", async (req: Request, res: Response) => {
+    const provider = req.params.provider as "google" | "kakao";
+    if (provider !== "google" && provider !== "kakao") {
+      res.status(400).json({ error: "Unsupported provider" });
+      return;
+    }
+
+    const returnTo = (req.query.returnTo as string) || "/index-main.html";
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(
+      process.env.SUPABASE_URL ?? "",
+      process.env.SUPABASE_ANON_KEY ?? "",
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${SITE_URL}/api/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error || !data.url) {
+      console.error("[Supabase OAuth] signInWithOAuth error:", error);
+      res.status(500).json({ error: "OAuth init failed" });
+      return;
+    }
+
+    res.redirect(302, data.url);
+  });
+
+  // ─── 2. Supabase OAuth 콜백 ───────────────────────────────────────────────
+  // GET /api/auth/callback?code=...&returnTo=...
+  app.get("/api/auth/callback", async (req: Request, res: Response) => {
+    const code = getQueryParam(req, "code");
+    const returnTo = (req.query.returnTo as string) || "/index-main.html";
+
+    if (!code) {
+      res.redirect(302, `/login?error=missing_code`);
+      return;
+    }
+
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabase = createClient(
+        process.env.SUPABASE_URL ?? "",
+        process.env.SUPABASE_ANON_KEY ?? "",
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      );
+
+      // code → session 교환
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error || !data.session || !data.user) {
+        console.error("[Supabase OAuth] exchangeCodeForSession error:", error);
+        res.redirect(302, `/login?error=auth_failed`);
+        return;
+      }
+
+      const { session, user } = data;
+
+      // sb-* 쿠키 설정
+      _setSupabaseCookies(res, session.access_token, session.refresh_token);
+
+      // profiles upsert (auth.users.id 기준)
+      try {
+        const email = user.email ?? null;
+        const name =
+          user.user_metadata?.full_name ??
+          user.user_metadata?.name ??
+          user.user_metadata?.preferred_username ??
+          null;
+        const loginMethod =
+          user.app_metadata?.provider ?? null;
+
+        await db.upsertProfile({
+          id: user.id,
+          email,
+          name,
+          loginMethod,
+          lastSignedIn: new Date(),
+        });
+        console.log("[Supabase OAuth] profiles upserted for", user.id, email);
+      } catch (profileErr) {
+        console.warn("[Supabase OAuth] profiles upsert failed (non-fatal):", profileErr);
+      }
+
+      res.redirect(302, returnTo);
+    } catch (err) {
+      console.error("[Supabase OAuth] Callback error:", err);
+      res.redirect(302, `/login?error=server_error`);
+    }
+  });
+}
+
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
@@ -122,6 +229,43 @@ export function registerOAuthRoutes(app: Express) {
         loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
         lastSignedIn: new Date(),
       });
+
+      // Supabase 세션 생성 (generateLink → verifyOtp 패턴)
+      // 이렇게 해야 sb-access-token / sb-refresh-token 쿠키가 설정되어 로그아웃이 정상 동작함
+      try {
+        const userEmail = userInfo.email || `${userInfo.openId}@manus-oauth.local`;
+        const { createClient } = await import("@supabase/supabase-js");
+        const supabaseAnonClient = createClient(
+          process.env.SUPABASE_URL ?? "",
+          process.env.SUPABASE_ANON_KEY ?? "",
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        );
+
+        // 1) admin.generateLink로 token_hash 획득
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: "magiclink",
+          email: userEmail,
+        });
+
+        if (!linkError && linkData?.properties?.hashed_token) {
+          // 2) verifyOtp로 실제 세션 생성
+          const { data: sessionData, error: sessionError } = await supabaseAnonClient.auth.verifyOtp({
+            token_hash: linkData.properties.hashed_token,
+            type: "magiclink",
+          });
+
+          if (!sessionError && sessionData?.session) {
+            _setSupabaseCookies(res, sessionData.session.access_token, sessionData.session.refresh_token);
+            console.log("[OAuth] Supabase session created for", userEmail);
+          } else {
+            console.warn("[OAuth] verifyOtp failed (non-fatal):", sessionError);
+          }
+        } else {
+          console.warn("[OAuth] generateLink failed (non-fatal):", linkError);
+        }
+      } catch (sessionErr) {
+        console.warn("[OAuth] Supabase session creation failed (non-fatal):", sessionErr);
+      }
 
       // Manus OAuth 세션 토큰 발급 (전환 기간 동안 유지)
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
-import { getLoginUrl } from "@/const";
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
@@ -36,10 +35,11 @@ export default function LoginPage() {
     }
   };
 
-  // 소셜 로그인: Manus OAuth 포털으로 리다이렉트
-  // 카카오/네이버/구글 선택은 Manus OAuth 포털 내부에서 이루어짘
-  const handleSocialLogin = () => {
-    window.location.href = getLoginUrl();
+  // 소셜 로그인: Supabase OAuth 로 연결 (Google / Kakao)
+  const handleSocialLogin = (provider: "google" | "kakao") => {
+    const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get("returnTo") || "/index-main.html";
+    window.location.href = `/api/auth/social/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
   };
 
   return (
@@ -69,7 +69,7 @@ export default function LoginPage() {
         {/* 소셜 로그인 */}
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
           <button
-            onClick={() => handleSocialLogin()}
+            onClick={() => handleSocialLogin("kakao")}
             style={{
               width: "100%", padding: "13px", borderRadius: "10px", border: "none",
               background: "#FEE500", color: "#191919", fontSize: "14px", fontWeight: 600,
@@ -85,8 +85,9 @@ export default function LoginPage() {
             카카오로 1초 로그인
           </button>
 
+          {/* 네이버는 Supabase에서 지원하지 않으므로 일단 표시만 유지 (클릭 시 toast) */}
           <button
-            onClick={() => handleSocialLogin()}
+            onClick={() => toast.error("네이버 로그인은 준비 중입니다. Google 또는 Kakao로 로그인해 주세요.")}
             style={{
               width: "100%", padding: "13px", borderRadius: "10px", border: "none",
               background: "#03C75A", color: "#fff", fontSize: "14px", fontWeight: 600,
@@ -101,7 +102,7 @@ export default function LoginPage() {
           </button>
 
           <button
-            onClick={() => handleSocialLogin()}
+            onClick={() => handleSocialLogin("google")}
             style={{
               width: "100%", padding: "13px", borderRadius: "10px", border: "1.5px solid #E8E6E3",
               background: "#fff", color: "#1A1412", fontSize: "14px", fontWeight: 600,
