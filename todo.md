@@ -601,3 +601,10 @@
 - [x] const.ts getSocialLoginUrl에서 naver 타입 제거
 - [x] server/_core/socialOAuth.ts 파일 삭제 (네이버 OAuth 코드 전체)
 - [x] server/_core/index.ts에서 socialOAuth import 및 등록 제거
+
+## Manus OAuth 쟐재 완전 제거 (2026-03-12)
+- [x] const.ts getLoginUrl() 함수를 /login 리다이렉트로 교체 (Manus OAuth URL 제거)
+- [x] LoginPage.tsx: 카카오/구글 버튼 → /api/auth/social/kakao|google 확인
+- [x] SignupPage.tsx: 카카오/구글 버튼 → /api/auth/social/kakao|google 확인
+- [x] 정적 HTML 파일 app-auth/api/oauth/callback 쟐재 없음 확인
+- [x] 서버 /api/auth/social/:provider 302 리다이렉트 정상 동작 확인
