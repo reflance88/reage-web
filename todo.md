@@ -576,3 +576,12 @@
 - [x] SignupPage.tsx: /api/auth/email/signup REST 방식으로 교체
 - [x] FindPasswordPage.tsx: emailSent/devToken 제거 (Supabase Auth 표준 응답)
 - [x] docs/auth-migration-plan.md: 최종 설계서 v3 작성
+
+## Supabase Auth 마이그레이션 + 로그아웃 버튼
+
+- [x] header-auth.js에 로그아웃 버튼 추가 (로그인 상태일 때 마이페이지 옆에 표시)
+- [x] 로그아웃 클릭 시 /api/auth/email/signout 호출 후 메인 페이지로 리다이렉트
+- [ ] handle_new_user 트리거 추가 (Supabase SQL Editor)
+- [ ] pnpm db:push 실행
+- [ ] 전체 인증 흐름 검증 (로그인/로그아웃/refresh)
+- [ ] public.users DROP 승인 요청

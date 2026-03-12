@@ -20,6 +20,22 @@
     } catch (e) { return null; }
   }
 
+  // 로그아웃 처리
+  async function handleLogout() {
+    try {
+      await fetch('/api/auth/email/signout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } catch (e) {
+      console.error('[REAGE] logout error:', e);
+    } finally {
+      // 쿠키 클리어 후 메인 페이지로 이동
+      window.location.href = '/index-main.html';
+    }
+  }
+
   async function renderHeaderAuth() {
     const container = document.getElementById('header-auth-area');
     if (!container) return;
@@ -39,10 +55,12 @@
 
     const loginBtn = `<a href="/mypage" style="padding:9px 18px;border-radius:8px;border:1.5px solid #6B0F1A;background:transparent;color:#6B0F1A;font-size:13px;font-weight:600;text-decoration:none;transition:all .2s;" onmouseover="this.style.background='#6B0F1A';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='#6B0F1A'">로그인</a>`;
     const mypageBtn = `<a href="/mypage" style="padding:9px 18px;border-radius:8px;background:#6B0F1A;color:#fff;font-size:13px;font-weight:600;text-decoration:none;transition:background .2s;" onmouseover="this.style.background='#8B1525'" onmouseout="this.style.background='#6B0F1A'">마이페이지</a>`;
+    const logoutBtn = `<button id="reage-logout-btn" style="padding:9px 18px;border-radius:8px;border:1.5px solid #E8E6E3;background:transparent;color:#666;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='#999';this.style.color='#333'" onmouseout="this.style.borderColor='#E8E6E3';this.style.color='#666'">로그아웃</button>`;
 
     if (user) {
-      // 로그인 상태: 장바구니 + 마이페이지 (로그인 버튼 숨김)
-      container.innerHTML = `${cartBtn}${mypageBtn}`;
+      // 로그인 상태: 장바구니 + 마이페이지 + 로그아웃
+      container.innerHTML = `${cartBtn}${mypageBtn}${logoutBtn}`;
+      document.getElementById('reage-logout-btn')?.addEventListener('click', handleLogout);
     } else {
       // 비로그인 상태: 장바구니 + 로그인
       container.innerHTML = `${cartBtn}${loginBtn}`;

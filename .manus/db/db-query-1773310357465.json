@@ -1,0 +1,9 @@
+{
+  "query": "SELECT trigger_name, event_manipulation, event_object_schema, event_object_table, action_statement\nFROM information_schema.triggers\nWHERE event_object_schema IN ('auth', 'public')\nORDER BY event_object_schema, trigger_name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LapUck6vdQaed1i.root --database AerFeijbfzRzRoaKj4KqTe --execute SELECT trigger_name, event_manipulation, event_object_schema, event_object_table, action_statement\nFROM information_schema.triggers\nWHERE event_object_schema IN ('auth', 'public')\nORDER BY event_object_schema, trigger_name;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1725
+}

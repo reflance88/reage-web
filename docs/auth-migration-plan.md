@@ -4,6 +4,8 @@
 > **대상 프로젝트:** reage-web (REAGE 올핸드 미세전류 테라피)  
 > **목적:** `public.users` 중심 인증 구조를 `auth.users` 중심으로 전면 재설계
 
+> **[현재 운영 구조]** 이메일 인증은 `auth.users`로 전환 완료, Manus OAuth(Google 소셜 로그인)는 Supabase Google OAuth Provider 연동 완료 시까지 `openId` 기반 임시 병행 운영. `auth.users` 완전 단일화는 Supabase OAuth 연동 완료 후 별도 진행.
+
 ---
 
 ## 1. 전환 구조 요약
@@ -658,6 +660,8 @@ WHERE tc.constraint_type = 'FOREIGN KEY'
   AND ccu.table_name = 'users';
 -- 결과가 0행이어야 안전
 
+-- ⚠️ 아래 DROP TABLE은 배포 후 실제 로그인/로그아웃/refresh, 관리자 기능, 주문 기능 검증이
+-- 모두 완료된 시점에만 실행한다. 검증 전 실행 금지.
 DROP TABLE public.users;
 
 -- 매핑 테이블과 백업 테이블은 90일 후 삭제

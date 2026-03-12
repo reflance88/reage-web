@@ -1,0 +1,8 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS public.users_backup_20260312\nAS SELECT * FROM public.users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LapUck6vdQaed1i.root --database AerFeijbfzRzRoaKj4KqTe --execute CREATE TABLE IF NOT EXISTS public.users_backup_20260312\nAS SELECT * FROM public.users;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1105 (HY000) at line 1: 'CREATE TABLE ... SELECT' is not implemented yet"
+  ]
+}
