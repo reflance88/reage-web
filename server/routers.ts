@@ -8,7 +8,6 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
   approveVerification,
   createAuditLog,
-  createEmailUser,
   createOrder,
   createVerification,
   getAllOrders,
@@ -29,8 +28,6 @@ import {
   getProductById,
   getProductBySlug,
   getProducts,
-  getUserByEmail,
-  getUserByResetToken,
   getUserById,
   getUserOrders,
   rejectVerification,
@@ -40,9 +37,7 @@ import {
   updateProduct,
   createProduct,
   deleteProduct,
-  updateUserPassword,
   updateUserProfile,
-  updateUserResetToken,
   updateUserRole,
   updateVerification,
   // Gallery
@@ -241,40 +236,26 @@ export const appRouter = router({
         password: z.string().min(8),
         name: z.string().min(1).max(50),
       }))
-      .mutation(async ({ ctx, input }) => {
-        const bcrypt = await import("bcryptjs");
-        const existing = await getUserByEmail(input.email);
-        if (existing) throw new TRPCError({ code: "CONFLICT", message: "이미 사용 중인 이메일입니다." });
-        const passwordHash = await bcrypt.hash(input.password, 12);
-        const openId = `email:${nanoid(16)}`;
-        const user = await createEmailUser({ email: input.email, name: input.name, passwordHash, openId });
-        if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-        // 세션 쿠키 발급
-        const { SignJWT } = await import("jose");
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "secret");
-        const token = await new SignJWT({ id: user.id, openId: user.openId, role: user.role })
-          .setProtectedHeader({ alg: "HS256" }).setExpirationTime("30d").sign(secret);
-        const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 });
-        return { success: true };
+      .mutation(async ({ input }) => {
+        // Supabase Auth 표준 가입 플로우 (일반 사용자)
+        // 실제 가입 처리는 POST /api/auth/email/signup 엔드포인트에서 수행
+        // tRPC는 클라이언트가 직접 REST 엔드포인트를 호출하도록 안내
+        throw new TRPCError({
+          code: "METHOD_NOT_SUPPORTED",
+          message: "이메일 가입은 /api/auth/email/signup 엔드포인트를 사용하세요.",
+        });
       }),
 
     // ─── 이메일 로그인 ────────────────────────────────────────────────────────
     emailLogin: publicProcedure
       .input(z.object({ email: z.string().email(), password: z.string() }))
-      .mutation(async ({ ctx, input }) => {
-        const bcrypt = await import("bcryptjs");
-        const user = await getUserByEmail(input.email);
-        if (!user || !user.passwordHash) throw new TRPCError({ code: "UNAUTHORIZED", message: "이메일 또는 비밀번호가 올바르지 않습니다." });
-        const valid = await bcrypt.compare(input.password, user.passwordHash);
-        if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "이메일 또는 비밀번호가 올바르지 않습니다." });
-        const { SignJWT } = await import("jose");
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "secret");
-        const token = await new SignJWT({ id: user.id, openId: user.openId, role: user.role })
-          .setProtectedHeader({ alg: "HS256" }).setExpirationTime("30d").sign(secret);
-        const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 });
-        return { success: true };
+      .mutation(async (_opts) => {
+        // Supabase Auth 표준 로그인 플로우
+        // 실제 로그인 처리는 POST /api/auth/email/signin 엔드포인트에서 수행
+        throw new TRPCError({
+          code: "METHOD_NOT_SUPPORTED",
+          message: "이메일 로그인은 /api/auth/email/signin 엔드포인트를 사용하세요.",
+        });
       }),
 
     // ─── 아이디(이메일) 찾기 ──────────────────────────────────────────────────
@@ -282,13 +263,13 @@ export const appRouter = router({
       .input(z.object({ name: z.string(), phone: z.string() }))
       .mutation(async ({ input }) => {
         const { getDb } = await import("./db");
-        const { users: usersTable } = await import("../drizzle/schema-pg");
+        const { profiles: profilesTable } = await import("../drizzle/schema-pg");
         const { and, eq } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-        const result = await db.select({ email: usersTable.email })
-          .from(usersTable)
-          .where(and(eq(usersTable.name, input.name), eq(usersTable.phone, input.phone)))
+        const result = await db.select({ email: profilesTable.email })
+          .from(profilesTable)
+          .where(and(eq(profilesTable.name, input.name), eq(profilesTable.phone, input.phone)))
           .limit(1);
         if (!result.length || !result[0].email) throw new TRPCError({ code: "NOT_FOUND", message: "일치하는 계정을 찾을 수 없습니다." });
         const email = result[0].email;
@@ -299,38 +280,41 @@ export const appRouter = router({
     // ─── 비밀번호 재설정 요청 ─────────────────────────────────────────────────
     requestPasswordReset: publicProcedure
       .input(z.object({ email: z.string().email(), origin: z.string().url().optional() }))
-      .mutation(async ({ input, ctx }) => {
-        const user = await getUserByEmail(input.email);
-        // 보안상 이메일 존재 여부를 노출하지 않음
-        if (!user) return { success: true, emailSent: false };
-        const token = nanoid(32);
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1시간
-        await updateUserResetToken(user.id, token, expiresAt);
-        // 재설정 URL 생성 (origin은 프론트에서 전달, 없으면 요청 헤더에서 추출)
-        const origin = input.origin ||
-          (ctx.req ? `${ctx.req.protocol}://${ctx.req.get("host")}` : "http://localhost:3000");
-        const resetUrl = `${origin}/find-password?token=${token}`;
-        // 실제 이메일 발송
-        const emailSent = await sendPasswordResetEmail(input.email, resetUrl);
-        // 개발 환경에서 SMTP 미설정 시 토큰을 응답에 포함 (테스트용)
-        const devToken = (!emailSent && process.env.NODE_ENV === "development") ? token : undefined;
-        if (devToken) {
-          console.log(`[Dev] Password reset URL: ${resetUrl}`);
+      .mutation(async ({ input }) => {
+        // Supabase Auth 비밀번호 재설정 플로우
+        const { createClient } = await import("@supabase/supabase-js");
+        const supabaseUrl = process.env.SUPABASE_URL ?? "";
+        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? "";
+        const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+        const redirectTo = input.origin ? `${input.origin}/find-password` : undefined;
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(input.email, {
+          redirectTo,
+        });
+        if (error) {
+          console.error("[Auth] resetPasswordForEmail error:", error.message);
         }
-        return { success: true, emailSent, devToken };
+        // 보안상 이메일 존재 여부 노출하지 않음
+        return { success: true };
       }),
 
     // ─── 비밀번호 재설정 실행 ─────────────────────────────────────────────────
+    // Supabase Auth 방식: 이메일 링크 클릭 후 access_token을 받아 updateUser 호출
+    // 프론트엔드에서 직접 supabase.auth.updateUser({ password }) 호출
     resetPassword: publicProcedure
       .input(z.object({ token: z.string(), newPassword: z.string().min(8) }))
       .mutation(async ({ input }) => {
-        const bcrypt = await import("bcryptjs");
-        const user = await getUserByResetToken(input.token);
-        if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
+        // access_token(=token)으로 Supabase Admin을 통해 비밀번호 변경
+        const { supabaseAdmin } = await import("./_core/supabase");
+        const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(input.token);
+        if (userError || !userData.user) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "유효하지 않거나 만료된 링크입니다." });
         }
-        const passwordHash = await bcrypt.hash(input.newPassword, 12);
-        await updateUserPassword(user.id, passwordHash);
+        const { error } = await supabaseAdmin.auth.admin.updateUserById(userData.user.id, {
+          password: input.newPassword,
+        });
+        if (error) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        }
         return { success: true };
       }),
   }),
@@ -480,10 +464,10 @@ export const appRouter = router({
         let userEmail = '';
         let userName = '';
         if (db) {
-          const { users } = await import("../drizzle/schema-pg");
+          const { profiles } = await import("../drizzle/schema-pg");
           const { eq } = await import("drizzle-orm");
-          await db.update(users).set({ proVerificationStatus: "pending" }).where(eq(users.id, ctx.user.id));
-          const userRow = await db.select({ email: users.email, name: users.name }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+          await db.update(profiles).set({ proVerificationStatus: "pending" }).where(eq(profiles.id, ctx.user.id));
+          const userRow = await db.select({ email: profiles.email, name: profiles.name }).from(profiles).where(eq(profiles.id, ctx.user.id)).limit(1);
           userEmail = userRow[0]?.email ?? '';
           userName = userRow[0]?.name ?? '';
         }
@@ -557,7 +541,7 @@ export const appRouter = router({
       }),
 
     updateUserRole: protectedProcedure
-      .input(z.object({ userId: z.number(), role: z.enum(["user", "admin"]) }))
+      .input(z.object({ userId: z.string(), role: z.enum(["user", "admin"]) }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await updateUserRole(input.userId, input.role);
@@ -572,7 +556,7 @@ export const appRouter = router({
       }),
 
     approveVerification: protectedProcedure
-      .input(z.object({ id: z.number(), userId: z.number() }))
+      .input(z.object({ id: z.number(), userId: z.string() }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await approveVerification(input.id, input.userId);
@@ -580,7 +564,7 @@ export const appRouter = router({
       }),
 
     rejectVerification: protectedProcedure
-      .input(z.object({ id: z.number(), userId: z.number(), reason: z.string().min(1) }))
+      .input(z.object({ id: z.number(), userId: z.string(), reason: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await rejectVerification(input.id, input.userId, input.reason);
@@ -699,7 +683,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: "UPDATE_PRODUCT",
           targetType: "product",
-          targetId: 0,
+          targetId: "0",
           before: JSON.stringify(before),
           after: JSON.stringify(after),
         });
@@ -755,7 +739,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: 'CREATE_PRODUCT',
           targetType: 'product',
-          targetId: 0,
+          targetId: "0",
           before: null,
           after: JSON.stringify(product),
         });
@@ -772,7 +756,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: 'DELETE_PRODUCT',
           targetType: 'product',
-          targetId: 0,
+          targetId: "0",
           before: JSON.stringify(before),
           after: null,
         });
@@ -810,7 +794,7 @@ export const appRouter = router({
       }),
 
     approveVerificationV2: protectedProcedure
-      .input(z.object({ id: z.number(), userId: z.number() }))
+      .input(z.object({ id: z.number(), userId: z.string() }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await approveVerification(input.id, input.userId);
@@ -818,14 +802,14 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: "APPROVE_PRO",
           targetType: "pro_verification",
-          targetId: input.id,
+          targetId: String(input.id),
           after: JSON.stringify({ userId: input.userId, status: "approved" }),
         });
         return { success: true };
       }),
 
     rejectVerificationV2: protectedProcedure
-      .input(z.object({ id: z.number(), userId: z.number(), reason: z.string().min(1) }))
+      .input(z.object({ id: z.number(), userId: z.string(), reason: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await rejectVerification(input.id, input.userId, input.reason);
@@ -833,7 +817,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: "REJECT_PRO",
           targetType: "pro_verification",
-          targetId: input.id,
+          targetId: String(input.id),
           note: input.reason,
           after: JSON.stringify({ userId: input.userId, status: "rejected", reason: input.reason }),
         });
@@ -894,7 +878,7 @@ export const appRouter = router({
 
     // ─── Set user professional manually ───────────────────────────────────
     setUserProfessional: protectedProcedure
-      .input(z.object({ userId: z.number() }))
+      .input(z.object({ userId: z.string() }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await updateUserRole(input.userId, "user"); // keep system role as user
@@ -914,7 +898,7 @@ export const appRouter = router({
     auditLogs: protectedProcedure
       .input(z.object({
         targetType: z.string().optional(),
-        targetId: z.number().optional(),
+        targetId: z.string().optional(),
       }))
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
@@ -939,7 +923,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return createAdminGalleryPost({ ...input, authorId: ctx.user.id });
+        return createAdminGalleryPost({ ...input, authorId: ctx.user.id as any });
       }),
 
     updateGalleryPost: protectedProcedure
@@ -983,7 +967,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return createAdminMagazinePost({ ...input, authorId: ctx.user.id });
+        return createAdminMagazinePost({ ...input, authorId: ctx.user.id as any });
       }),
 
     updateMagazinePost: protectedProcedure
@@ -1030,7 +1014,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return createReview({ ...input, authorId: ctx.user.id });
+        return createReview({ ...input, authorId: ctx.user.id as any });
       }),
 
     updateReview: protectedProcedure
@@ -1437,6 +1421,7 @@ export const appRouter = router({
           {
             orderId, userId: user.id, userRoleSnapshot: isPro ? "professional" : "consumer",
             proStatusSnapshot: user.proVerificationStatus, totalAmount: String(totalAmount),
+            finalAmount: String(totalAmount),
             status: "created", orderName,
             recipientName: input.recipientName,
             recipientPhone: input.recipientPhone,
@@ -1583,7 +1568,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return createCertifiedInstructorSupabase({ ...input, authorId: ctx.user.id });
+        return createCertifiedInstructorSupabase({ ...input, authorId: ctx.user.id as any });
       }),
     updateCertifiedInstructor: protectedProcedure
       .input(z.object({
@@ -1626,7 +1611,7 @@ export const appRouter = router({
     // ─── Membership Grade Management ──────────────────────────────────────────────────────
     setMembership: protectedProcedure
       .input(z.object({
-        userId: z.number(),
+        userId: z.string(),
         membershipGrade: z.enum(["consumer", "professional", "membership"]),
         discountRate: z.number().min(0).max(100).default(0),
       }))
@@ -1635,14 +1620,14 @@ export const appRouter = router({
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-        const { users } = await import("../drizzle/schema-pg");
+        const { profiles } = await import("../drizzle/schema-pg");
         const { eq } = await import("drizzle-orm");
         const targetUser = await getUserById(input.userId);
         if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "사용자를 찾을 수 없습니다." });
-        await db.update(users).set({
+        await db.update(profiles).set({
           memberRole: input.membershipGrade,
           membershipDiscountRate: input.discountRate,
-        }).where(eq(users.id, input.userId));
+        }).where(eq(profiles.id, input.userId));
         await createAuditLog({
           adminUserId: ctx.user.id,
           actionType: "membership_update",
@@ -1743,14 +1728,14 @@ export const appRouter = router({
       }),
 
     getCouponIssues: protectedProcedure
-      .input(z.object({ couponId: z.number().optional(), userId: z.number().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+      .input(z.object({ couponId: z.number().optional(), userId: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         return await getCouponIssues(input);
       }),
 
     issueCouponToUser: protectedProcedure
-      .input(z.object({ couponId: z.number(), userId: z.number() }))
+      .input(z.object({ couponId: z.number(), userId: z.string() }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         return await issueCouponToUser(input.couponId, input.userId);

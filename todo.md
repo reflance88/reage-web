@@ -543,3 +543,36 @@
 - [x] CartPage.tsx: CartItem.productId 타입을 number → string으로 변경
 - [x] TypeScript 오류 0개 확인
 - [x] vitest 33 passed / 1 skipped 전체 통과
+
+## Supabase auth.users 기준 인증 시스템 전환
+- [x] schema-pg.ts: public.users 제거, public.profiles 추가 (uuid PK, auth.users 참조)
+- [x] 15개 테이블 FK 타입 integer → uuid 변경
+- [x] server/_core/supabase.ts: supabaseAdmin / supabaseClient 분리
+- [x] server/db.ts: upsertProfile, getProfileByOpenId, getUserById(alias) 등 profiles 기반 함수 전환
+- [x] server/_core/context.ts: Supabase Auth 토큰 기반 세션 검증
+- [x] server/_core/oauth.ts: upsertUser → upsertProfile 전환
+- [x] server/_core/emailAuth.ts: 이메일 가입/로그인/로그아웃/세션갱신 REST 엔드포인트
+- [x] server/_core/index.ts: emailAuth 라우트 등록
+- [x] routers.ts: emailSignup/emailLogin → METHOD_NOT_SUPPORTED (REST 엔드포인트 안내)
+- [x] routers.ts: userId 타입 전면 string 전환
+- [x] LoginPage.tsx: /api/auth/email/signin REST 방식으로 교체
+- [x] SignupPage.tsx: /api/auth/email/signup REST 방식으로 교체
+- [x] FindPasswordPage.tsx: emailSent/devToken 제거 (Supabase Auth 표준 응답)
+- [x] docs/auth-migration-plan.md: 최종 설계서 v3 작성
+
+
+## Supabase auth.users 기준 인증 시스템 전환
+- [x] schema-pg.ts: public.users 제거, public.profiles 추가 (uuid PK, auth.users 참조)
+- [x] 15개 테이블 FK 타입 integer -> uuid 변경
+- [x] server/_core/supabase.ts: supabaseAdmin / supabaseClient 분리
+- [x] server/db.ts: upsertProfile, getProfileByOpenId, getUserById(alias) 등 profiles 기반 함수 전환
+- [x] server/_core/context.ts: Supabase Auth 토큰 기반 세션 검증
+- [x] server/_core/oauth.ts: upsertUser -> upsertProfile 전환
+- [x] server/_core/emailAuth.ts: 이메일 가입/로그인/로그아웃/세션갱신 REST 엔드포인트
+- [x] server/_core/index.ts: emailAuth 라우트 등록
+- [x] routers.ts: emailSignup/emailLogin -> METHOD_NOT_SUPPORTED (REST 엔드포인트 안내)
+- [x] routers.ts: userId 타입 전면 string 전환
+- [x] LoginPage.tsx: /api/auth/email/signin REST 방식으로 교체
+- [x] SignupPage.tsx: /api/auth/email/signup REST 방식으로 교체
+- [x] FindPasswordPage.tsx: emailSent/devToken 제거 (Supabase Auth 표준 응답)
+- [x] docs/auth-migration-plan.md: 최종 설계서 v3 작성

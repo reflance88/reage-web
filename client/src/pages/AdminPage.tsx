@@ -1637,7 +1637,7 @@ function CustomerSection({ subPage }: { subPage: string }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedVer, setSelectedVer] = useState<any>(null);
   const [verDetailOpen, setVerDetailOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<null | { type: "approve" | "reject"; id: number; userId: number }>(null);
+  const [confirmAction, setConfirmAction] = useState<null | { type: "approve" | "reject"; id: number; userId: string }>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   const users = trpc.admin.users.useQuery({ page: 1, limit: 50 });

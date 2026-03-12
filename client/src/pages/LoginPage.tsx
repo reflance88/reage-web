@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 
@@ -10,24 +9,31 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const loginMutation = trpc.auth.emailLogin.useMutation({
-    onSuccess: () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) { toast.error("이메일과 비밀번호를 입력해주세요."); return; }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/email/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) {
+        toast.error(data.error || "로그인에 실패했습니다.");
+        setLoading(false);
+        return;
+      }
       toast.success("로그인되었습니다.");
       const params = new URLSearchParams(window.location.search);
       const returnTo = params.get("returnTo") || "/index-main.html";
       window.location.href = returnTo;
-    },
-    onError: (err) => {
-      toast.error(err.message || "로그인에 실패했습니다.");
+    } catch {
+      toast.error("네트워크 오류가 발생했습니다.");
       setLoading(false);
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) { toast.error("이메일과 비밀번호를 입력해주세요."); return; }
-    setLoading(true);
-    loginMutation.mutate({ email, password });
+    }
   };
 
   // 소셜 로그인: Manus OAuth 포털으로 리다이렉트

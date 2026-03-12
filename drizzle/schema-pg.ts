@@ -1,9 +1,9 @@
 /**
  * Supabase(PostgreSQL) 전용 Drizzle 스키마
  *
- * - 현재 Manus 환경의 MySQL 스키마(schema.ts)와 완전히 동기화된 버전입니다.
- * - drizzle-pg.config.ts 와 함께 사용합니다.
- * - pnpm db:push:pg 로 Supabase에 적용합니다.
+ * - auth.users 기반 인증 구조로 전환 (2026-03-12)
+ * - public.users 제거 → public.profiles (uuid PK, auth.users 참조)
+ * - 모든 userId/authorId/adminUserId FK: integer → uuid
  */
 
 import {
@@ -54,11 +54,13 @@ export const taxTypeEnum = pgEnum("tax_type", ["taxable", "tax_free", "exempt"])
 export const shippingTypeEnum = pgEnum("shipping_type", ["direct", "warehouse", "other"]);
 
 // ─────────────────────────────────────────────
-// 1. users (회원)
+// 1. profiles (회원 프로필 — auth.users 연동)
+//    id: auth.users.id (uuid) 를 PK이자 FK로 참조
+//    인증 원본은 Supabase auth.users, 비즈니스 정보만 여기에 저장
 // ─────────────────────────────────────────────
-export const users = pgTable("users", {
-  id:                      serial("id").primaryKey(),
-  openId:                  varchar("openId", { length: 64 }).notNull().unique(),
+export const profiles = pgTable("profiles", {
+  id:                      uuid("id").primaryKey(),  // auth.users.id 참조 (DB 레벨 FK)
+  openId:                  varchar("openId", { length: 64 }).unique(),  // Manus OAuth 식별자 (소셜 콜백용)
   name:                    text("name"),
   email:                   varchar("email", { length: 320 }),
   loginMethod:             varchar("loginMethod", { length: 64 }),
@@ -67,24 +69,20 @@ export const users = pgTable("users", {
   memberRole:              memberRoleEnum("memberRole").notNull().default("consumer"),
   membershipDiscountRate:  integer("membershipDiscountRate").notNull().default(0),
   proVerificationStatus:   proVerificationStatusEnum("proVerificationStatus").notNull().default("none"),
-  passwordHash:            varchar("passwordHash", { length: 255 }),
-  emailVerified:           boolean("emailVerified").notNull().default(false),
-  resetToken:              varchar("resetToken", { length: 128 }),
-  resetTokenExpiresAt:     timestamp("resetTokenExpiresAt", { withTimezone: true }),
   lastSignedIn:            timestamp("lastSignedIn", { withTimezone: true }).notNull().defaultNow(),
   createdAt:               timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:               timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
+export type Profile = typeof profiles.$inferSelect;
+export type InsertProfile = typeof profiles.$inferInsert;
 
 // ─────────────────────────────────────────────
 // 2. business_verifications (사업자 인증)
 // ─────────────────────────────────────────────
 export const businessVerifications = pgTable("business_verifications", {
   id:             serial("id").primaryKey(),
-  userId:         integer("userId").notNull().references(() => users.id),
+  userId:         uuid("userId").notNull(),  // profiles.id (auth.users.id) 참조
   businessNumber: varchar("businessNumber", { length: 30 }).notNull(),
   businessName:   varchar("businessName", { length: 200 }).notNull(),
   contactPhone:   varchar("contactPhone", { length: 30 }),
@@ -176,7 +174,7 @@ export const designFiles = pgTable("design_files", {
   mimeType:     varchar("mimeType", { length: 100 }),
   fileSize:     integer("fileSize"),
   folder:       varchar("folder", { length: 200 }).default("ROOT"),
-  uploadedBy:   integer("uploadedBy").references(() => users.id),
+  uploadedBy:   uuid("uploadedBy"),  // profiles.id 참조
   createdAt:    timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -189,10 +187,12 @@ export type InsertDesignFile = typeof designFiles.$inferInsert;
 export const orders = pgTable("orders", {
   id:                    serial("id").primaryKey(),
   orderId:               varchar("orderId", { length: 100 }).notNull().unique(),
-  userId:                integer("userId").notNull().references(() => users.id),
+  userId:                uuid("userId").notNull(),  // profiles.id 참조
   userRoleSnapshot:      userRoleSnapshotEnum("userRoleSnapshot").notNull(),
   proStatusSnapshot:     proStatusSnapshotEnum("proStatusSnapshot").notNull(),
   totalAmount:           numeric("totalAmount", { precision: 12, scale: 0 }).notNull(),
+  discountAmount:        numeric("discountAmount", { precision: 12, scale: 0 }).notNull().default("0"),
+  finalAmount:           numeric("finalAmount", { precision: 12, scale: 0 }).notNull(),
   status:                orderStatusEnum("status").notNull().default("created"),
   shippingStatus:        shippingStatusEnum("shippingStatus").notNull().default("none"),
   courierCode:           varchar("courierCode", { length: 50 }),
@@ -320,7 +320,7 @@ export const orderRefunds = pgTable("order_refunds", {
   status:              refundStatusEnum("status").notNull().default("pending"),
   refundType:          refundTypeEnum("refundType").notNull().default("full"),
   adminNote:           text("adminNote"),
-  processedBy:         integer("processedBy").references(() => users.id),
+  processedBy:         uuid("processedBy"),  // profiles.id 참조
   processedAt:         timestamp("processedAt", { withTimezone: true }),
   createdAt:           timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:           timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
@@ -370,10 +370,10 @@ export type InsertThirdPartyLog = typeof thirdPartyLogs.$inferInsert;
 // ─────────────────────────────────────────────
 export const adminAuditLogs = pgTable("admin_audit_logs", {
   id:          serial("id").primaryKey(),
-  adminUserId: integer("adminUserId").notNull().references(() => users.id),
+  adminUserId: uuid("adminUserId").notNull(),  // profiles.id 참조
   actionType:  varchar("actionType", { length: 100 }).notNull(),
   targetType:  varchar("targetType", { length: 50 }).notNull(),
-  targetId:    integer("targetId").notNull(),
+  targetId:    varchar("targetId", { length: 100 }).notNull(),  // uuid 또는 integer를 string으로 저장
   before:      text("before"),
   after:       text("after"),
   note:        text("note"),
@@ -393,7 +393,7 @@ export const galleryPosts = pgTable("gallery_posts", {
   coverImageUrl: text("coverImageUrl"),
   coverImageKey: text("coverImageKey"),
   isPublished:   boolean("isPublished").notNull().default(true),
-  authorId:      integer("authorId").references(() => users.id),
+  authorId:      uuid("authorId"),  // profiles.id 참조
   viewCount:     integer("viewCount").notNull().default(0),
   createdAt:     timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:     timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
@@ -413,7 +413,7 @@ export const magazinePosts = pgTable("magazine_posts", {
   coverImageUrl: text("coverImageUrl"),
   coverImageKey: text("coverImageKey"),
   isPublished:   boolean("isPublished").notNull().default(true),
-  authorId:      integer("authorId").references(() => users.id),
+  authorId:      uuid("authorId"),  // profiles.id 참조
   viewCount:     integer("viewCount").notNull().default(0),
   createdAt:     timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:     timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
@@ -472,7 +472,7 @@ export const pageViews = pgTable("page_views", {
   path:       varchar("path", { length: 500 }).notNull(),
   deviceType: deviceTypeEnum("deviceType").notNull().default("pc"),
   sessionId:  varchar("sessionId", { length: 128 }),
-  userId:     integer("userId").references(() => users.id),
+  userId:     uuid("userId"),  // profiles.id 참조 (nullable)
   referrer:   text("referrer"),
   userAgent:  text("userAgent"),
   duration:   integer("duration"),
@@ -495,7 +495,7 @@ export const reviews = pgTable("reviews", {
   description:   text("description"),
   sortOrder:     integer("sortOrder").notNull().default(0),
   isPublished:   boolean("isPublished").notNull().default(true),
-  authorId:      integer("authorId").references(() => users.id),
+  authorId:      uuid("authorId"),  // profiles.id 참조
   createdAt:     timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:     timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -514,7 +514,7 @@ export const certifiedInstructors = pgTable("certified_instructors", {
   description: text("description"),
   sortOrder:   integer("sortOrder").notNull().default(0),
   isPublished: boolean("isPublished").notNull().default(true),
-  authorId:    integer("authorId").references(() => users.id),
+  authorId:    uuid("authorId"),  // profiles.id 참조
   createdAt:   timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:   timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -555,7 +555,7 @@ export const coupons = pgTable("coupons", {
   sendEmail:          boolean("sendEmail").notNull().default(false),
   status:             varchar("status", { length: 20 }).notNull().default("active"),
   totalIssued:        integer("totalIssued").notNull().default(0),
-  authorId:           integer("authorId").references(() => users.id),
+  authorId:           uuid("authorId"),  // profiles.id 참조
   createdAt:          timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:          timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -570,7 +570,7 @@ export const couponIssues = pgTable("coupon_issues", {
   id:           serial("id").primaryKey(),
   couponNumber: varchar("couponNumber", { length: 30 }).notNull().unique(),
   couponId:     integer("couponId").notNull().references(() => coupons.id),
-  userId:       integer("userId").references(() => users.id),
+  userId:       uuid("userId"),  // profiles.id 참조 (nullable)
   isUsed:       boolean("isUsed").notNull().default(false),
   usedAt:       timestamp("usedAt", { withTimezone: true }),
   orderId:      integer("orderId"),
@@ -602,7 +602,7 @@ export const discountCodes = pgTable("discount_codes", {
   samePersonLimitType:  varchar("samePersonLimitType", { length: 20 }).notNull().default("none"),
   samePersonLimitCount: integer("samePersonLimitCount"),
   usedCount:            integer("usedCount").notNull().default(0),
-  authorId:             integer("authorId").references(() => users.id),
+  authorId:             uuid("authorId"),  // profiles.id 참조
   createdAt:            timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:            timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -639,7 +639,7 @@ export const remindAlerts = pgTable("remind_alerts", {
   benefitContent:   varchar("benefitContent", { length: 30 }).notNull().default("coupon"),
   benefitCouponId:  integer("benefitCouponId").references(() => coupons.id),
   totalSent:        integer("totalSent").notNull().default(0),
-  authorId:         integer("authorId").references(() => users.id),
+  authorId:         uuid("authorId"),  // profiles.id 참조
   createdAt:        timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -657,7 +657,7 @@ export const excelTemplates = pgTable("excel_templates", {
   isDefault:   boolean("isDefault").notNull().default(false),
   columns:     text("columns").notNull(),
   sortConfig:  text("sortConfig"),
-  authorId:    integer("authorId").references(() => users.id),
+  authorId:    uuid("authorId"),  // profiles.id 참조
   createdAt:   timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:   timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -669,7 +669,7 @@ export type InsertExcelTemplate = typeof excelTemplates.$inferInsert;
 // Relations (Drizzle ORM 관계 정의)
 // ─────────────────────────────────────────────
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const profilesRelations = relations(profiles, ({ many }) => ({
   orders: many(orders),
   businessVerifications: many(businessVerifications),
   couponIssues: many(couponIssues),
@@ -677,7 +677,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
-  user: one(users, { fields: [orders.userId], references: [users.id] }),
+  user: one(profiles, { fields: [orders.userId], references: [profiles.id] }),
   items: many(orderItems),
   cancellations: many(orderCancellations),
   exchanges: many(orderExchanges),
@@ -696,9 +696,9 @@ export const couponsRelations = relations(coupons, ({ many }) => ({
 
 export const couponIssuesRelations = relations(couponIssues, ({ one }) => ({
   coupon: one(coupons, { fields: [couponIssues.couponId], references: [coupons.id] }),
-  user: one(users, { fields: [couponIssues.userId], references: [users.id] }),
+  user: one(profiles, { fields: [couponIssues.userId], references: [profiles.id] }),
 }));
 
 export const designFilesRelations = relations(designFiles, ({ one }) => ({
-  uploader: one(users, { fields: [designFiles.uploadedBy], references: [users.id] }),
+  uploader: one(profiles, { fields: [designFiles.uploadedBy], references: [profiles.id] }),
 }));

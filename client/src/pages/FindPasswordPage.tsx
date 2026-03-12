@@ -17,17 +17,11 @@ export default function FindPasswordPage() {
   const [sent, setSent] = useState(false);
 
   const requestMutation = trpc.auth.requestPasswordReset.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       setSent(true);
       setLoading(false);
-      if (data.emailSent) {
-        toast.success("재설정 링크를 이메일로 발송했습니다.");
-      } else if (data.devToken) {
-        // 개발 환경: SMTP 미설정 시 토큰으로 바로 이동
-        toast.info(`[개발용] SMTP 미설정 - 토큰으로 직접 이동합니다.`, { duration: 5000 });
-        setToken(data.devToken);
-        setTimeout(() => setStep("reset"), 1500);
-      }
+      // Supabase Auth는 이메일 존재 여부와 무관하게 성공 반환 (보안)
+      toast.success("재설정 링크를 이메일로 발송했습니다. 이메일을 확인해 주세요.");
     },
     onError: (err: { message?: string }) => {
       toast.error(err.message || "요청에 실패했습니다.");

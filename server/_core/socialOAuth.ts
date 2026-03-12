@@ -278,7 +278,26 @@ async function issueSession(
   req: Request,
   userInfo: SocialUserInfo
 ): Promise<void> {
-  await db.upsertUser({
+  // auth.users에 소셜 사용자 등록 (없으면 생성, 있으면 조회)
+  const { supabaseAdmin } = await import('./supabase');
+  const lookupEmail = userInfo.email ?? `${userInfo.openId}@social-oauth.local`;
+  const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+  const existing = listData?.users?.find((u: { email?: string }) => u.email === lookupEmail);
+  let authUserId: string;
+  if (existing) {
+    authUserId = existing.id;
+  } else {
+    const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+      email: lookupEmail,
+      user_metadata: { full_name: userInfo.name, openId: userInfo.openId },
+      email_confirm: true,
+    });
+    if (createErr || !newUser?.user) throw new Error(`[Social] auth.users 생성 실패: ${createErr?.message}`);
+    authUserId = newUser.user.id;
+  }
+  // profiles 테이블 upsert (auth.users.id를 PK로 사용)
+  await db.upsertProfile({
+    id: authUserId,
     openId: userInfo.openId,
     name: userInfo.name,
     email: userInfo.email,

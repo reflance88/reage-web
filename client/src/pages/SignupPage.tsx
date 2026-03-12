@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 
@@ -10,25 +9,36 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
 
-  const signupMutation = trpc.auth.emailSignup.useMutation({
-    onSuccess: () => {
-      toast.success("회원가입이 완료되었습니다. 환영합니다!");
-      window.location.href = "/index-main.html";
-    },
-    onError: (err: { message?: string }) => {
-      toast.error(err.message || "회원가입에 실패했습니다.");
-      setLoading(false);
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.password) { toast.error("모든 항목을 입력해주세요."); return; }
     if (form.password.length < 8) { toast.error("비밀번호는 8자 이상이어야 합니다."); return; }
     if (form.password !== form.passwordConfirm) { toast.error("비밀번호가 일치하지 않습니다."); return; }
     if (!agreed) { toast.error("이용약관에 동의해주세요."); return; }
     setLoading(true);
-    signupMutation.mutate({ name: form.name, email: form.email, password: form.password });
+    try {
+      const res = await fetch("/api/auth/email/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: form.name, email: form.email, password: form.password }),
+      });
+      const data = await res.json() as { error?: string; confirmationRequired?: boolean };
+      if (!res.ok) {
+        toast.error(data.error || "회원가입에 실패했습니다.");
+        setLoading(false);
+        return;
+      }
+      if (data.confirmationRequired) {
+        toast.success("회원가입이 완료되었습니다. 이메일을 확인하여 가입을 완료해주세요.");
+      } else {
+        toast.success("회원가입이 완료되었습니다. 환영합니다!");
+      }
+      window.location.href = "/index-main.html";
+    } catch {
+      toast.error("네트워크 오류가 발생했습니다.");
+      setLoading(false);
+    }
   };
 
   // 소셜 가입: Manus OAuth 포털으로 리다이렉트
