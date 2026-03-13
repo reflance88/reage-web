@@ -9,6 +9,12 @@
  * 쿠키 전략:
  *   sb-access-token  : HttpOnly, Secure, SameSite=Lax, maxAge=3600s (1시간)
  *   sb-refresh-token : HttpOnly, Secure, SameSite=Lax, maxAge=31536000s (1년)
+ *
+ * [수정 내역 - 2026-03-13]
+ *   1. req.cookies 사용 제거 → cookie-parser 미설치 환경에서 undefined 반환 버그 수정
+ *      수동 쿠키 파싱(_parseCookies) 방식으로 통일
+ *   2. oauth.ts와 중복 등록된 /api/auth/email/signup, /api/auth/email/signin 라우트는
+ *      이 파일에서만 등록 (oauth.ts에서 해당 라우트 제거됨)
  */
 
 import type { Express, Request, Response } from "express";
@@ -21,17 +27,30 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? "";
 
 const ACCESS_COOKIE = "sb-access-token";
 const REFRESH_COOKIE = "sb-refresh-token";
-const ACCESS_MAX_AGE = 60 * 60;           // 1시간 (초)
-const REFRESH_MAX_AGE = 60 * 60 * 24 * 365; // 1년 (초)
+const ACCESS_MAX_AGE_MS = 60 * 60 * 1000;              // 1시간 (ms)
+const REFRESH_MAX_AGE_MS = 60 * 60 * 24 * 365 * 1000; // 1년 (ms)
 
-function getCookieOptions(req: Request, maxAge: number) {
+/**
+ * cookie-parser 없이 쿠키 헤더를 수동 파싱합니다.
+ */
+function _parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+  cookieHeader.split(";").forEach((part) => {
+    const [k, ...v] = part.trim().split("=");
+    if (k) cookies[k.trim()] = decodeURIComponent(v.join("="));
+  });
+  return cookies;
+}
+
+function getCookieOptions(req: Request, maxAgeMs: number) {
   const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https";
   return {
     httpOnly: true,
     secure: isSecure,
     sameSite: "lax" as const,
     path: "/",
-    maxAge: maxAge * 1000, // Express는 ms 단위
+    maxAge: maxAgeMs,
   };
 }
 
@@ -54,7 +73,6 @@ export function registerEmailAuthRoutes(app: Express): void {
     }
 
     try {
-      // 일반 사용자 가입: supabase.auth.signUp (이메일 확인 메일 발송)
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -88,8 +106,8 @@ export function registerEmailAuthRoutes(app: Express): void {
       // 이메일 확인 전이면 세션이 없을 수 있음 (confirmationRequired)
       const session = data.session;
       if (session) {
-        res.cookie(ACCESS_COOKIE, session.access_token, getCookieOptions(req, ACCESS_MAX_AGE));
-        res.cookie(REFRESH_COOKIE, session.refresh_token, getCookieOptions(req, REFRESH_MAX_AGE));
+        res.cookie(ACCESS_COOKIE, session.access_token, getCookieOptions(req, ACCESS_MAX_AGE_MS));
+        res.cookie(REFRESH_COOKIE, session.refresh_token, getCookieOptions(req, REFRESH_MAX_AGE_MS));
       }
 
       res.json({
@@ -134,8 +152,8 @@ export function registerEmailAuthRoutes(app: Express): void {
       });
 
       // access token + refresh token 분리 쿠키 저장
-      res.cookie(ACCESS_COOKIE, session.access_token, getCookieOptions(req, ACCESS_MAX_AGE));
-      res.cookie(REFRESH_COOKIE, session.refresh_token, getCookieOptions(req, REFRESH_MAX_AGE));
+      res.cookie(ACCESS_COOKIE, session.access_token, getCookieOptions(req, ACCESS_MAX_AGE_MS));
+      res.cookie(REFRESH_COOKIE, session.refresh_token, getCookieOptions(req, REFRESH_MAX_AGE_MS));
 
       res.json({ success: true, userId: user.id });
     } catch (err) {
@@ -146,16 +164,17 @@ export function registerEmailAuthRoutes(app: Express): void {
 
   // ── 로그아웃 ────────────────────────────────────────────────────────────────
   // refresh token 무효화 후 쿠키 삭제
-  // access token은 만료 전까지 유효하지만 refresh token을 제거하면 갱신 불가
   app.post("/api/auth/email/signout", async (req: Request, res: Response) => {
     try {
-      const refreshToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+      // req.cookies 대신 수동 파싱 사용 (cookie-parser 미설치)
+      const cookies = _parseCookies(req.headers.cookie);
+      const refreshToken = cookies[REFRESH_COOKIE];
+      const accessToken = cookies[ACCESS_COOKIE];
 
       if (refreshToken) {
-        // refresh token으로 세션 복원 후 서버 측 로그아웃 (scope: "global" = 모든 기기)
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         const { error: sessionError } = await supabase.auth.setSession({
-          access_token: req.cookies?.[ACCESS_COOKIE] ?? "",
+          access_token: accessToken ?? "",
           refresh_token: refreshToken,
         });
         if (!sessionError) {
@@ -163,8 +182,8 @@ export function registerEmailAuthRoutes(app: Express): void {
         }
       }
 
-      // 쿠키 삭제 (maxAge: 0)
-      const clearOptions = { ...getCookieOptions(req, 0), maxAge: 0 };
+      // 쿠키 삭제
+      const clearOptions = getCookieOptions(req, 0);
       res.clearCookie(ACCESS_COOKIE, clearOptions);
       res.clearCookie(REFRESH_COOKIE, clearOptions);
 
@@ -181,7 +200,9 @@ export function registerEmailAuthRoutes(app: Express): void {
   // ── 세션 갱신 ───────────────────────────────────────────────────────────────
   // refresh token → 새 access token + refresh token 발급
   app.post("/api/auth/email/refresh", async (req: Request, res: Response) => {
-    const refreshToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+    // req.cookies 대신 수동 파싱 사용 (cookie-parser 미설치)
+    const cookies = _parseCookies(req.headers.cookie);
+    const refreshToken = cookies[REFRESH_COOKIE];
 
     if (!refreshToken) {
       res.status(401).json({ error: "refresh token이 없습니다. 다시 로그인해 주세요." });
@@ -201,8 +222,8 @@ export function registerEmailAuthRoutes(app: Express): void {
       }
 
       const { session } = data;
-      res.cookie(ACCESS_COOKIE, session.access_token, getCookieOptions(req, ACCESS_MAX_AGE));
-      res.cookie(REFRESH_COOKIE, session.refresh_token, getCookieOptions(req, REFRESH_MAX_AGE));
+      res.cookie(ACCESS_COOKIE, session.access_token, getCookieOptions(req, ACCESS_MAX_AGE_MS));
+      res.cookie(REFRESH_COOKIE, session.refresh_token, getCookieOptions(req, REFRESH_MAX_AGE_MS));
 
       res.json({ success: true });
     } catch (err) {
@@ -227,12 +248,11 @@ export function registerEmailAuthRoutes(app: Express): void {
     }
 
     try {
-      // 관리자 수동 생성: admin.createUser (이메일 확인 없이 즉시 활성화)
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         user_metadata: { full_name: name },
-        email_confirm: true, // 이메일 확인 없이 즉시 활성화
+        email_confirm: true,
       });
 
       if (error) {

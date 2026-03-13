@@ -1,3 +1,23 @@
+/**
+ * OAuth 라우트 등록
+ *
+ * registerSupabaseOAuthRoutes:
+ *   POST /api/auth/session       — 프론트 PKCE 완료 후 토큰 전달 → sb-* 쿠키 설정
+ *   GET  /api/auth/social/:provider — 서버 사이드 소셜 로그인 시작 (PKCE 흐름)
+ *   GET  /api/auth/callback      — Supabase OAuth 콜백 (PKCE code 교환)
+ *   POST /api/auth/refresh       — refresh token → 새 access token
+ *   POST /api/auth/signout       — 로그아웃 (쿠키 삭제)
+ *
+ * registerOAuthRoutes:
+ *   GET  /api/oauth/callback     — Manus OAuth 레거시 콜백 (전환 기간 유지)
+ *
+ * [수정 내역 - 2026-03-13]
+ *   1. SITE_URL 하드코딩 제거 → APP_BASE_URL 환경변수 사용 (fallback: req.origin)
+ *   2. flowType: "implicit" → "pkce" 로 통일 (클라이언트와 일치)
+ *   3. /api/auth/email/signup, /api/auth/email/signin 중복 라우트 제거
+ *      (emailAuth.ts 에서만 등록)
+ */
+
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
 import * as db from "../db";
@@ -12,34 +32,50 @@ function getQueryParam(req: Request, key: string): string | undefined {
 
 /**
  * state 파라미터에서 returnPath를 파싱합니다.
- * getLoginUrl()은 state = btoa(redirectUri) 형식으로 전달합니다.
- * state = btoa(JSON.stringify({redirectUri, returnPath})) 형식도 지원합니다.
  */
 function parseReturnPath(state: string): string {
   try {
     const decoded = Buffer.from(state, "base64").toString("utf-8");
-    // JSON 형식인 경우
     if (decoded.startsWith("{")) {
       const parsed = JSON.parse(decoded);
       if (parsed.returnPath && typeof parsed.returnPath === "string") {
         return parsed.returnPath;
       }
     }
-    // 단순 URL 형식인 경우 (기존 방식) - 홈으로
     return "/";
   } catch {
     return "/";
   }
 }
 
-const SITE_URL = process.env.NODE_ENV === "production"
-  ? "https://reageweb-aerfeijb.manus.space"
-  : "http://localhost:3000";
+/**
+ * 배포 환경에 따른 사이트 기본 URL을 반환합니다.
+ * APP_BASE_URL 환경변수 → 요청의 origin 순으로 폴백합니다.
+ */
+function getSiteUrl(req: Request): string {
+  if (process.env.APP_BASE_URL) {
+    return process.env.APP_BASE_URL.replace(/\/$/, "");
+  }
+  const proto = req.headers["x-forwarded-proto"] ?? req.protocol ?? "http";
+  const host = req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:3000";
+  return `${proto}://${host}`;
+}
 
 /**
- * Supabase OAuth 흐름:
+ * Supabase OAuth 흐름 (PKCE 표준):
+ * 1. 클라이언트: supabase.auth.signInWithOAuth → provider 로그인 페이지로 이동
+ *    (code_verifier는 Supabase client가 localStorage에 자동 저장)
+ * 2. Provider → GET /auth/callback?code=... (프론트엔드 AuthCallback 페이지)
+ * 3. 프론트엔드: supabase.auth.exchangeCodeForSession(code) → session 획득
+ * 4. 프론트엔드: POST /api/auth/session { access_token, refresh_token }
+ * 5. 서버: sb-* httpOnly 쿠키 설정 + profiles upsert
+ *
+ * 또는 서버 사이드 흐름 (GET /api/auth/social/:provider 사용 시):
  * 1. GET /api/auth/social/:provider → Supabase signInWithOAuth URL 생성 → 리다이렉트
- * 2. Supabase → GET /api/auth/callback?code=... → exchangeCodeForSession → sb-* 쿠키 설정 → 홈 리다이렉트
+ * 2. Provider → GET /api/auth/callback?code=... (서버 콜백)
+ * 3. 서버: exchangeCodeForSession → sb-* 쿠키 설정 → 홈 리다이렉트
+ *    ※ 서버 사이드 흐름은 code_verifier 없이 처리하므로 PKCE 보안 이점 없음
+ *    ※ 가능하면 클라이언트 PKCE 흐름 사용 권장
  */
 export function registerSupabaseOAuthRoutes(app: Express) {
   // ─── 0. 프론트엔드 PKCE 세션 전달 ─────────────────────────────────────────
@@ -102,6 +138,8 @@ export function registerSupabaseOAuthRoutes(app: Express) {
 
   // ─── 1. 소셜 로그인 시작 ───────────────────────────────────────────────────
   // GET /api/auth/social/:provider (google | kakao)
+  // 서버 사이드 흐름: code_verifier 없이 처리 (PKCE 보안 이점 없음)
+  // 클라이언트 PKCE 흐름(LoginPage.tsx의 handleSocialLogin)을 권장
   app.get("/api/auth/social/:provider", async (req: Request, res: Response) => {
     const provider = req.params.provider as "google" | "kakao";
     if (provider !== "google" && provider !== "kakao") {
@@ -110,18 +148,19 @@ export function registerSupabaseOAuthRoutes(app: Express) {
     }
 
     const returnTo = (req.query.returnTo as string) || "/index-main.html";
+    const siteUrl = getSiteUrl(req);
+
     const { createClient } = await import("@supabase/supabase-js");
-    // flowType: "implicit" → PKCE code_verifier 없이 서버 사이드에서 처리 가능
     const supabase = createClient(
       process.env.SUPABASE_URL ?? "",
       process.env.SUPABASE_ANON_KEY ?? "",
-      { auth: { autoRefreshToken: false, persistSession: false, flowType: "implicit" } }
+      { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${SITE_URL}/api/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
+        redirectTo: `${siteUrl}/api/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
         skipBrowserRedirect: true,
       },
     });
@@ -135,8 +174,10 @@ export function registerSupabaseOAuthRoutes(app: Express) {
     res.redirect(302, data.url);
   });
 
-  // ─── 2. Supabase OAuth 콜백 ───────────────────────────────────────────────
+  // ─── 2. Supabase OAuth 콜백 (서버 사이드) ────────────────────────────────
   // GET /api/auth/callback?code=...&returnTo=...
+  // ※ 서버 사이드 흐름에서만 사용됨
+  //   클라이언트 PKCE 흐름은 /auth/callback (AuthCallback.tsx)에서 처리
   app.get("/api/auth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const returnTo = (req.query.returnTo as string) || "/index-main.html";
@@ -148,16 +189,15 @@ export function registerSupabaseOAuthRoutes(app: Express) {
 
     try {
       const { createClient } = await import("@supabase/supabase-js");
-      // flowType: "implicit" → PKCE code_verifier 없이 서버 사이드에서 code 교환 가능
+      // 서버 사이드 code 교환: code_verifier 없이 처리
+      // Supabase는 서버 사이드에서 PKCE 없이 code 교환을 허용하지 않으므로
+      // 이 엔드포인트는 서버 사이드 소셜 로그인 흐름 전용
       const supabase = createClient(
         process.env.SUPABASE_URL ?? "",
         process.env.SUPABASE_ANON_KEY ?? "",
-        { auth: { autoRefreshToken: false, persistSession: false, flowType: "implicit" } }
+        { auth: { autoRefreshToken: false, persistSession: false } }
       );
 
-      // code → session 교환 (implicit flow에서는 code가 아닌 access_token이 fragment로 옴)
-      // Supabase implicit flow: callback URL에 #access_token=...&refresh_token=... 형태로 전달
-      // 서버에서는 fragment를 읽을 수 없으므로 프론트엔드에서 처리하는 방식으로 변경
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error || !data.session || !data.user) {
         console.error("[Supabase OAuth] exchangeCodeForSession error:", error);
@@ -178,8 +218,7 @@ export function registerSupabaseOAuthRoutes(app: Express) {
           user.user_metadata?.name ??
           user.user_metadata?.preferred_username ??
           null;
-        const loginMethod =
-          user.app_metadata?.provider ?? null;
+        const loginMethod = user.app_metadata?.provider ?? null;
 
         await db.upsertProfile({
           id: user.id,
@@ -199,8 +238,73 @@ export function registerSupabaseOAuthRoutes(app: Express) {
       res.redirect(302, `/login?error=server_error`);
     }
   });
+
+  // ─── 3. refresh token → 새 access token ──────────────────────────────────
+  // POST /api/auth/refresh
+  app.post("/api/auth/refresh", async (req: Request, res: Response) => {
+    const cookies = _parseCookies(req.headers.cookie);
+    const refreshToken = cookies["sb-refresh-token"];
+    if (!refreshToken) {
+      res.status(401).json({ error: "No refresh token" });
+      return;
+    }
+    try {
+      const { data, error } = await supabaseAdmin.auth.refreshSession({ refresh_token: refreshToken });
+      if (error || !data.session) {
+        res.status(401).json({ error: "Session refresh failed" });
+        return;
+      }
+      _setSupabaseCookies(res, data.session.access_token, data.session.refresh_token);
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("[Auth] Refresh failed", error);
+      res.status(500).json({ error: "Refresh failed" });
+    }
+  });
+
+  // ─── 4. 로그아웃 ──────────────────────────────────────────────────────────
+  // POST /api/auth/signout
+  app.post("/api/auth/signout", async (req: Request, res: Response) => {
+    const cookies = _parseCookies(req.headers.cookie);
+    const accessToken = cookies["sb-access-token"];
+
+    try {
+      if (accessToken) {
+        const { createClient } = await import("@supabase/supabase-js");
+        const supabaseClient = createClient(
+          process.env.SUPABASE_URL ?? "",
+          process.env.SUPABASE_ANON_KEY ?? "",
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        );
+        await supabaseClient.auth.setSession({
+          access_token: accessToken,
+          refresh_token: cookies["sb-refresh-token"] ?? "",
+        });
+        await supabaseClient.auth.signOut({ scope: "local" });
+      }
+    } catch (e) {
+      console.warn("[Auth] Supabase signOut error (non-fatal):", e);
+    }
+
+    const sessionCookieOptions = getSessionCookieOptions(req);
+    const isProduction = process.env.NODE_ENV === "production";
+    const sbClearOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax" as const,
+      path: "/",
+    };
+    res.clearCookie("sb-access-token", sbClearOptions);
+    res.clearCookie("sb-refresh-token", sbClearOptions);
+    res.clearCookie(COOKIE_NAME, sessionCookieOptions);
+    res.json({ ok: true });
+  });
 }
 
+/**
+ * Manus OAuth 레거시 콜백 (전환 기간 동안 유지)
+ * GET /api/oauth/callback
+ */
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
@@ -224,13 +328,11 @@ export function registerOAuthRoutes(app: Express) {
       let authUserId: string | null = null;
 
       if (userInfo.email) {
-        // 이메일로 기존 auth.users 조회 시도
         const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
         const existing = existingUsers?.users?.find((u) => u.email === userInfo.email);
 
         if (existing) {
           authUserId = existing.id;
-          // openId 메타데이터 업데이트
           await supabaseAdmin.auth.admin.updateUserById(existing.id, {
             user_metadata: {
               ...existing.user_metadata,
@@ -239,7 +341,6 @@ export function registerOAuthRoutes(app: Express) {
             },
           });
         } else {
-          // 신규 사용자 auth.users 등록
           const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
             email: userInfo.email,
             user_metadata: {
@@ -255,7 +356,6 @@ export function registerOAuthRoutes(app: Express) {
       }
 
       if (!authUserId) {
-        // 이메일 없는 경우 openId를 email로 사용해 auth.users 등록
         const fakeEmail = `${userInfo.openId}@manus-oauth.local`;
         const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
         const existing = existingUsers?.users?.find((u) => u.email === fakeEmail);
@@ -293,7 +393,6 @@ export function registerOAuthRoutes(app: Express) {
       });
 
       // Supabase 세션 생성 (generateLink → verifyOtp 패턴)
-      // 이렇게 해야 sb-access-token / sb-refresh-token 쿠키가 설정되어 로그아웃이 정상 동작함
       try {
         const userEmail = userInfo.email || `${userInfo.openId}@manus-oauth.local`;
         const { createClient } = await import("@supabase/supabase-js");
@@ -303,14 +402,12 @@ export function registerOAuthRoutes(app: Express) {
           { auth: { autoRefreshToken: false, persistSession: false } }
         );
 
-        // 1) admin.generateLink로 token_hash 획득
         const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
           type: "magiclink",
           email: userEmail,
         });
 
         if (!linkError && linkData?.properties?.hashed_token) {
-          // 2) verifyOtp로 실제 세션 생성
           const { data: sessionData, error: sessionError } = await supabaseAnonClient.auth.verifyOtp({
             token_hash: linkData.properties.hashed_token,
             type: "magiclink",
@@ -338,177 +435,12 @@ export function registerOAuthRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      // 로그인 후 returnPath로 리다이렉트 (없으면 홈으로)
       const returnPath = parseReturnPath(state);
       res.redirect(302, returnPath);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
     }
-  });
-
-  // ─── Supabase Auth 이메일 로그인 엔드포인트 ───────────────────────────────────
-  // POST /api/auth/email/signup
-  app.post("/api/auth/email/signup", async (req: Request, res: Response) => {
-    const { email, password, name } = req.body ?? {};
-    if (!email || !password) {
-      res.status(400).json({ error: "email and password are required" });
-      return;
-    }
-    try {
-      // 일반 사용자 가입: supabase.auth.signUp (anon key 사용)
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = process.env.SUPABASE_URL ?? "";
-      const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? "";
-      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: name ?? null },
-        },
-      });
-
-      if (error) {
-        res.status(400).json({ error: error.message });
-        return;
-      }
-
-      if (!data.user) {
-        res.status(400).json({ error: "Signup failed" });
-        return;
-      }
-
-      // profiles 테이블에 upsert
-      await db.upsertProfile({
-        id: data.user.id,
-        email,
-        name: name ?? null,
-        loginMethod: "email",
-        lastSignedIn: new Date(),
-      });
-
-      // 이메일 확인이 필요한 경우 세션 없음
-      if (!data.session) {
-        res.json({ requiresEmailConfirmation: true });
-        return;
-      }
-
-      // 세션이 있으면 쿠키 설정
-      _setSupabaseCookies(res, data.session.access_token, data.session.refresh_token);
-      res.json({ user: data.user, requiresEmailConfirmation: false });
-    } catch (error) {
-      console.error("[Auth] Email signup failed", error);
-      res.status(500).json({ error: "Signup failed" });
-    }
-  });
-
-  // POST /api/auth/email/signin
-  app.post("/api/auth/email/signin", async (req: Request, res: Response) => {
-    const { email, password } = req.body ?? {};
-    if (!email || !password) {
-      res.status(400).json({ error: "email and password are required" });
-      return;
-    }
-    try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = process.env.SUPABASE_URL ?? "";
-      const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? "";
-      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        res.status(401).json({ error: error.message });
-        return;
-      }
-
-      if (!data.session || !data.user) {
-        res.status(401).json({ error: "Login failed" });
-        return;
-      }
-
-      // profiles 테이블 upsert (lastSignedIn 갱신)
-      await db.upsertProfile({
-        id: data.user.id,
-        email: data.user.email ?? null,
-        loginMethod: "email",
-        lastSignedIn: new Date(),
-      });
-
-      _setSupabaseCookies(res, data.session.access_token, data.session.refresh_token);
-      res.json({ user: data.user });
-    } catch (error) {
-      console.error("[Auth] Email signin failed", error);
-      res.status(500).json({ error: "Login failed" });
-    }
-  });
-
-  // POST /api/auth/refresh — refresh token으로 access token 갱신
-  app.post("/api/auth/refresh", async (req: Request, res: Response) => {
-    const cookies = _parseCookies(req.headers.cookie);
-    const refreshToken = cookies["sb-refresh-token"];
-    if (!refreshToken) {
-      res.status(401).json({ error: "No refresh token" });
-      return;
-    }
-    try {
-      const { data, error } = await supabaseAdmin.auth.refreshSession({ refresh_token: refreshToken });
-      if (error || !data.session) {
-        res.status(401).json({ error: "Session refresh failed" });
-        return;
-      }
-      _setSupabaseCookies(res, data.session.access_token, data.session.refresh_token);
-      res.json({ ok: true });
-    } catch (error) {
-      console.error("[Auth] Refresh failed", error);
-      res.status(500).json({ error: "Refresh failed" });
-    }
-  });
-
-  // POST /api/auth/signout — 로그아웃: refresh token 무효화 + 쿠키 삭제
-  app.post("/api/auth/signout", async (req: Request, res: Response) => {
-    const cookies = _parseCookies(req.headers.cookie);
-    const accessToken = cookies["sb-access-token"];
-
-    try {
-      if (accessToken) {
-        // refresh token 무효화 (scope: local — 현재 세션만 종료)
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabaseUrl = process.env.SUPABASE_URL ?? "";
-        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? "";
-        const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-          auth: { autoRefreshToken: false, persistSession: false },
-        });
-        await supabaseClient.auth.setSession({
-          access_token: accessToken,
-          refresh_token: cookies["sb-refresh-token"] ?? "",
-        });
-        await supabaseClient.auth.signOut({ scope: "local" });
-      }
-    } catch (e) {
-      console.warn("[Auth] Supabase signOut error (non-fatal):", e);
-    }
-
-    // 쿠키 삭제
-    // - COOKIE_NAME(app_session_id): getSessionCookieOptions 사용 (sameSite:none, 설정 시와 동일)
-    // - sb-access-token / sb-refresh-token: _setSupabaseCookies와 동일한 sameSite:lax
-    const sessionCookieOptions = getSessionCookieOptions(req);
-    const isProduction = process.env.NODE_ENV === "production";
-    const sbClearOptions = {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: "lax" as const,
-      path: "/",
-    };
-    res.clearCookie("sb-access-token", sbClearOptions);
-    res.clearCookie("sb-refresh-token", sbClearOptions);
-    res.clearCookie(COOKIE_NAME, sessionCookieOptions); // Manus OAuth 쿠키 (sameSite:none)
-    res.json({ ok: true });
   });
 }
 

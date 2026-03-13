@@ -50,10 +50,22 @@ import { ENV } from "./_core/env";
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
+  // SUPABASE_DATABASE_URL 우선 사용 (transaction pooler: port 6543)
+  // DATABASE_URL 폴백 (direct connection: port 5432)
   const url = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
   if (!_db && url) {
     try {
-      _db = drizzle(url);
+      // Supabase 연결 시 SSL 필요 (self-signed 인증서 허용)
+      const { Pool } = await import("pg");
+      const pool = new Pool({
+        connectionString: url,
+        ssl: url.includes("supabase") || url.includes("pooler.supabase")
+          ? { rejectUnauthorized: false }
+          : undefined,
+        // transaction pooler 사용 시 prepared statement 비활성화 필요
+        max: 10,
+      });
+      _db = drizzle(pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -127,7 +139,7 @@ export async function updateProfileData(id: string, data: { name?: string; phone
 // 하위 호환 alias (기존 코드에서 getUserByOpenId를 쓰는 곳)
 export const getUserByOpenId = getProfileByOpenId;
 export const getUserById = getProfileById;
-export const getUserByEmail = getProfileByEmail;
+// getUserByEmail alias는 getProfileByEmail 정의 이후로 이동됨 (호이스팅 버그 수정)
 export const updateUserProfile = updateProfileData;
 // 제거된 함수들의 stub (Supabase Auth로 이관됨 — 호출 시 에러 발생)
 export async function createEmailUser(_data: unknown): Promise<never> {
@@ -253,6 +265,9 @@ export async function getProfileByEmail(email: string): Promise<Profile | undefi
   const result = await db.select().from(profiles).where(eq(profiles.email, email)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
+
+// getUserByEmail alias (getProfileByEmail 정의 이후에 위치 — 호이스팅 버그 수정)
+export const getUserByEmail = getProfileByEmail;
 
 // ─── Admin Helpers ────────────────────────────────────────────────────────────
 export async function getAllUsers(page = 1, limit = 20) {
