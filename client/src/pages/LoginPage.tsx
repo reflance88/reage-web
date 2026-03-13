@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
@@ -35,11 +36,22 @@ export default function LoginPage() {
     }
   };
 
-  // 소셜 로그인: Supabase OAuth 로 연결 (Google / Kakao)
-  const handleSocialLogin = (provider: "google" | "kakao") => {
+  // 소셜 로그인: 프론트 Supabase client로 PKCE 표준 흐름 처리
+  const handleSocialLogin = async (provider: "google" | "kakao") => {
     const params = new URLSearchParams(window.location.search);
     const returnTo = params.get("returnTo") || "/index-main.html";
-    window.location.href = `/api/auth/social/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        // PKCE code_verifier는 Supabase client가 localStorage에 자동 저장
+        redirectTo: `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
+      },
+    });
+    if (error) {
+      toast.error("소셜 로그인 초기화에 실패했습니다.");
+      console.error("[OAuth] signInWithOAuth error:", error);
+    }
+    // 성공 시 Supabase가 자동으로 provider 로그인 페이지로 리다이렉트
   };
 
   return (

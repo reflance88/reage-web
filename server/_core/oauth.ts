@@ -42,6 +42,64 @@ const SITE_URL = process.env.NODE_ENV === "production"
  * 2. Supabase → GET /api/auth/callback?code=... → exchangeCodeForSession → sb-* 쿠키 설정 → 홈 리다이렉트
  */
 export function registerSupabaseOAuthRoutes(app: Express) {
+  // ─── 0. 프론트엔드 PKCE 세션 전달 ─────────────────────────────────────────
+  // POST /api/auth/session
+  // 프론트에서 exchangeCodeForSession 완료 후 access_token/refresh_token을 전달
+  // 서버는 sb-* httpOnly 쿠키를 설정하고 profiles upsert
+  app.post("/api/auth/session", async (req: Request, res: Response) => {
+    const { access_token, refresh_token } = req.body as {
+      access_token?: string;
+      refresh_token?: string;
+    };
+
+    if (!access_token || !refresh_token) {
+      res.status(400).json({ error: "access_token and refresh_token are required" });
+      return;
+    }
+
+    try {
+      // access_token으로 사용자 정보 검증
+      const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(access_token);
+      if (userError || !userData.user) {
+        console.error("[/api/auth/session] getUser error:", userError);
+        res.status(401).json({ error: "Invalid access_token" });
+        return;
+      }
+
+      const user = userData.user;
+
+      // sb-* httpOnly 쿠키 설정
+      _setSupabaseCookies(res, access_token, refresh_token);
+
+      // profiles upsert (auth.users.id 기준)
+      try {
+        const email = user.email ?? null;
+        const name =
+          user.user_metadata?.full_name ??
+          user.user_metadata?.name ??
+          user.user_metadata?.preferred_username ??
+          null;
+        const loginMethod = user.app_metadata?.provider ?? null;
+
+        await db.upsertProfile({
+          id: user.id,
+          email,
+          name,
+          loginMethod,
+          lastSignedIn: new Date(),
+        });
+        console.log("[/api/auth/session] profiles upserted for", user.id, email);
+      } catch (profileErr) {
+        console.warn("[/api/auth/session] profiles upsert failed (non-fatal):", profileErr);
+      }
+
+      res.json({ ok: true, userId: user.id });
+    } catch (err) {
+      console.error("[/api/auth/session] Unexpected error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // ─── 1. 소셜 로그인 시작 ───────────────────────────────────────────────────
   // GET /api/auth/social/:provider (google | kakao)
   app.get("/api/auth/social/:provider", async (req: Request, res: Response) => {
@@ -53,10 +111,11 @@ export function registerSupabaseOAuthRoutes(app: Express) {
 
     const returnTo = (req.query.returnTo as string) || "/index-main.html";
     const { createClient } = await import("@supabase/supabase-js");
+    // flowType: "implicit" → PKCE code_verifier 없이 서버 사이드에서 처리 가능
     const supabase = createClient(
       process.env.SUPABASE_URL ?? "",
       process.env.SUPABASE_ANON_KEY ?? "",
-      { auth: { autoRefreshToken: false, persistSession: false } }
+      { auth: { autoRefreshToken: false, persistSession: false, flowType: "implicit" } }
     );
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -89,13 +148,16 @@ export function registerSupabaseOAuthRoutes(app: Express) {
 
     try {
       const { createClient } = await import("@supabase/supabase-js");
+      // flowType: "implicit" → PKCE code_verifier 없이 서버 사이드에서 code 교환 가능
       const supabase = createClient(
         process.env.SUPABASE_URL ?? "",
         process.env.SUPABASE_ANON_KEY ?? "",
-        { auth: { autoRefreshToken: false, persistSession: false } }
+        { auth: { autoRefreshToken: false, persistSession: false, flowType: "implicit" } }
       );
 
-      // code → session 교환
+      // code → session 교환 (implicit flow에서는 code가 아닌 access_token이 fragment로 옴)
+      // Supabase implicit flow: callback URL에 #access_token=...&refresh_token=... 형태로 전달
+      // 서버에서는 fragment를 읽을 수 없으므로 프론트엔드에서 처리하는 방식으로 변경
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (error || !data.session || !data.user) {
         console.error("[Supabase OAuth] exchangeCodeForSession error:", error);

@@ -16,7 +16,9 @@
     try {
       const res = await fetch('/api/trpc/auth.me', { credentials: 'include' });
       const data = await res.json();
-      return data?.result?.data ?? null;
+      // tRPC 단일 호출 응답 구조: { result: { data: { json: user|null } } }
+      // data?.result?.data 는 { json: null } 객체(truthy)이므로 반드시 .json까지 읽어야 함
+      return data?.result?.data?.json ?? null;
     } catch (e) { return null; }
   }
 

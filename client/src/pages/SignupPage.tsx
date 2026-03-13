@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 export default function SignupPage() {
   const [, navigate] = useLocation();
@@ -40,9 +41,20 @@ export default function SignupPage() {
     }
   };
 
-  // 소셜 가입: Supabase OAuth로 연결
-  const handleSocial = (provider: "kakao" | "google") => {
-    window.location.href = `/api/auth/social/${provider}?returnTo=/index-main.html`;
+  // 소셜 가입: 프론트 Supabase client로 PKCE 표준 흐름 처리
+  const handleSocial = async (provider: "kakao" | "google") => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        // PKCE code_verifier는 Supabase client가 localStorage에 자동 저장
+        redirectTo: `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent("/index-main.html")}`,
+      },
+    });
+    if (error) {
+      toast.error("소셜 로그인 초기화에 실패했습니다.");
+      console.error("[OAuth] signInWithOAuth error:", error);
+    }
+    // 성공 시 Supabase가 자동으로 provider 로그인 페이지로 리다이렉트
   };
 
   const inputStyle = {

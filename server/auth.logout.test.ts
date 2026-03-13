@@ -42,20 +42,41 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
 }
 
 describe("auth.logout", () => {
-  it("clears the session cookie and reports success", async () => {
+  it("clears the session cookie and Supabase cookies and reports success", async () => {
     const { ctx, clearedCookies } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
     const result = await caller.auth.logout();
 
     expect(result).toEqual({ success: true });
-    expect(clearedCookies).toHaveLength(1);
-    expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
-    expect(clearedCookies[0]?.options).toMatchObject({
-      maxAge: -1,
+
+    // Manus OAuth 쿠키 + Supabase sb-access-token + sb-refresh-token = 3개
+    expect(clearedCookies).toHaveLength(3);
+
+    // Manus OAuth 쿠키 (sameSite: none)
+    const manusCookie = clearedCookies.find((c) => c.name === COOKIE_NAME);
+    expect(manusCookie).toBeDefined();
+    expect(manusCookie?.options).toMatchObject({
       secure: true,
       sameSite: "none",
       httpOnly: true,
+      path: "/",
+    });
+
+    // Supabase 쿠키 (sameSite: lax)
+    const sbAccessCookie = clearedCookies.find((c) => c.name === "sb-access-token");
+    expect(sbAccessCookie).toBeDefined();
+    expect(sbAccessCookie?.options).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+    });
+
+    const sbRefreshCookie = clearedCookies.find((c) => c.name === "sb-refresh-token");
+    expect(sbRefreshCookie).toBeDefined();
+    expect(sbRefreshCookie?.options).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
       path: "/",
     });
   });

@@ -608,3 +608,16 @@
 - [x] SignupPage.tsx: 카카오/구글 버튼 → /api/auth/social/kakao|google 확인
 - [x] 정적 HTML 파일 app-auth/api/oauth/callback 쟐재 없음 확인
 - [x] 서버 /api/auth/social/:provider 302 리다이렉트 정상 동작 확인
+
+## 인증 상태 버그 수정 (2026-03-12)
+- [ ] 비로그인 초기 상태에서 로그아웃 버튼이 뜨는 원인 파악 및 수정
+- [ ] OAuth 성공 후 홈페이지 리다이렉트 및 UI 갱신 안 되는 버그 수정
+
+## PKCE 표준 흐름 재설계 (2026-03-12)
+- [ ] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY 환경변수 설정
+- [ ] client/src/lib/supabase.ts 프론트 Supabase client 생성
+- [ ] LoginPage.tsx / SignupPage.tsx 소셜 버튼 → supabase.auth.signInWithOAuth()로 교체
+- [ ] client/src/pages/AuthCallback.tsx 구현 (PKCE code exchange + 서버 세션 전달)
+- [ ] server: /api/auth/session 엔드포인트 (access_token 받아 sb-* 쿠키 설정 + profiles upsert)
+- [ ] App.tsx에 /auth/callback 라우트 등록
+- [ ] 서버 /api/auth/social/:provider 및 /api/auth/callback 제거 (PKCE 기준으로 대체)

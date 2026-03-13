@@ -16,6 +16,7 @@ const FindIdPage = lazy(() => import("./pages/FindIdPage"));
 const FindPasswordPage = lazy(() => import("./pages/FindPasswordPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ProductPage = lazy(() => import("./pages/ProductPage"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 
 function Home() {
   window.location.replace("/index-main.html");
@@ -46,6 +47,7 @@ function Router() {
         <Route path="/payment/fail" component={PaymentFailPage} />
         <Route path="/admin" component={AdminPage} />
         <Route path="/product/:slug" component={ProductPage} />
+        <Route path="/auth/callback" component={AuthCallback} />
       </Switch>
     </Suspense>
   );
