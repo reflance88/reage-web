@@ -223,11 +223,29 @@ export const appRouter = router({
 
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      // 1단계: 서버 측 Supabase 세션 무효화 (refresh token 블랙리스트 등록)
+      // access token으로 사용자 ID를 확인한 뒤 admin.signOut으로 서버 세션 종료
+      try {
+        const { parseCookiesFromHeader } = await import("./_core/cookieUtils");
+        const cookies = parseCookiesFromHeader(ctx.req.headers.cookie);
+        const accessToken = cookies["sb-access-token"];
+        if (accessToken) {
+          const { supabaseAdmin } = await import("./_core/supabase");
+          const { data } = await supabaseAdmin.auth.getUser(accessToken);
+          if (data.user) {
+            // admin.signOut: 해당 사용자의 모든 서버 세션 무효화 (scope: local)
+            await supabaseAdmin.auth.admin.signOut(data.user.id, "local");
+          }
+        }
+      } catch (e) {
+        // Supabase 서버 세션 무효화 실패는 non-fatal — 쿠키 삭제는 계속 진행
+        console.warn("[Auth] Server-side Supabase signOut error (non-fatal):", e);
+      }
+
+      // 2단계: 서버 쿠키 삭제
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      // Manus OAuth 쿠키 삭제 (sameSite:none)
       ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
-      // Supabase Auth 쿠키 삭제 (sameSite:lax 로 설정되어 있으므로 동일하게 삭제)
       const isProduction = process.env.NODE_ENV === "production";
       const sbClearOptions = { httpOnly: true, secure: isProduction, sameSite: "lax" as const, path: "/" };
       ctx.res.clearCookie("sb-access-token", sbClearOptions);

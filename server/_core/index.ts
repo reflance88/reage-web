@@ -33,6 +33,9 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // 리버스 프록시(Nginx, Cloudflare, Manus proxy 등) 뒤에서 실행될 때
+  // req.protocol, req.hostname, req.ip 등이 올바르게 읽히도록 설정
+  app.set("trust proxy", true);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
