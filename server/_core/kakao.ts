@@ -94,7 +94,7 @@ async function sendAlimtalk(params: SendAlimtalkParams): Promise<boolean> {
 // ─── 사이트 기본 URL ────────────────────────────────────────────────────────
 const SITE_URL = "https://reageweb-aerfeijb.manus.space";
 
-function orderDetailUrl(orderId: number): string {
+function orderDetailUrl(orderId: number | string): string {
   return `${SITE_URL}/mypage`;
 }
 
@@ -102,7 +102,7 @@ function orderDetailUrl(orderId: number): string {
 export async function sendOrderCompleteAlimtalk(params: {
   phone: string;
   name: string;
-  orderId: number;
+  orderId: number | string;
   orderNumber: string;
   productName: string;
   totalAmount: number;
@@ -138,7 +138,7 @@ export async function sendOrderCompleteAlimtalk(params: {
 export async function sendBankTransferGuideAlimtalk(params: {
   phone: string;
   name: string;
-  orderId: number;
+  orderId: number | string;
   orderNumber: string;
   productName: string;
   totalAmount: number;
@@ -177,7 +177,7 @@ export async function sendBankTransferGuideAlimtalk(params: {
 export async function sendShippingReadyAlimtalk(params: {
   phone: string;
   name: string;
-  orderId: number;
+  orderId: number | string;
   orderNumber: string;
   productName: string;
 }): Promise<boolean> {
@@ -262,7 +262,7 @@ export async function sendDeliveryCompleteAlimtalk(params: {
 export async function sendOrderCancelledAlimtalk(params: {
   phone: string;
   name: string;
-  orderId: number;
+  orderId: number | string;
   orderNumber: string;
   productName: string;
 }): Promise<boolean> {
@@ -294,7 +294,7 @@ export async function sendOrderCancelledAlimtalk(params: {
 export async function sendRefundCompleteAlimtalk(params: {
   phone: string;
   name: string;
-  orderId: number;
+  orderId: number | string;
   orderNumber: string;
   productName: string;
   processDate: string;
@@ -328,7 +328,7 @@ export async function sendRefundCompleteAlimtalk(params: {
 export async function sendBankTransferConfirmAlimtalk(params: {
   phone: string;
   name: string;
-  orderId: number;
+  orderId: number | string;
   orderNumber: string;
   productName: string;
   totalAmount: number;
@@ -362,7 +362,7 @@ export async function sendBankTransferConfirmAlimtalk(params: {
 export async function sendCancelBeforePaymentAlimtalk(params: {
   phone: string;
   name: string;
-  orderId: number;
+  orderId: number | string;
   orderNumber: string;
   productName: string;
 }): Promise<boolean> {

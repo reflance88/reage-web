@@ -21,11 +21,12 @@ type AddressForm = {
 
 type CouponRow = {
   issue: {
-    id: number;
+    id: string;
     isUsed: boolean;
     createdAt: string | Date;
   };
   coupon: {
+    id: string;
     name: string;
     benefitType: string;
     benefitValue: number;
@@ -252,7 +253,16 @@ export default function MyPage() {
   };
 
   const handleReorder = (order: NonNullable<typeof orders>[number]) => {
-    saveCart(order.items.map((item) => ({ productId: item.productId, quantity: item.quantity })));
+    const reorderItems = order.items.flatMap((item) =>
+      item.productId ? [{ productId: item.productId, quantity: item.quantity }] : [],
+    );
+
+    if (reorderItems.length === 0) {
+      toast.error("재주문 가능한 상품 정보가 없습니다.");
+      return;
+    }
+
+    saveCart(reorderItems);
     toast.success("주문 상품을 장바구니에 담았습니다.");
     navigate("/cart");
   };
@@ -472,12 +482,15 @@ export default function MyPage() {
                 const paidAmount = Number(order.finalAmount ?? order.totalAmount ?? 0);
                 const discountAmount = Number(order.discountAmount ?? 0);
                 const shippingAmount = Number(order.shippingAmount ?? 0);
+                const createdDate = order.createdAt
+                  ? new Date(order.createdAt).toLocaleDateString("ko-KR")
+                  : "주문일 미확인";
 
                 return (
                   <div key={order.id} className="rounded-[30px] border border-[#eadfce] bg-white px-6 py-6 shadow-[0_18px_50px_rgba(67,44,23,0.06)]">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <p className="text-xs text-[#8a7b70]">{new Date(order.createdAt).toLocaleDateString("ko-KR")}</p>
+                        <p className="text-xs text-[#8a7b70]">{createdDate}</p>
                         <p className="mt-1 text-lg font-semibold text-[#1f1714]">{order.orderName}</p>
                         <p className="mt-1 text-xs text-[#8a7b70]">주문번호 {order.orderId}</p>
                       </div>

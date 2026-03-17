@@ -52,12 +52,52 @@ import {
   requestRateLimits,
 } from "../drizzle/schema-pg";
 import { ENV } from "./_core/env";
+import { supabaseAdmin } from "./_core/supabase";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 const loggedReadFallbacks = new Set<string>();
 let lastRateLimitCleanupAt = 0;
 let didWarnMissingDbUrl = false;
+
+export type OrderRecord = {
+  id: string | number;
+  orderId: string;
+  userId: string;
+  status: "created" | "paid" | "failed" | "cancelled";
+  shippingStatus: string | null;
+  totalAmount: number | string;
+  discountAmount: number | string;
+  shippingAmount: number | string;
+  finalAmount: number | string;
+  paymentKey: string | null;
+  paymentMethod: string | null;
+  paidAt: Date | string | null;
+  recipientName: string | null;
+  recipientPhone: string | null;
+  shippingAddress: string | null;
+  shippingAddressDetail: string | null;
+  shippingZipCode: string | null;
+  shippingMemo: string | null;
+  orderName: string | null;
+  courierName: string | null;
+  trackingNumber: string | null;
+  promotionLabel: string | null;
+  couponIssueId: string | null;
+  discountCodeId: string | null;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+};
+
+export type OrderItemRecord = {
+  id: string | number;
+  orderId: string | number;
+  productId: string | null;
+  productName: string;
+  quantity: number;
+  unitPrice: number | string;
+  subtotal: number | string;
+};
 
 export async function getDb() {
   const url = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
@@ -125,6 +165,147 @@ export async function expireStaleCreatedOrders(now = new Date()) {
   const db = await getDb();
   if (!db) return 0;
   return expireStaleCreatedOrdersWithDb(db, now);
+}
+
+function isCompatOrderStatus(value: unknown): value is OrderRecord["status"] {
+  return value === "created" || value === "paid" || value === "failed" || value === "cancelled";
+}
+
+function normalizeRpcOrder(data: unknown): OrderRecord | null {
+  if (!data || typeof data !== "object") return null;
+  const value = data as Partial<OrderRecord>;
+  if (!isCompatOrderStatus(value.status) || typeof value.orderId !== "string" || typeof value.userId !== "string") {
+    return null;
+  }
+  if ((typeof value.id !== "string" && typeof value.id !== "number") || value.id === "") {
+    return null;
+  }
+
+  return {
+    id: value.id,
+    orderId: value.orderId,
+    userId: value.userId,
+    status: value.status,
+    shippingStatus: value.shippingStatus ?? null,
+    totalAmount: value.totalAmount ?? 0,
+    discountAmount: value.discountAmount ?? 0,
+    shippingAmount: value.shippingAmount ?? 0,
+    finalAmount: value.finalAmount ?? 0,
+    paymentKey: value.paymentKey ?? null,
+    paymentMethod: value.paymentMethod ?? null,
+    paidAt: value.paidAt ?? null,
+    recipientName: value.recipientName ?? null,
+    recipientPhone: value.recipientPhone ?? null,
+    shippingAddress: value.shippingAddress ?? null,
+    shippingAddressDetail: value.shippingAddressDetail ?? null,
+    shippingZipCode: value.shippingZipCode ?? null,
+    shippingMemo: value.shippingMemo ?? null,
+    orderName: value.orderName ?? null,
+    courierName: value.courierName ?? null,
+    trackingNumber: value.trackingNumber ?? null,
+    promotionLabel: value.promotionLabel ?? null,
+    couponIssueId: value.couponIssueId ?? null,
+    discountCodeId: value.discountCodeId ?? null,
+    createdAt: value.createdAt ?? null,
+    updatedAt: value.updatedAt ?? null,
+  };
+}
+
+function normalizeRpcOrderList(data: unknown): OrderRecord[] | null {
+  if (!Array.isArray(data)) return null;
+  const rows = data.map((row) => normalizeRpcOrder(row));
+  if (rows.some((row) => row === null)) return null;
+  return rows as OrderRecord[];
+}
+
+function normalizeRpcOrderItem(data: unknown): OrderItemRecord | null {
+  if (!data || typeof data !== "object") return null;
+  const value = data as Partial<OrderItemRecord>;
+  if ((typeof value.id !== "string" && typeof value.id !== "number") || value.id === "") return null;
+  if ((typeof value.orderId !== "string" && typeof value.orderId !== "number") || value.orderId === "") return null;
+  if (typeof value.productName !== "string" || typeof value.quantity !== "number") return null;
+  return {
+    id: value.id,
+    orderId: value.orderId,
+    productId: value.productId ?? null,
+    productName: value.productName,
+    quantity: value.quantity,
+    unitPrice: value.unitPrice ?? 0,
+    subtotal: value.subtotal ?? 0,
+  };
+}
+
+function normalizeRpcOrderItemList(data: unknown): OrderItemRecord[] | null {
+  if (!Array.isArray(data)) return null;
+  const rows = data.map((row) => normalizeRpcOrderItem(row));
+  if (rows.some((row) => row === null)) return null;
+  return rows as OrderItemRecord[];
+}
+
+function mapDbOrder(order: Order): OrderRecord {
+  return {
+    id: order.id,
+    orderId: order.orderId,
+    userId: order.userId,
+    status: order.status,
+    shippingStatus: order.shippingStatus ?? null,
+    totalAmount: order.totalAmount,
+    discountAmount: order.discountAmount ?? 0,
+    shippingAmount: order.shippingAmount ?? 0,
+    finalAmount: order.finalAmount,
+    paymentKey: order.paymentKey ?? null,
+    paymentMethod: order.paymentMethod ?? null,
+    paidAt: order.paidAt ?? null,
+    recipientName: order.recipientName ?? null,
+    recipientPhone: order.recipientPhone ?? null,
+    shippingAddress: order.shippingAddress ?? null,
+    shippingAddressDetail: order.shippingAddressDetail ?? null,
+    shippingZipCode: order.shippingZipCode ?? null,
+    shippingMemo: order.shippingMemo ?? null,
+    orderName: order.orderName ?? null,
+    courierName: order.courierName ?? null,
+    trackingNumber: order.trackingNumber ?? null,
+    promotionLabel: order.promotionLabel ?? null,
+    couponIssueId: order.couponIssueRefId ?? null,
+    discountCodeId: order.discountCodeRefId ?? null,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+  };
+}
+
+function mapDbOrderItem(item: { id: number; orderId: number; productId: string; productName: string; quantity: number; unitPrice: string; subtotal: string; }): OrderItemRecord {
+  return {
+    id: item.id,
+    orderId: item.orderId,
+    productId: item.productId,
+    productName: item.productName,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    subtotal: item.subtotal,
+  };
+}
+
+function getRpcErrorMessage(error: unknown) {
+  if (!error || typeof error !== "object") return null;
+  const value = error as { message?: string; details?: string | null; hint?: string | null };
+  const raw = [value.message, value.details, value.hint]
+    .filter((item): item is string => typeof item === "string" && item.length > 0)
+    .join(" ");
+  return raw || null;
+}
+
+function shouldFallbackFromOrderRpc(error: unknown) {
+  const raw = getRpcErrorMessage(error) ?? "";
+  if (error && typeof error === "object" && (error as { code?: string }).code === "PGRST202") {
+    return true;
+  }
+  return /Could not find the function/i.test(raw) || /fetch failed/i.test(raw) || /ENOTFOUND/i.test(raw) || error instanceof TypeError;
+}
+
+function toRpcError(error: unknown) {
+  const message = getRpcErrorMessage(error);
+  if (message) return new Error(message);
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 // ─── Profiles (auth.users 기반) ───────────────────────────────────────────────
@@ -312,10 +493,10 @@ export async function updateVerification(id: number, data: Partial<BusinessVerif
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
-export async function createOrder(orderData: InsertOrder, items: InsertOrderItem[]) {
+async function createOrderWithDb(orderData: InsertOrder, items: InsertOrderItem[]): Promise<OrderRecord> {
   const db = await requireDb();
   await expireStaleCreatedOrdersWithDb(db);
-  return db.transaction(async (tx) => {
+  const order = await db.transaction(async (tx) => {
     const [order] = await tx.insert(orders).values(orderData).returning();
     if (!order) throw new Error("Order not found after insert");
 
@@ -324,9 +505,60 @@ export async function createOrder(orderData: InsertOrder, items: InsertOrderItem
 
     return order;
   });
+  return mapDbOrder(order);
 }
 
-export async function finalizePaidOrder(
+async function createOrderWithRpc(orderData: InsertOrder, items: InsertOrderItem[]): Promise<OrderRecord> {
+  const { data, error } = await supabaseAdmin.rpc("create_checkout_order", {
+    p_user_id: orderData.userId,
+    p_order_number: orderData.orderId,
+    p_order_name: orderData.orderName ?? null,
+    p_subtotal_amount: Number(orderData.totalAmount ?? 0),
+    p_discount_amount: Number(orderData.discountAmount ?? 0),
+    p_shipping_amount: Number(orderData.shippingAmount ?? 0),
+    p_total_amount: Number(orderData.finalAmount ?? 0),
+    p_recipient_name: orderData.recipientName ?? null,
+    p_recipient_phone: orderData.recipientPhone ?? null,
+    p_shipping_address: orderData.shippingAddress ?? null,
+    p_shipping_detail_address: orderData.shippingAddressDetail ?? null,
+    p_postal_code: orderData.shippingZipCode ?? null,
+    p_shipping_memo: orderData.shippingMemo ?? null,
+    p_promotion_label: orderData.promotionLabel ?? null,
+    p_coupon_issue_id: orderData.couponIssueRefId ?? null,
+    p_discount_code_id: orderData.discountCodeRefId ?? null,
+    p_items: items.map((item) => ({
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice ?? 0),
+      subtotal: Number(item.subtotal ?? 0),
+    })),
+  });
+
+  if (error) {
+    throw toRpcError(error);
+  }
+
+  const normalized = normalizeRpcOrder(data);
+  if (!normalized) {
+    throw new Error("Invalid create_checkout_order RPC response");
+  }
+  return normalized;
+}
+
+export async function createOrder(orderData: InsertOrder, items: InsertOrderItem[]) {
+  try {
+    return await createOrderWithRpc(orderData, items);
+  } catch (error) {
+    if (!shouldFallbackFromOrderRpc(error)) {
+      throw error;
+    }
+    console.warn("[Order] create_checkout_order RPC unavailable, falling back to legacy DB logic:", error);
+    return createOrderWithDb(orderData, items);
+  }
+}
+
+async function finalizePaidOrderWithDb(
   orderId: string,
   paymentKey: string,
   paidAt: Date,
@@ -399,14 +631,29 @@ export async function finalizePaidOrder(
       .returning({ id: orders.id });
 
     if (updatedOrders.length > 0) {
-      if (order.couponIssueId) {
+      if (order.couponIssueRefId) {
+        await tx.execute(sql`
+          UPDATE public.coupon_issues
+          SET status = 'used',
+              used_at = ${paidAt}
+          WHERE id = ${order.couponIssueRefId}
+            AND user_id = ${order.userId}
+        `);
+      } else if (order.couponIssueId) {
         await tx
           .update(couponIssues)
           .set({ isUsed: true, usedAt: paidAt, orderId: order.id })
           .where(eq(couponIssues.id, order.couponIssueId));
       }
 
-      if (order.discountCodeId) {
+      if (order.discountCodeRefId) {
+        await tx.execute(sql`
+          UPDATE public.discount_codes
+          SET used_count = used_count + 1,
+              updated_at = now()
+          WHERE id = ${order.discountCodeRefId}
+        `);
+      } else if (order.discountCodeId) {
         await tx
           .update(discountCodes)
           .set({
@@ -421,14 +668,84 @@ export async function finalizePaidOrder(
   });
 }
 
-export async function getOrderByOrderId(orderId: string): Promise<Order | undefined> {
+async function finalizePaidOrderWithRpc(
+  orderId: string,
+  paymentKey: string,
+  paidAt: Date,
+  paymentMethod?: string | null,
+) {
+  const { data, error } = await supabaseAdmin.rpc("finalize_checkout_order_paid", {
+    p_order_number: orderId,
+    p_payment_key: paymentKey,
+    p_paid_at: paidAt.toISOString(),
+    p_payment_method: paymentMethod ?? null,
+  });
+
+  if (error) {
+    throw toRpcError(error);
+  }
+
+  if (!data || typeof data !== "object" || typeof (data as { updated?: unknown }).updated !== "boolean") {
+    throw new Error("Invalid finalize_checkout_order_paid RPC response");
+  }
+
+  return { updated: (data as { updated: boolean }).updated };
+}
+
+export async function finalizePaidOrder(
+  orderId: string,
+  paymentKey: string,
+  paidAt: Date,
+  paymentMethod?: string | null,
+) {
+  try {
+    return await finalizePaidOrderWithRpc(orderId, paymentKey, paidAt, paymentMethod);
+  } catch (error) {
+    if (!shouldFallbackFromOrderRpc(error)) {
+      throw error;
+    }
+    console.warn("[Order] finalize_checkout_order_paid RPC unavailable, falling back to legacy DB logic:", error);
+    return finalizePaidOrderWithDb(orderId, paymentKey, paidAt, paymentMethod);
+  }
+}
+
+async function getOrderByOrderIdWithDb(orderId: string): Promise<OrderRecord | undefined> {
   return readOrFallback("getOrderByOrderId", undefined, async (db) => {
     const result = await db.select().from(orders).where(eq(orders.orderId, orderId)).limit(1);
-    return result.length > 0 ? result[0] : undefined;
+    return result.length > 0 ? mapDbOrder(result[0]) : undefined;
   });
 }
 
-export async function updateOrderStatus(
+async function getOrderByOrderIdWithRpc(orderId: string): Promise<OrderRecord | undefined> {
+  const { data, error } = await supabaseAdmin.rpc("get_checkout_order", {
+    p_order_number: orderId,
+  });
+
+  if (error) {
+    throw toRpcError(error);
+  }
+
+  if (data === null) return undefined;
+  const normalized = normalizeRpcOrder(data);
+  if (!normalized) {
+    throw new Error("Invalid get_checkout_order RPC response");
+  }
+  return normalized;
+}
+
+export async function getOrderByOrderId(orderId: string): Promise<OrderRecord | undefined> {
+  try {
+    return await getOrderByOrderIdWithRpc(orderId);
+  } catch (error) {
+    if (!shouldFallbackFromOrderRpc(error)) {
+      throw error;
+    }
+    console.warn("[Order] get_checkout_order RPC unavailable, falling back to legacy DB logic:", error);
+    return getOrderByOrderIdWithDb(orderId);
+  }
+}
+
+async function updateOrderStatusWithDb(
   orderId: string,
   data: { status: "created" | "paid" | "failed" | "cancelled"; paymentKey?: string; paidAt?: Date },
   options?: { from?: Array<"created" | "paid" | "failed" | "cancelled"> | "created" | "paid" | "failed" | "cancelled" }
@@ -452,6 +769,61 @@ export async function updateOrderStatus(
     .returning({ id: orders.id });
 
   return result.length > 0;
+}
+
+async function updateOrderStatusWithRpc(
+  orderId: string,
+  data: { status: "created" | "paid" | "failed" | "cancelled"; paymentKey?: string; paidAt?: Date },
+  options?: { from?: Array<"created" | "paid" | "failed" | "cancelled"> | "created" | "paid" | "failed" | "cancelled" }
+) {
+  if (data.status !== "failed") {
+    return null;
+  }
+
+  const fromStatuses = options?.from
+    ? Array.isArray(options.from)
+      ? options.from
+      : [options.from]
+    : null;
+
+  if (fromStatuses && !fromStatuses.includes("created")) {
+    return null;
+  }
+
+  const order = await getOrderByOrderIdWithRpc(orderId);
+  if (!order) return false;
+  if (order.status !== "created") return false;
+
+  const { data: result, error } = await supabaseAdmin.rpc("mark_checkout_order_failed", {
+    p_order_number: orderId,
+    p_user_id: order.userId,
+  });
+
+  if (error) {
+    throw toRpcError(error);
+  }
+
+  return Boolean(result && typeof result === "object" && (result as { updated?: boolean }).updated);
+}
+
+export async function updateOrderStatus(
+  orderId: string,
+  data: { status: "created" | "paid" | "failed" | "cancelled"; paymentKey?: string; paidAt?: Date },
+  options?: { from?: Array<"created" | "paid" | "failed" | "cancelled"> | "created" | "paid" | "failed" | "cancelled" }
+) {
+  try {
+    const rpcResult = await updateOrderStatusWithRpc(orderId, data, options);
+    if (rpcResult !== null) {
+      return rpcResult;
+    }
+  } catch (error) {
+    if (!shouldFallbackFromOrderRpc(error)) {
+      throw error;
+    }
+    console.warn("[Order] mark_checkout_order_failed RPC unavailable, falling back to legacy DB logic:", error);
+  }
+
+  return updateOrderStatusWithDb(orderId, data, options);
 }
 
 export async function consumeRequestRateLimit(params: {
@@ -505,21 +877,83 @@ export async function consumeRequestRateLimit(params: {
   };
 }
 
-export async function getUserOrders(userId: string) {
+async function getUserOrdersWithDb(userId: string): Promise<OrderRecord[]> {
   return readOrFallback("getUserOrders", [], async (db) => {
     await expireStaleCreatedOrdersWithDb(db);
-    return db
+    const rows = await db
       .select()
       .from(orders)
       .where(and(eq(orders.userId, userId), inArray(orders.status, ["created", "paid", "cancelled", "failed"])))
       .orderBy(desc(orders.createdAt));
+    return rows.map(mapDbOrder);
   });
 }
 
-export async function getOrderItems(orderDbId: number) {
-  return readOrFallback("getOrderItems", [], async (db) => {
-    return db.select().from(orderItems).where(eq(orderItems.orderId, orderDbId));
+async function getUserOrdersWithRpc(userId: string): Promise<OrderRecord[]> {
+  const { data, error } = await supabaseAdmin.rpc("list_checkout_user_orders", {
+    p_user_id: userId,
   });
+
+  if (error) {
+    throw toRpcError(error);
+  }
+
+  const normalized = normalizeRpcOrderList(data);
+  if (!normalized) {
+    throw new Error("Invalid list_checkout_user_orders RPC response");
+  }
+  return normalized;
+}
+
+export async function getUserOrders(userId: string) {
+  try {
+    return await getUserOrdersWithRpc(userId);
+  } catch (error) {
+    if (!shouldFallbackFromOrderRpc(error)) {
+      throw error;
+    }
+    console.warn("[Order] list_checkout_user_orders RPC unavailable, falling back to legacy DB logic:", error);
+    return getUserOrdersWithDb(userId);
+  }
+}
+
+async function getOrderItemsWithDb(orderDbId: number): Promise<OrderItemRecord[]> {
+  return readOrFallback("getOrderItems", [], async (db) => {
+    const rows = await db.select().from(orderItems).where(eq(orderItems.orderId, orderDbId));
+    return rows.map(mapDbOrderItem);
+  });
+}
+
+async function getOrderItemsWithRpc(orderDbId: string): Promise<OrderItemRecord[]> {
+  const { data, error } = await supabaseAdmin.rpc("get_checkout_order_items", {
+    p_order_id: orderDbId,
+  });
+
+  if (error) {
+    throw toRpcError(error);
+  }
+
+  const normalized = normalizeRpcOrderItemList(data);
+  if (!normalized) {
+    throw new Error("Invalid get_checkout_order_items RPC response");
+  }
+  return normalized;
+}
+
+export async function getOrderItems(orderDbId: number | string) {
+  if (typeof orderDbId === "string") {
+    try {
+      return await getOrderItemsWithRpc(orderDbId);
+    } catch (error) {
+      if (!shouldFallbackFromOrderRpc(error)) {
+        throw error;
+      }
+      console.warn("[Order] get_checkout_order_items RPC unavailable, falling back to legacy DB logic:", error);
+      return [];
+    }
+  }
+
+  return getOrderItemsWithDb(orderDbId);
 }
 
 // ─── Email Auth Helpers (Supabase Auth 기반으로 이관됨) ───────────────────────
@@ -1615,7 +2049,7 @@ export async function createCardCancellation(data: InsertCardCancellation) {
   return result[0];
 }
 
-export async function cancelOrderWithHistory(params: {
+async function cancelOrderWithHistoryWithDb(params: {
   orderId: string;
   from: "created" | "paid";
   requestedBy: "buyer" | "admin";
@@ -1659,7 +2093,15 @@ export async function cancelOrderWithHistory(params: {
       }
     }
 
-    if (cancelledOrder.couponIssueId) {
+    if (cancelledOrder.couponIssueRefId) {
+      await tx.execute(sql`
+        UPDATE public.coupon_issues
+        SET status = 'issued',
+            used_at = NULL
+        WHERE id = ${cancelledOrder.couponIssueRefId}
+          AND user_id = ${cancelledOrder.userId}
+      `);
+    } else if (cancelledOrder.couponIssueId) {
       await tx
         .update(couponIssues)
         .set({
@@ -1670,7 +2112,14 @@ export async function cancelOrderWithHistory(params: {
         .where(eq(couponIssues.id, cancelledOrder.couponIssueId));
     }
 
-    if (cancelledOrder.discountCodeId) {
+    if (cancelledOrder.discountCodeRefId) {
+      await tx.execute(sql`
+        UPDATE public.discount_codes
+        SET used_count = GREATEST(used_count - 1, 0),
+            updated_at = now()
+        WHERE id = ${cancelledOrder.discountCodeRefId}
+      `);
+    } else if (cancelledOrder.discountCodeId) {
       await tx
         .update(discountCodes)
         .set({
@@ -1716,6 +2165,57 @@ export async function cancelOrderWithHistory(params: {
       cardCancellation,
     };
   });
+}
+
+async function cancelOrderWithHistoryWithRpc(params: {
+  orderId: string;
+  from: "created" | "paid";
+  requestedBy: "buyer" | "admin";
+  reason: string;
+  adminNote?: string | null;
+  processedBy?: string | null;
+  paymentKey?: string | null;
+  restoreInventory?: boolean;
+}) {
+  const { data, error } = await supabaseAdmin.rpc("cancel_checkout_order", {
+    p_order_number: params.orderId,
+    p_from_status: params.from,
+    p_requested_by: params.requestedBy,
+    p_reason: params.reason,
+    p_admin_note: params.adminNote ?? null,
+    p_restore_inventory: params.restoreInventory ?? false,
+  });
+
+  if (error) {
+    throw toRpcError(error);
+  }
+
+  if (!data || typeof data !== "object" || typeof (data as { updated?: unknown }).updated !== "boolean") {
+    throw new Error("Invalid cancel_checkout_order RPC response");
+  }
+
+  return { updated: (data as { updated: boolean }).updated };
+}
+
+export async function cancelOrderWithHistory(params: {
+  orderId: string;
+  from: "created" | "paid";
+  requestedBy: "buyer" | "admin";
+  reason: string;
+  adminNote?: string | null;
+  processedBy?: string | null;
+  paymentKey?: string | null;
+  restoreInventory?: boolean;
+}) {
+  try {
+    return await cancelOrderWithHistoryWithRpc(params);
+  } catch (error) {
+    if (!shouldFallbackFromOrderRpc(error)) {
+      throw error;
+    }
+    console.warn("[Order] cancel_checkout_order RPC unavailable, falling back to legacy DB logic:", error);
+    return cancelOrderWithHistoryWithDb(params);
+  }
 }
 
 // ─── 3PL Webhook Logs ─────────────────────────────────────────────────────────
@@ -2012,18 +2512,48 @@ export async function getCouponIssues(opts: { couponId?: number; userId?: string
 export async function getDetailedCouponIssuesForUser(userId: string) {
   const db = await getDb();
   if (!db) return [];
-  return db
-    .select({
-      issue: couponIssues,
-      coupon: coupons,
-    })
-    .from(couponIssues)
-    .innerJoin(coupons, eq(couponIssues.couponId, coupons.id))
-    .where(and(
-      eq(couponIssues.userId, userId),
-      eq(couponIssues.isDeleted, false),
-    ))
-    .orderBy(desc(couponIssues.createdAt));
+  const result = await db.execute(sql`
+    SELECT
+      ci.id AS "issueId",
+      ci.status AS "issueStatus",
+      ci.issued_at AS "createdAt",
+      ci.used_at AS "usedAt",
+      c.id AS "couponId",
+      c.name AS "couponName",
+      c."benefitType" AS "benefitType",
+      c."benefitValue" AS "benefitValue",
+      c.status AS "couponStatus"
+    FROM public.coupon_issues ci
+    INNER JOIN public.coupons c
+      ON c.id = ci.coupon_id
+    WHERE ci.user_id = ${userId}
+    ORDER BY ci.issued_at DESC
+  `);
+
+  return (result.rows as Array<{
+    issueId: string;
+    issueStatus: string;
+    createdAt: Date;
+    usedAt: Date | null;
+    couponId: string;
+    couponName: string;
+    benefitType: string;
+    benefitValue: number | string | null;
+    couponStatus: string;
+  }>).map((row) => ({
+    issue: {
+      id: row.issueId,
+      isUsed: row.issueStatus !== "issued" || row.usedAt !== null,
+      createdAt: row.createdAt,
+    },
+    coupon: {
+      id: row.couponId,
+      name: row.couponName,
+      benefitType: row.benefitType,
+      benefitValue: Number(row.benefitValue ?? 0),
+      status: row.couponStatus,
+    },
+  }));
 }
 
 export async function issueCouponToUser(couponId: number, userId: string) {

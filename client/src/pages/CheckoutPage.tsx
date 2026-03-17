@@ -48,12 +48,12 @@ type SavedAddress = {
 
 type CouponRow = {
   issue: {
-    id: number;
+    id: string;
     isUsed: boolean;
     createdAt: string | Date;
   };
   coupon: {
-    id: number;
+    id: string;
     name: string;
     benefitType: string;
     benefitValue: number;
@@ -92,7 +92,7 @@ export default function CheckoutPage() {
   const [daumLoaded, setDaumLoaded] = useState(false);
   const [shipping, setShipping] = useState<ShippingForm>(emptyShipping);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
-  const [selectedCouponIssueId, setSelectedCouponIssueId] = useState<number | undefined>(undefined);
+  const [selectedCouponIssueId, setSelectedCouponIssueId] = useState<string | undefined>(undefined);
   const [discountCodeInput, setDiscountCodeInput] = useState("");
   const [appliedDiscountCode, setAppliedDiscountCode] = useState<string | undefined>(undefined);
   const [saveCurrentAddress, setSaveCurrentAddress] = useState(false);
@@ -485,7 +485,7 @@ export default function CheckoutPage() {
                   <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">보유 쿠폰</span>
                   <select
                     value={selectedCouponIssueId ?? ""}
-                    onChange={(event) => setSelectedCouponIssueId(event.target.value ? Number(event.target.value) : undefined)}
+                    onChange={(event) => setSelectedCouponIssueId(event.target.value || undefined)}
                     className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]"
                   >
                     <option value="">쿠폰 선택 안 함</option>

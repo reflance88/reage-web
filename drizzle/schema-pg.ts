@@ -232,6 +232,8 @@ export const orders = pgTable("orders", {
   promotionLabel:        varchar("promotionLabel", { length: 200 }),
   couponIssueId:         integer("couponIssueId"),
   discountCodeId:        integer("discountCodeId"),
+  couponIssueRefId:      uuid("coupon_issue_id"),
+  discountCodeRefId:     uuid("discount_code_id"),
   paymentKey:            varchar("paymentKey", { length: 200 }),
   paymentMethod:         varchar("paymentMethod", { length: 50 }),
   paidAt:                timestamp("paidAt", { withTimezone: true }),

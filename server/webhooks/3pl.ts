@@ -20,9 +20,12 @@
 
 import type { Express, Request, Response } from "express";
 import crypto from "crypto";
-import { getDb } from "../db";
-import { orders, thirdPartyLogs } from "../../drizzle/schema-pg";
-import { eq } from "drizzle-orm";
+import {
+  SupabaseEdgeFunctionError,
+  invokeSupabaseEdgeFunction,
+  shouldFallbackFromEdgeFunction,
+} from "../_core/supabaseEdgeFunctions";
+import { supabaseAdmin } from "../_core/supabase";
 
 const TPL_WEBHOOK_SECRET = process.env.TPL_WEBHOOK_SECRET;
 let didWarnNoSecret = false;
@@ -60,12 +63,150 @@ interface ThreePLShippingEvent {
   metadata?: Record<string, unknown>;
 }
 
-const SHIPPING_STATUS_MAP: Record<string, "ready" | "shipping" | "delivered" | "failed"> = {
+const SHIPPING_STATUS_MAP: Record<string, "ready" | "shipping" | "delivered" | "hold"> = {
   order_collected: "ready",
   shipping_started: "shipping",
   delivered: "delivered",
-  delivery_failed: "failed",
+  delivery_failed: "hold",
 };
+
+async function writeThirdPartyLog(params: {
+  providerName: string;
+  eventType: string;
+  referenceId: string;
+  requestPayload: unknown;
+  responsePayload?: unknown;
+  status: "success" | "failed" | "pending";
+  errorMessage?: string | null;
+}) {
+  const { error } = await supabaseAdmin.from("third_party_logs").insert({
+    provider_name: params.providerName,
+    integration_type: "logistics",
+    event_type: params.eventType,
+    reference_id: params.referenceId,
+    request_payload: params.requestPayload,
+    response_payload: params.responsePayload ?? null,
+    status: params.status,
+    error_message: params.errorMessage ?? null,
+  });
+
+  if (error) {
+    console.error("[3PL Webhook] third_party_logs insert failed:", error.message);
+  }
+}
+
+async function getOrderByNumber(orderId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("orders")
+    .select("id, order_number, shipping_status, tracking_number, courier_name, external_order_id")
+    .eq("order_number", orderId)
+    .maybeSingle<{
+      id: string;
+      order_number: string;
+      shipping_status: string | null;
+      tracking_number: string | null;
+      courier_name: string | null;
+      external_order_id: string | null;
+    }>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+async function handleShippingUpdateLocally(payload: ThreePLShippingEvent) {
+  const newShippingStatus = SHIPPING_STATUS_MAP[payload.event];
+  if (!newShippingStatus) {
+    throw new Error(`Unknown event type: ${payload.event}`);
+  }
+
+  const order = await getOrderByNumber(payload.orderId);
+  if (!order) {
+    await writeThirdPartyLog({
+      providerName: payload.provider ?? "unknown",
+      eventType: payload.event,
+      referenceId: payload.orderId,
+      requestPayload: payload,
+      responsePayload: { error: `Order not found: ${payload.orderId}` },
+      status: "failed",
+      errorMessage: `Order not found: ${payload.orderId}`,
+    });
+    return {
+      status: 404,
+      body: { error: `Order not found: ${payload.orderId}` },
+    } as const;
+  }
+
+  const updateData: Record<string, unknown> = {
+    shipping_status: newShippingStatus,
+  };
+  if (payload.trackingNumber) updateData.tracking_number = payload.trackingNumber;
+  if (payload.courierName) updateData.courier_name = payload.courierName;
+  if (payload.externalOrderId) updateData.external_order_id = payload.externalOrderId;
+
+  const { error } = await supabaseAdmin.from("orders").update(updateData).eq("id", order.id);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await writeThirdPartyLog({
+    providerName: payload.provider ?? "unknown",
+    eventType: payload.event,
+    referenceId: order.order_number,
+    requestPayload: payload,
+    responsePayload: { orderId: order.order_number, newStatus: newShippingStatus },
+    status: "success",
+  });
+
+  console.log(`[3PL Webhook] Order ${payload.orderId} → ${newShippingStatus} (${payload.event})`);
+
+  return {
+    status: 200,
+    body: {
+      success: true,
+      orderId: payload.orderId,
+      newStatus: newShippingStatus,
+    },
+  } as const;
+}
+
+async function handleOrderCollectedLocally(payload: {
+  orderId: string;
+  externalOrderId?: string;
+  provider?: string;
+}) {
+  return handleShippingUpdateLocally({
+    event: "order_collected",
+    orderId: payload.orderId,
+    externalOrderId: payload.externalOrderId,
+    provider: payload.provider,
+  });
+}
+
+async function proxy3PLToEdge(path: string, req: Request) {
+  const signature = req.headers["x-webhook-signature"] as string | undefined;
+
+  try {
+    return await invokeSupabaseEdgeFunction(path, {
+      method: req.method === "GET" ? "GET" : "POST",
+      body: req.method === "GET" ? undefined : req.body,
+      headers: signature ? { "x-webhook-signature": signature } : undefined,
+    });
+  } catch (error) {
+    if (shouldFallbackFromEdgeFunction(error)) {
+      console.warn(`[3PL Webhook] ${path} edge function unavailable, falling back to server logic:`, error);
+      return null;
+    }
+
+    if (error instanceof SupabaseEdgeFunctionError) {
+      throw error;
+    }
+
+    throw new Error(error instanceof Error ? error.message : "Edge Function 호출 실패");
+  }
+}
 
 export function register3PLWebhookRoutes(app: Express) {
   /**
@@ -83,6 +224,11 @@ export function register3PLWebhookRoutes(app: Express) {
    */
   app.post("/api/webhooks/3pl/shipping-update", async (req: Request, res: Response) => {
     try {
+      const edgeResult = await proxy3PLToEdge("tpl-webhook/shipping-update", req);
+      if (edgeResult) {
+        return res.status(200).json(edgeResult);
+      }
+
       if (!verifyWebhookSignature(req, res)) return;
 
       const payload = req.body as ThreePLShippingEvent;
@@ -92,67 +238,16 @@ export function register3PLWebhookRoutes(app: Express) {
         return res.status(400).json({ error: "Missing required fields: event, orderId" });
       }
 
-      const newShippingStatus = SHIPPING_STATUS_MAP[payload.event];
-      if (!newShippingStatus) {
+      if (!SHIPPING_STATUS_MAP[payload.event]) {
         return res.status(400).json({ error: `Unknown event type: ${payload.event}` });
       }
 
-      const db = await getDb();
-      if (!db) return res.status(503).json({ error: "Database not available" });
-
-      // 주문 조회
-      const [order] = await db.select().from(orders).where(eq(orders.orderId, payload.orderId)).limit(1);
-      if (!order) {
-        // 3PL 로그에 기록 (주문 없음)
-        await db.insert(thirdPartyLogs).values({
-          orderId: null,
-          eventType: payload.event,
-          provider: payload.provider ?? "unknown",
-          payload: JSON.stringify(payload),
-          result: "failed",
-          errorMessage: `Order not found: ${payload.orderId}`,
-        });
-        return res.status(404).json({ error: `Order not found: ${payload.orderId}` });
-      }
-
-      // 배송 상태 업데이트
-      const updateData: Record<string, unknown> = {
-        shippingStatus: newShippingStatus,
-        updatedAt: new Date(),
-      };
-
-      if (payload.trackingNumber) updateData.trackingNumber = payload.trackingNumber;
-      if (payload.courierCode) updateData.courierCode = payload.courierCode;
-      if (payload.courierName) updateData.courierName = payload.courierName;
-      if (payload.externalOrderId) updateData.externalOrderId = payload.externalOrderId;
-
-      if (newShippingStatus === "shipping" && !order.shippedAt) {
-        updateData.shippedAt = payload.timestamp ? new Date(payload.timestamp) : new Date();
-      }
-      if (newShippingStatus === "delivered" && !order.deliveredAt) {
-        updateData.deliveredAt = payload.timestamp ? new Date(payload.timestamp) : new Date();
-      }
-
-      await db.update(orders).set(updateData as any).where(eq(orders.orderId, payload.orderId));
-
-      // 3PL 로그 기록
-      await db.insert(thirdPartyLogs).values({
-        orderId: order.id,
-        eventType: payload.event,
-        provider: payload.provider ?? "unknown",
-        payload: JSON.stringify(payload),
-        result: "success",
-        errorMessage: null,
-      });
-
-      console.log(`[3PL Webhook] Order ${payload.orderId} → ${newShippingStatus} (${payload.event})`);
-
-      return res.status(200).json({
-        success: true,
-        orderId: payload.orderId,
-        newStatus: newShippingStatus,
-      });
+      const result = await handleShippingUpdateLocally(payload);
+      return res.status(result.status).json(result.body);
     } catch (error) {
+      if (error instanceof SupabaseEdgeFunctionError) {
+        return res.status(error.status).json({ error: error.message });
+      }
       console.error("[3PL Webhook] Error:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
@@ -172,6 +267,11 @@ export function register3PLWebhookRoutes(app: Express) {
    */
   app.post("/api/webhooks/3pl/order-collected", async (req: Request, res: Response) => {
     try {
+      const edgeResult = await proxy3PLToEdge("tpl-webhook/order-collected", req);
+      if (edgeResult) {
+        return res.status(200).json(edgeResult);
+      }
+
       if (!verifyWebhookSignature(req, res)) return;
 
       const { orderId, externalOrderId, provider } = req.body as {
@@ -184,29 +284,12 @@ export function register3PLWebhookRoutes(app: Express) {
         return res.status(400).json({ error: "Missing orderId" });
       }
 
-      const db = await getDb();
-      if (!db) return res.status(503).json({ error: "Database not available" });
-
-      const [order] = await db.select().from(orders).where(eq(orders.orderId, orderId)).limit(1);
-      if (!order) return res.status(404).json({ error: `Order not found: ${orderId}` });
-
-      await db.update(orders).set({
-        shippingStatus: "ready",
-        externalOrderId: externalOrderId ?? null,
-        updatedAt: new Date(),
-      } as any).where(eq(orders.orderId, orderId));
-
-      await db.insert(thirdPartyLogs).values({
-        orderId: order.id,
-        eventType: "order_collected",
-        provider: provider ?? "unknown",
-        payload: JSON.stringify(req.body),
-        result: "success",
-        errorMessage: null,
-      });
-
-      return res.status(200).json({ success: true, orderId, status: "ready" });
+      const result = await handleOrderCollectedLocally({ orderId, externalOrderId, provider });
+      return res.status(result.status).json(result.body);
     } catch (error) {
+      if (error instanceof SupabaseEdgeFunctionError) {
+        return res.status(error.status).json({ error: error.message });
+      }
       console.error("[3PL Order Collected] Error:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
@@ -216,8 +299,20 @@ export function register3PLWebhookRoutes(app: Express) {
    * 웹훅 헬스체크
    * GET /api/webhooks/3pl/health
    */
-  app.get("/api/webhooks/3pl/health", (_req: Request, res: Response) => {
-    res.status(200).json({
+  app.get("/api/webhooks/3pl/health", async (req: Request, res: Response) => {
+    try {
+      const edgeResult = await proxy3PLToEdge("tpl-webhook/health", req);
+      if (edgeResult) {
+        return res.status(200).json(edgeResult);
+      }
+    } catch (error) {
+      if (error instanceof SupabaseEdgeFunctionError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      console.warn("[3PL Webhook] health edge function call failed, falling back to server response:", error);
+    }
+
+    return res.status(200).json({
       status: "ok",
       endpoints: [
         "POST /api/webhooks/3pl/shipping-update",
@@ -228,7 +323,7 @@ export function register3PLWebhookRoutes(app: Express) {
         order_collected: "ready (배송 준비중)",
         shipping_started: "shipping (배송 중)",
         delivered: "delivered (배송 완료)",
-        delivery_failed: "failed (배송 실패)",
+        delivery_failed: "hold (배송 보류)",
       },
     });
   });

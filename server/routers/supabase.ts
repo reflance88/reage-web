@@ -4,8 +4,8 @@
  */
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { notifyInquiryReceived } from "../_core/systemNotifications";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
-import { sendInquiryNotification } from "../email-inquiry";
 import {
   createContactInquiry,
   getContactInquiries,
@@ -58,7 +58,7 @@ export const sbContactRouter = router({
         email: input.email || undefined,
       });
       // 문의 접수 알림 이메일 발송 (비동기, 실패해도 문의 저장에는 영향 없음)
-      sendInquiryNotification({
+      void notifyInquiryReceived({
         ...result,
         id: result.id,
       }).catch((err) =>

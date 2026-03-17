@@ -167,7 +167,18 @@ import {
   deleteCertifiedInstructorSupabase,
   getAdminCertifiedInstructors,
 } from "./supabase-db";
-import { sendPasswordResetEmail, sendMail } from "./_core/mailer";
+import {
+  notifyBankTransferConfirmed,
+  notifyOrderCancelled,
+  notifyOrderComplete,
+  notifyShippingStarted,
+} from "./_core/commerceNotifications";
+import { notifyBusinessVerificationSubmitted } from "./_core/systemNotifications";
+import {
+  SupabaseEdgeFunctionError,
+  invokeSupabaseEdgeFunction,
+  shouldFallbackFromEdgeFunction,
+} from "./_core/supabaseEdgeFunctions";
 import {
   sbContactRouter,
   sbReviewRouter,
@@ -178,12 +189,6 @@ import {
   sbInstructorRouter,
   sbPopupRouter,
 } from "./routers/supabase";
-import {
-  sendOrderCompleteAlimtalk,
-  sendAdminNewOrderAlimtalk,
-  sendShippingStartedAlimtalk,
-  sendOrderCancelledAlimtalk,
-} from "./_core/kakao";
 
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY ?? "";
 const TOSS_CONFIRM_URL = "https://api.tosspayments.com/v1/payments/confirm";
@@ -215,6 +220,33 @@ async function cancelTossPayment(paymentKey: string, cancelReason: string) {
     throw new TRPCError({ code: "BAD_REQUEST", message: err.message ?? "토스페이먼츠 결제 취소 실패" });
   }
   return response.json();
+}
+
+function toTrpcCodeFromStatus(status: number): "BAD_REQUEST" | "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND" | "CONFLICT" | "INTERNAL_SERVER_ERROR" {
+  if (status === 400) return "BAD_REQUEST";
+  if (status === 401) return "UNAUTHORIZED";
+  if (status === 403) return "FORBIDDEN";
+  if (status === 404) return "NOT_FOUND";
+  if (status === 409) return "CONFLICT";
+  return "INTERNAL_SERVER_ERROR";
+}
+
+function throwEdgeFunctionError(error: unknown): never {
+  if (error instanceof TRPCError) {
+    throw error;
+  }
+
+  if (error instanceof SupabaseEdgeFunctionError) {
+    throw new TRPCError({
+      code: toTrpcCodeFromStatus(error.status),
+      message: error.message,
+    });
+  }
+
+  throw new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: error instanceof Error ? error.message : "Supabase Edge Function 호출에 실패했습니다.",
+  });
 }
 
 export const appRouter = router({
@@ -554,56 +586,14 @@ export const appRouter = router({
 
         // 사업자 인증 신청 이메일 발송
         if (userEmail) {
-          const adminEmail = process.env.SMTP_FROM || process.env.SMTP_USER || '';
-          // 신청자에게 확인 이메일
-          await sendMail({
-            to: userEmail,
-            subject: '[REAGE] 사업자 인증 신청이 접수되었습니다',
-            html: `
-<!DOCTYPE html>
-<html lang="ko">
-<head><meta charset="UTF-8"><title>사업자 인증 신청</title></head>
-<body style="margin:0;padding:0;background:#F7F5F2;font-family:'Noto Sans KR',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F5F2;padding:40px 20px;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 4px 40px rgba(26,20,18,.10);border:1px solid #E8E6E3;">
-        <tr><td style="background:#1A1412;padding:32px 40px;text-align:center;">
-          <div style="font-size:28px;font-weight:800;letter-spacing:.12em;color:#ffffff;">RE<span style="color:#C9A96E;">A</span>GE</div>
-          <div style="font-size:11px;color:#9B8B7A;letter-spacing:.2em;margin-top:4px;">올핸드 미세전류 테라피</div>
-        </td></tr>
-        <tr><td style="padding:40px 40px 32px;">
-          <h1 style="font-size:20px;font-weight:700;color:#1A1412;margin:0 0 12px;">사업자 인증 신청 접수 완료</h1>
-          <p style="font-size:14px;color:#6B6B6B;line-height:1.7;margin:0 0 20px;">안녕하세요, <strong>${userName || '고객'}</strong>님.<br>사업자 인증 신청이 정상적으로 접수되었습니다.<br>슬제후 <strong>1영업일 이내</strong> 검토 후 결과를 안내해 드리겠습니다.</p>
-          <div style="background:#F5EFE4;border:1px solid #C9A96E30;border-radius:10px;padding:16px 20px;margin-bottom:20px;">
-            <p style="font-size:13px;color:#8B6914;margin:0;"><strong>사업자명:</strong> ${input.businessName}<br><strong>사업자등록번호:</strong> ${input.businessNumber}</p>
-          </div>
-          <p style="font-size:12px;color:#9B9B9B;line-height:1.6;margin:0;">승인 완료 시 전문가 할인가가 자동 적용됩니다.</p>
-        </td></tr>
-        <tr><td style="background:#F7F5F2;padding:20px 40px;border-top:1px solid #E8E6E3;">
-          <p style="font-size:11.5px;color:#9B9B9B;margin:0;text-align:center;">이 이메일은 발신 전용입니다. &copy; REAGE. All rights reserved.</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`,
-            text: `[REAGE] 사업자 인증 신청
-
-안녕하세요, ${userName || '고객'}님.
-사업자 인증 신청이 접수되었습니다.
-사업자명: ${input.businessName}
-사업자등록번호: ${input.businessNumber}
-승인 완료 시 전문가 할인가가 적용됩니다.`,
+          await notifyBusinessVerificationSubmitted({
+            userEmail,
+            userName,
+            businessName: input.businessName,
+            businessNumber: input.businessNumber,
+            contactPhone: input.contactPhone ?? null,
+            fileUrl,
           });
-          // 관리자에게 알림 이메일
-          if (adminEmail && adminEmail !== userEmail) {
-            await sendMail({
-              to: adminEmail,
-              subject: `[REAGE 관리자] 사업자 인증 신청: ${input.businessName}`,
-              html: `<p>사업자명: ${input.businessName}<br>사업자등록번호: ${input.businessNumber}<br>신청자: ${userName} (${userEmail})</p>`,
-              text: `사업자명: ${input.businessName}\n사업자등록번호: ${input.businessNumber}\n신청자: ${userName} (${userEmail})`,
-            });
-          }
         }
 
         return { success: true, status: "pending" };
@@ -697,23 +687,16 @@ export const appRouter = router({
         }
 
         if (prevOrder && prevOrder.status === "created" && input.status === "paid") {
-          try {
-            const { sendBankTransferConfirmAlimtalk } = await import("./_core/kakao.js");
-            const items = await getOrderItems(prevOrder.id);
-            const productName = items.length > 0 ? items[0].productName : "레아쥬 제품";
-            if (prevOrder.recipientPhone && prevOrder.recipientName) {
-              await sendBankTransferConfirmAlimtalk({
-                phone: prevOrder.recipientPhone,
-                name: prevOrder.recipientName,
-                orderId: prevOrder.id,
-                orderNumber: prevOrder.orderId,
-                productName,
-                totalAmount: Number(prevOrder.totalAmount ?? 0),
-              });
-            }
-          } catch (err) {
-            console.error("[입금확인 알림톡] 발송 오류:", err);
-          }
+          const items = await getOrderItems(prevOrder.id);
+          const productName = items.length > 0 ? items[0].productName : "레아쥬 제품";
+          void notifyBankTransferConfirmed({
+            phone: prevOrder.recipientPhone,
+            name: prevOrder.recipientName ?? "고객",
+            orderId: prevOrder.id,
+            orderNumber: prevOrder.orderId,
+            productName,
+            totalAmount: Number(prevOrder.totalAmount ?? 0),
+          });
         }
         return { success: true };
       }),
@@ -1272,16 +1255,14 @@ export const appRouter = router({
         const isNewTracking = data.trackingNumber && prevOrder && !prevOrder.trackingNumber;
         if (isNewTracking && data.trackingNumber) {
           const order = await getOrderByOrderId(orderId);
-          if (order?.recipientPhone) {
-            sendShippingStartedAlimtalk({
-              phone: order.recipientPhone,
-              name: order.recipientName ?? "고객",
-              orderNumber: order.orderId,
-              productName: order.orderName ?? "",
-              courierName: data.courierName ?? order.courierName ?? "택배사",
-              trackingNumber: data.trackingNumber,
-            }).catch((e: unknown) => console.warn("[Alimtalk] 배송 시작 알림톡 발송 실패:", e));
-          }
+          void notifyShippingStarted({
+            phone: order?.recipientPhone,
+            name: order?.recipientName ?? "고객",
+            orderNumber: order?.orderId ?? orderId,
+            productName: order?.orderName ?? "",
+            courierName: data.courierName ?? order?.courierName ?? "택배사",
+            trackingNumber: data.trackingNumber,
+          });
         }
         return { success: true };
       }),
@@ -1499,7 +1480,7 @@ export const appRouter = router({
     quote: protectedProcedure
       .input(z.object({
         items: z.array(z.object({ productId: z.string(), quantity: z.number().min(1) })).min(1),
-        couponIssueId: z.number().optional(),
+        couponIssueId: z.string().uuid().optional(),
         discountCode: z.string().optional(),
       }))
       .query(async ({ ctx, input }) => {
@@ -1511,7 +1492,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         items: z.array(z.object({ productId: z.string(), quantity: z.number().min(1) })).min(1, "주문 상품이 비어 있습니다."),
-        couponIssueId: z.number().optional(),
+        couponIssueId: z.string().uuid().optional(),
         discountCode: z.string().optional(),
         recipientName: z.string().min(1, "수령인 이름을 입력해주세요."),
         recipientPhone: z.string().min(1, "연락처를 입력해주세요."),
@@ -1546,8 +1527,8 @@ export const appRouter = router({
             status: "created",
             orderName,
             promotionLabel: quote.promotionLabel,
-            couponIssueId: quote.couponIssueId,
-            discountCodeId: quote.discountCodeId,
+            couponIssueRefId: quote.couponIssueId,
+            discountCodeRefId: quote.discountCodeId,
             recipientName: input.recipientName,
             recipientPhone: input.recipientPhone,
             shippingZipCode: input.shippingZipCode,
@@ -1586,82 +1567,91 @@ export const appRouter = router({
         if (order.status !== "created") throw new TRPCError({ code: "BAD_REQUEST", message: "결제를 진행할 수 없는 주문 상태입니다." });
         if (Number(order.finalAmount) !== input.amount) throw new TRPCError({ code: "BAD_REQUEST", message: "결제 금액이 일치하지 않습니다." });
 
-        const payment = await confirmTossPayment(input.paymentKey, input.orderId, input.amount);
         try {
-          const finalized = await finalizePaidOrder(input.orderId, input.paymentKey, new Date(), payment.method ?? "카드");
-          if (!finalized.updated) {
-            const latestOrder = await getOrderByOrderId(input.orderId);
-            if (latestOrder?.status === "paid") {
-              return { success: true };
-            }
-            throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 결제 내역을 확인해주세요." });
-          }
-        } catch (error) {
-          if (error instanceof Error && error.message.startsWith("[Stock]")) {
-            const cancelReason = "재고 부족으로 자동 취소";
-            let tossCancelFailed = false;
-            try {
-              await cancelTossPayment(input.paymentKey, cancelReason);
-            } catch (cancelError) {
-              tossCancelFailed = true;
-              console.error("[Payment] 재고 부족 자동 취소 실패:", cancelError);
-              const failedOrder = await getOrderByOrderId(input.orderId);
-              if (failedOrder) {
-                await createCardCancellation({
-                  orderId: failedOrder.id,
-                  paymentKey: input.paymentKey,
-                  cancelAmount: String(failedOrder.finalAmount ?? failedOrder.totalAmount ?? 0),
-                  cancelType: "full",
-                  processedBy: "system",
-                  adminNote: `Toss 자동 취소 실패 - 수동 처리 필요. 사유: ${cancelError instanceof Error ? cancelError.message : String(cancelError)}`,
-                });
-              }
-            }
-
-            await cancelOrderWithHistory({
-              orderId: input.orderId,
-              from: "created",
-              requestedBy: "admin",
-              reason: cancelReason,
-              adminNote: tossCancelFailed ? `${error.message} (Toss 취소 실패 - 수동 환불 필요)` : error.message,
-              processedBy: "system",
+          await invokeSupabaseEdgeFunction("commerce-payment/confirm", {
+            user: { id: ctx.user.id, role: ctx.user.role },
+            body: {
               paymentKey: input.paymentKey,
-            });
-
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: tossCancelFailed
-                ? "결제 직후 재고 부족이 확인되었으나 카드 취소 처리에 실패했습니다. 관리자가 수동으로 취소를 처리할 예정입니다."
-                : "결제 직후 재고 부족이 확인되어 자동 취소되었습니다. 카드사 반영까지 시간이 걸릴 수 있습니다.",
-            });
+              orderId: input.orderId,
+              amount: input.amount,
+            },
+          });
+        } catch (edgeError) {
+          if (!shouldFallbackFromEdgeFunction(edgeError)) {
+            throwEdgeFunctionError(edgeError);
           }
+          console.warn("[Payment] commerce-payment edge function unavailable, falling back to local logic:", edgeError);
 
-          throw error;
+          const payment = await confirmTossPayment(input.paymentKey, input.orderId, input.amount);
+          try {
+            const finalized = await finalizePaidOrder(input.orderId, input.paymentKey, new Date(), payment.method ?? "카드");
+            if (!finalized.updated) {
+              const latestOrder = await getOrderByOrderId(input.orderId);
+              if (latestOrder?.status === "paid") {
+                return { success: true };
+              }
+              throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 결제 내역을 확인해주세요." });
+            }
+          } catch (error) {
+            if (error instanceof Error && error.message.startsWith("[Stock]")) {
+              const cancelReason = "재고 부족으로 자동 취소";
+              let tossCancelFailed = false;
+              try {
+                await cancelTossPayment(input.paymentKey, cancelReason);
+              } catch (cancelError) {
+                tossCancelFailed = true;
+                console.error("[Payment] 재고 부족 자동 취소 실패:", cancelError);
+                const failedOrder = await getOrderByOrderId(input.orderId);
+                if (failedOrder && typeof failedOrder.id === "number") {
+                  await createCardCancellation({
+                    orderId: failedOrder.id,
+                    paymentKey: input.paymentKey,
+                    cancelAmount: String(failedOrder.finalAmount ?? failedOrder.totalAmount ?? 0),
+                    cancelType: "full",
+                    processedBy: "system",
+                    adminNote: `Toss 자동 취소 실패 - 수동 처리 필요. 사유: ${cancelError instanceof Error ? cancelError.message : String(cancelError)}`,
+                  });
+                } else if (failedOrder) {
+                  console.warn("[Payment] live order RPC path uses uuid order id, skipping legacy card_cancellations insert");
+                }
+              }
+
+              await cancelOrderWithHistory({
+                orderId: input.orderId,
+                from: "created",
+                requestedBy: "admin",
+                reason: cancelReason,
+                adminNote: tossCancelFailed ? `${error.message} (Toss 취소 실패 - 수동 환불 필요)` : error.message,
+                processedBy: "system",
+                paymentKey: input.paymentKey,
+              });
+
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: tossCancelFailed
+                  ? "결제 직후 재고 부족이 확인되었으나 카드 취소 처리에 실패했습니다. 관리자가 수동으로 취소를 처리할 예정입니다."
+                  : "결제 직후 재고 부족이 확인되어 자동 취소되었습니다. 카드사 반영까지 시간이 걸릴 수 있습니다.",
+              });
+            }
+
+            throw error;
+          }
         }
 
         // 주문 완료 알림톡 발송 (비동기, 실패해도 결제 처리에 영향 없음)
         const updatedOrder = await getOrderByOrderId(input.orderId);
         if (updatedOrder) {
           const orderDate = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
-          // 고객 알림톡 발송
-          if (updatedOrder.recipientPhone) {
-            sendOrderCompleteAlimtalk({
-              phone: updatedOrder.recipientPhone,
-              name: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
-              orderId: updatedOrder.id,
-              orderNumber: input.orderId,
-              productName: updatedOrder.orderName ?? "",
-              totalAmount: Number(updatedOrder.finalAmount ?? updatedOrder.totalAmount),
-              orderDate,
-            }).catch((e: unknown) => console.warn("[Alimtalk] 고객 알림톡 발송 실패:", e));
-          }
-          // 관리자 SMS 알림 발송
-          sendAdminNewOrderAlimtalk({
+          void notifyOrderComplete({
+            phone: updatedOrder.recipientPhone,
+            name: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
+            orderId: updatedOrder.id,
             orderNumber: input.orderId,
             productName: updatedOrder.orderName ?? "",
             totalAmount: Number(updatedOrder.finalAmount ?? updatedOrder.totalAmount),
             recipientName: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
-          }).catch((e: unknown) => console.warn("[Alimtalk] 관리자 알림 발송 실패:", e));
+            orderDate,
+          });
         }
 
         return { success: true };
@@ -1690,33 +1680,46 @@ export const appRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "현재 주문 상태에서는 취소할 수 없습니다." });
         }
         const cancellableStatus = order.status === "paid" ? "paid" : "created";
-        // 결제완료 상태이면 토스 취소 API 호출
-        if (cancellableStatus === "paid" && order.paymentKey) {
-          await cancelTossPayment(order.paymentKey, input.cancelReason);
-        }
-        const cancelled = await cancelOrderWithHistory({
-          orderId: input.orderId,
-          from: cancellableStatus,
-          requestedBy: "admin",
-          reason: input.cancelReason,
-          adminNote: input.cancelReason,
-          processedBy: ctx.user.id,
-          paymentKey: order.paymentKey,
-          restoreInventory: cancellableStatus === "paid",
-        });
-        if (!cancelled.updated) {
-          throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해주세요." });
+        try {
+          await invokeSupabaseEdgeFunction("commerce-payment/cancel", {
+            user: { id: ctx.user.id, role: ctx.user.role },
+            body: {
+              orderId: input.orderId,
+              cancelReason: input.cancelReason,
+              mode: "admin",
+            },
+          });
+        } catch (edgeError) {
+          if (!shouldFallbackFromEdgeFunction(edgeError)) {
+            throwEdgeFunctionError(edgeError);
+          }
+          console.warn("[Payment] commerce-payment cancel edge function unavailable, falling back to local logic:", edgeError);
+
+          if (cancellableStatus === "paid" && order.paymentKey) {
+            await cancelTossPayment(order.paymentKey, input.cancelReason);
+          }
+          const cancelled = await cancelOrderWithHistory({
+            orderId: input.orderId,
+            from: cancellableStatus,
+            requestedBy: "admin",
+            reason: input.cancelReason,
+            adminNote: input.cancelReason,
+            processedBy: ctx.user.id,
+            paymentKey: order.paymentKey,
+            restoreInventory: cancellableStatus === "paid",
+          });
+          if (!cancelled.updated) {
+            throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해주세요." });
+          }
         }
         // 취소 알림톡 발송 (비동기)
-        if (order.recipientPhone) {
-          sendOrderCancelledAlimtalk({
-            phone: order.recipientPhone,
-            name: order.recipientName ?? "고객",
-            orderId: order.id,
-            orderNumber: input.orderId,
-            productName: order.orderName ?? "",
-          }).catch((e: unknown) => console.warn("[Alimtalk] 취소 알림톡 발송 실패:", e));
-        }
+        void notifyOrderCancelled({
+          phone: order.recipientPhone,
+          name: order.recipientName ?? "고객",
+          orderId: order.id,
+          orderNumber: input.orderId,
+          productName: order.orderName ?? "",
+        });
         return { success: true };
       }),
 
@@ -1734,30 +1737,44 @@ export const appRouter = router({
         const now = new Date();
         const diffHours = (now.getTime() - paidAt.getTime()) / (1000 * 60 * 60);
         if (diffHours > 24) throw new TRPCError({ code: "BAD_REQUEST", message: "결제 후 24시간이 지나 취소가 불가능합니다. 고객센터(1:1 문의)로 연락해주세요." });
-        if (order.paymentKey) {
-          await cancelTossPayment(order.paymentKey, input.cancelReason);
-        }
-        const cancelled = await cancelOrderWithHistory({
-          orderId: input.orderId,
-          from: "paid",
-          requestedBy: "buyer",
-          reason: input.cancelReason,
-          paymentKey: order.paymentKey,
-          restoreInventory: true,
-        });
-        if (!cancelled.updated) {
-          throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해주세요." });
+        try {
+          await invokeSupabaseEdgeFunction("commerce-payment/cancel", {
+            user: { id: ctx.user.id, role: ctx.user.role },
+            body: {
+              orderId: input.orderId,
+              cancelReason: input.cancelReason,
+              mode: "buyer",
+            },
+          });
+        } catch (edgeError) {
+          if (!shouldFallbackFromEdgeFunction(edgeError)) {
+            throwEdgeFunctionError(edgeError);
+          }
+          console.warn("[Payment] commerce-payment buyer cancel edge function unavailable, falling back to local logic:", edgeError);
+
+          if (order.paymentKey) {
+            await cancelTossPayment(order.paymentKey, input.cancelReason);
+          }
+          const cancelled = await cancelOrderWithHistory({
+            orderId: input.orderId,
+            from: "paid",
+            requestedBy: "buyer",
+            reason: input.cancelReason,
+            paymentKey: order.paymentKey,
+            restoreInventory: true,
+          });
+          if (!cancelled.updated) {
+            throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해주세요." });
+          }
         }
         // 취소 알림톡 발송 (비동기)
-        if (order.recipientPhone) {
-          sendOrderCancelledAlimtalk({
-            phone: order.recipientPhone,
-            name: order.recipientName ?? ctx.user.name ?? "고객",
-            orderId: order.id,
-            orderNumber: input.orderId,
-            productName: order.orderName ?? "",
-          }).catch((e: unknown) => console.warn("[Alimtalk] 취소 알림톡 발송 실패:", e));
-        }
+        void notifyOrderCancelled({
+          phone: order.recipientPhone,
+          name: order.recipientName ?? ctx.user.name ?? "고객",
+          orderId: order.id,
+          orderNumber: input.orderId,
+          productName: order.orderName ?? "",
+        });
         return { success: true };
       }),
 
