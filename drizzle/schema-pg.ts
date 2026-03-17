@@ -17,6 +17,7 @@ import {
   timestamp,
   numeric,
   uuid,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -31,7 +32,7 @@ export const verificationStatusEnum = pgEnum("verification_status", ["none", "pe
 export const orderStatusEnum = pgEnum("order_status", ["created", "paid", "failed", "cancelled"]);
 export const shippingStatusEnum = pgEnum("shipping_status", ["pending_payment", "ready", "hold", "shipping", "delivered", "none"]);
 export const thirdPartyStatusEnum = pgEnum("third_party_status", ["none", "synced", "error"]);
-export const userRoleSnapshotEnum = pgEnum("user_role_snapshot", ["consumer", "professional"]);
+export const userRoleSnapshotEnum = pgEnum("user_role_snapshot", ["consumer", "professional", "membership"]);
 export const proStatusSnapshotEnum = pgEnum("pro_status_snapshot", ["none", "pending", "approved", "rejected"]);
 export const cancellationRequestedByEnum = pgEnum("cancellation_requested_by", ["buyer", "admin"]);
 export const cancellationStatusEnum = pgEnum("cancellation_status", ["requested", "processing", "completed", "rejected"]);
@@ -76,6 +77,23 @@ export const profiles = pgTable("profiles", {
 
 export type Profile = typeof profiles.$inferSelect;
 export type InsertProfile = typeof profiles.$inferInsert;
+
+export const savedAddresses = pgTable("saved_addresses", {
+  id:                    serial("id").primaryKey(),
+  userId:                uuid("userId").notNull(),
+  label:                 varchar("label", { length: 100 }).notNull(),
+  recipientName:         varchar("recipientName", { length: 100 }).notNull(),
+  recipientPhone:        varchar("recipientPhone", { length: 30 }).notNull(),
+  shippingZipCode:       varchar("shippingZipCode", { length: 10 }).notNull(),
+  shippingAddress:       text("shippingAddress").notNull(),
+  shippingAddressDetail: text("shippingAddressDetail"),
+  isDefault:             boolean("isDefault").notNull().default(false),
+  createdAt:             timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:             timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type SavedAddress = typeof savedAddresses.$inferSelect;
+export type InsertSavedAddress = typeof savedAddresses.$inferInsert;
 
 // ─────────────────────────────────────────────
 // 2. business_verifications (사업자 인증)
@@ -192,6 +210,7 @@ export const orders = pgTable("orders", {
   proStatusSnapshot:     proStatusSnapshotEnum("proStatusSnapshot").notNull(),
   totalAmount:           numeric("totalAmount", { precision: 12, scale: 0 }).notNull(),
   discountAmount:        numeric("discountAmount", { precision: 12, scale: 0 }).notNull().default("0"),
+  shippingAmount:        numeric("shippingAmount", { precision: 12, scale: 0 }).notNull().default("0"),
   finalAmount:           numeric("finalAmount", { precision: 12, scale: 0 }).notNull(),
   status:                orderStatusEnum("status").notNull().default("created"),
   shippingStatus:        shippingStatusEnum("shippingStatus").notNull().default("none"),
@@ -210,6 +229,9 @@ export const orders = pgTable("orders", {
   thirdPartyStatus:      thirdPartyStatusEnum("thirdPartyStatus").notNull().default("none"),
   thirdPartySyncedAt:    timestamp("thirdPartySyncedAt", { withTimezone: true }),
   adminMemo:             text("adminMemo"),
+  promotionLabel:        varchar("promotionLabel", { length: 200 }),
+  couponIssueId:         integer("couponIssueId"),
+  discountCodeId:        integer("discountCodeId"),
   paymentKey:            varchar("paymentKey", { length: 200 }),
   paymentMethod:         varchar("paymentMethod", { length: 50 }),
   paidAt:                timestamp("paidAt", { withTimezone: true }),
@@ -489,6 +511,7 @@ export const reviews = pgTable("reviews", {
   id:            serial("id").primaryKey(),
   category:      reviewCategoryEnum("category").notNull().default("etc"),
   categoryLabel: varchar("categoryLabel", { length: 100 }),
+  productId:     uuid("productId"),
   imageUrl:      text("imageUrl").notNull(),
   imageKey:      varchar("imageKey", { length: 500 }),
   title:         varchar("title", { length: 200 }),
@@ -666,11 +689,28 @@ export type ExcelTemplate = typeof excelTemplates.$inferSelect;
 export type InsertExcelTemplate = typeof excelTemplates.$inferInsert;
 
 // ─────────────────────────────────────────────
+// 27. request_rate_limits (공용 rate limit 버킷)
+// ─────────────────────────────────────────────
+export const requestRateLimits = pgTable("request_rate_limits", {
+  bucketKey: varchar("bucketKey", { length: 255 }).primaryKey(),
+  count:     integer("count").notNull().default(0),
+  expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  expiresAtIdx: index("request_rate_limits_expires_at_idx").on(table.expiresAt),
+}));
+
+export type RequestRateLimit = typeof requestRateLimits.$inferSelect;
+export type InsertRequestRateLimit = typeof requestRateLimits.$inferInsert;
+
+// ─────────────────────────────────────────────
 // Relations (Drizzle ORM 관계 정의)
 // ─────────────────────────────────────────────
 
 export const profilesRelations = relations(profiles, ({ many }) => ({
   orders: many(orders),
+  savedAddresses: many(savedAddresses),
   businessVerifications: many(businessVerifications),
   couponIssues: many(couponIssues),
   designFiles: many(designFiles),
@@ -690,6 +730,10 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   product: one(products, { fields: [orderItems.productId], references: [products.id] }),
 }));
 
+export const savedAddressesRelations = relations(savedAddresses, ({ one }) => ({
+  user: one(profiles, { fields: [savedAddresses.userId], references: [profiles.id] }),
+}));
+
 export const couponsRelations = relations(coupons, ({ many }) => ({
   issues: many(couponIssues),
 }));
@@ -697,6 +741,11 @@ export const couponsRelations = relations(coupons, ({ many }) => ({
 export const couponIssuesRelations = relations(couponIssues, ({ one }) => ({
   coupon: one(coupons, { fields: [couponIssues.couponId], references: [coupons.id] }),
   user: one(profiles, { fields: [couponIssues.userId], references: [profiles.id] }),
+}));
+
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+  product: one(products, { fields: [reviews.productId], references: [products.id] }),
+  author: one(profiles, { fields: [reviews.authorId], references: [profiles.id] }),
 }));
 
 export const designFilesRelations = relations(designFiles, ({ one }) => ({

@@ -301,6 +301,10 @@ export async function getPublishedGalleryPosts(options?: {
     .order("createdAt", { ascending: false })
     .range(from, to);
 
+  if (options?.category) {
+    query = query.eq("category", options.category);
+  }
+
   const { data, error, count } = await query;
   if (error) throw new Error(`갤러리 조회 실패: ${error.message}`);
   return { items: data ?? [], total: count ?? 0 };
@@ -419,12 +423,13 @@ export async function getMagazinePostBySlugSupabase(slug: string) {
     .single();
   if (error) throw new Error(`매거진 상세 조회 실패: ${error.message}`);
 
-  // 조회수 증가 (비동기, 실패 무시)
+  // Note: view_count increment has a minor race condition under concurrent reads.
+  // For accurate counts at scale, create a Supabase RPC function with: UPDATE magazine_posts SET view_count = view_count + 1 WHERE id = $1
   supabaseAdmin
     .from("magazine_posts")
     .update({ view_count: (data.view_count ?? 0) + 1 })
     .eq("id", data.id)
-    .then(() => {});
+    .then(() => {}, (err: unknown) => console.warn("[Magazine] view_count increment failed:", err));
 
   return data;
 }

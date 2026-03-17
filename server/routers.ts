@@ -1,15 +1,17 @@
 import { TRPCError } from "@trpc/server";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
+import { signOutAuthSession } from "./_core/authSession";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
   approveVerification,
   createAuditLog,
+  cancelOrderWithHistory,
+  finalizePaidOrder,
   createOrder,
   createVerification,
+  createSavedAddress,
   getAllOrders,
   getAllProducts,
   getAllUsers,
@@ -28,11 +30,14 @@ import {
   getProductById,
   getProductBySlug,
   getProducts,
+  getDetailedCouponIssuesForUser,
   getUserById,
   getUserOrders,
+  getUserSavedAddresses,
   rejectVerification,
   searchOrders,
   searchVerifications,
+  setUserProfessionalStatus,
   updateOrderStatus,
   updateProduct,
   createProduct,
@@ -99,7 +104,9 @@ import {
   getReviewById,
   createReview,
   updateReview,
+  updateSavedAddress,
   deleteReview,
+  deleteSavedAddress,
   // Certified Instructors
   getCertifiedInstructors,
   getCertifiedInstructorById,
@@ -143,6 +150,7 @@ import {
   updateExcelTemplate,
   deleteExcelTemplate,
 } from "./db";
+import { buildCheckoutQuote, getRecommendedProducts } from "./checkout";
 import { storagePut } from "./storage";
 import {
   getAdminGalleryPosts,
@@ -192,7 +200,7 @@ async function confirmTossPayment(paymentKey: string, orderId: string, amount: n
     const err = await response.json().catch(() => ({})) as { message?: string };
     throw new TRPCError({ code: "BAD_REQUEST", message: err.message ?? "토스페이먼츠 결제 승인 실패" });
   }
-  return response.json();
+  return response.json() as Promise<{ method?: string; totalAmount?: number }>;
 }
 
 async function cancelTossPayment(paymentKey: string, cancelReason: string) {
@@ -224,32 +232,7 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(async ({ ctx }) => {
-      // 1단계: 서버 측 Supabase 세션 무효화 (refresh token 블랙리스트 등록)
-      // access token으로 사용자 ID를 확인한 뒤 admin.signOut으로 서버 세션 종료
-      try {
-        const { parseCookiesFromHeader } = await import("./_core/cookieUtils");
-        const cookies = parseCookiesFromHeader(ctx.req.headers.cookie);
-        const accessToken = cookies["sb-access-token"];
-        if (accessToken) {
-          const { supabaseAdmin } = await import("./_core/supabase");
-          const { data } = await supabaseAdmin.auth.getUser(accessToken);
-          if (data.user) {
-            // admin.signOut: 해당 사용자의 모든 서버 세션 무효화 (scope: local)
-            await supabaseAdmin.auth.admin.signOut(data.user.id, "local");
-          }
-        }
-      } catch (e) {
-        // Supabase 서버 세션 무효화 실패는 non-fatal — 쿠키 삭제는 계속 진행
-        console.warn("[Auth] Server-side Supabase signOut error (non-fatal):", e);
-      }
-
-      // 2단계: 서버 쿠키 삭제
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
-      const isProduction = process.env.NODE_ENV === "production";
-      const sbClearOptions = { httpOnly: true, secure: isProduction, sameSite: "lax" as const, path: "/" };
-      ctx.res.clearCookie("sb-access-token", sbClearOptions);
-      ctx.res.clearCookie("sb-refresh-token", sbClearOptions);
+      await signOutAuthSession(ctx.req, ctx.res);
       return { success: true } as const;
     }),
 
@@ -297,7 +280,7 @@ export const appRouter = router({
           .limit(1);
         if (!result.length || !result[0].email) throw new TRPCError({ code: "NOT_FOUND", message: "일치하는 계정을 찾을 수 없습니다." });
         const email = result[0].email;
-        const masked = email.replace(/(?<=.{2}).(?=[^@]*@)/, "*");
+        const masked = email.replace(/(?<=.{2}).(?=[^@]*@)/g, "*");
         return { maskedEmail: masked };
       }),
 
@@ -310,7 +293,7 @@ export const appRouter = router({
         const supabaseUrl = process.env.SUPABASE_URL ?? "";
         const supabaseAnonKey = process.env.SUPABASE_ANON_KEY ?? "";
         const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-        const redirectTo = input.origin ? `${input.origin}/find-password` : undefined;
+        const redirectTo = input.origin ? `${input.origin}/find-password?mode=reset` : undefined;
         const { error } = await supabaseClient.auth.resetPasswordForEmail(input.email, {
           redirectTo,
         });
@@ -322,18 +305,28 @@ export const appRouter = router({
       }),
 
     // ─── 비밀번호 재설정 실행 ─────────────────────────────────────────────────
-    // Supabase Auth 방식: 이메일 링크 클릭 후 access_token을 받아 updateUser 호출
-    // 프론트엔드에서 직접 supabase.auth.updateUser({ password }) 호출
+    // recovery access_token 또는 현재 인증 세션으로 비밀번호를 변경한다.
     resetPassword: publicProcedure
-      .input(z.object({ token: z.string(), newPassword: z.string().min(8) }))
-      .mutation(async ({ input }) => {
-        // access_token(=token)으로 Supabase Admin을 통해 비밀번호 변경
-        const { supabaseAdmin } = await import("./_core/supabase");
-        const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(input.token);
-        if (userError || !userData.user) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "유효하지 않거나 만료된 링크입니다." });
+      .input(z.object({ token: z.string().optional(), newPassword: z.string().min(8) }))
+      .mutation(async ({ ctx, input }) => {
+        let userId = ctx.user?.id ?? null;
+
+        // recovery 링크에서 받은 access token으로 사용자 식별
+        if (!userId && input.token) {
+          const { supabaseAdmin } = await import("./_core/supabase");
+          const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(input.token);
+          if (userError || !userData.user) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "유효하지 않거나 만료된 링크입니다." });
+          }
+          userId = userData.user.id;
         }
-        const { error } = await supabaseAdmin.auth.admin.updateUserById(userData.user.id, {
+
+        if (!userId) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "비밀번호를 재설정할 수 있는 세션이 없습니다." });
+        }
+
+        const { supabaseAdmin } = await import("./_core/supabase");
+        const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
           password: input.newPassword,
         });
         if (error) {
@@ -353,6 +346,52 @@ export const appRouter = router({
       .input(z.object({ name: z.string().min(1).max(50).optional(), phone: z.string().max(30).optional() }))
       .mutation(async ({ ctx, input }) => {
         await updateUserProfile(ctx.user.id, input);
+        return { success: true };
+      }),
+    addresses: protectedProcedure.query(async ({ ctx }) => {
+      return getUserSavedAddresses(ctx.user.id);
+    }),
+    saveAddress: protectedProcedure
+      .input(z.object({
+        id: z.number().optional(),
+        label: z.string().min(1).max(100),
+        recipientName: z.string().min(1).max(100),
+        recipientPhone: z.string().min(1).max(30),
+        shippingZipCode: z.string().min(1).max(10),
+        shippingAddress: z.string().min(1),
+        shippingAddressDetail: z.string().optional(),
+        isDefault: z.boolean().default(false),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (input.id) {
+          const row = await updateSavedAddress(input.id, ctx.user.id, {
+            label: input.label,
+            recipientName: input.recipientName,
+            recipientPhone: input.recipientPhone,
+            shippingZipCode: input.shippingZipCode,
+            shippingAddress: input.shippingAddress,
+            shippingAddressDetail: input.shippingAddressDetail ?? null,
+            isDefault: input.isDefault,
+          });
+          return { success: true, address: row };
+        }
+
+        const row = await createSavedAddress({
+          userId: ctx.user.id,
+          label: input.label,
+          recipientName: input.recipientName,
+          recipientPhone: input.recipientPhone,
+          shippingZipCode: input.shippingZipCode,
+          shippingAddress: input.shippingAddress,
+          shippingAddressDetail: input.shippingAddressDetail ?? null,
+          isDefault: input.isDefault,
+        });
+        return { success: true, address: row };
+      }),
+    deleteAddress: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteSavedAddress(input.id, ctx.user.id);
         return { success: true };
       }),
   }),
@@ -393,9 +432,15 @@ export const appRouter = router({
   // ─── Public Reviews ────────────────────────────────────────────────────────
   review: router({
     list: publicProcedure
-      .input(z.object({ category: z.string().optional(), page: z.number().default(1), limit: z.number().default(100) }).optional())
+      .input(z.object({ category: z.string().optional(), productId: z.string().optional(), page: z.number().default(1), limit: z.number().default(100) }).optional())
       .query(async ({ input }) => {
-        return getReviews({ category: input?.category, publishedOnly: true, page: input?.page ?? 1, limit: input?.limit ?? 100 });
+        return getReviews({
+          category: input?.category,
+          productId: input?.productId,
+          publishedOnly: true,
+          page: input?.page ?? 1,
+          limit: input?.limit ?? 100,
+        });
       }),
     byId: publicProcedure
       .input(z.object({ id: z.number() }))
@@ -439,9 +484,20 @@ export const appRouter = router({
       .input(z.object({ slug: z.string() }))
       .query(async ({ input }) => {
         const product = await getProductBySlug(input.slug);
-        if (!product) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!product || !product.isActive || !product.visible) throw new TRPCError({ code: "NOT_FOUND" });
         return product;
       }),
+    recommended: publicProcedure
+      .input(z.object({ productId: z.string(), limit: z.number().min(1).max(8).default(4) }))
+      .query(async ({ input }) => {
+        return getRecommendedProducts(input.productId, input.limit);
+      }),
+  }),
+
+  promotion: router({
+    myCoupons: protectedProcedure.query(async ({ ctx }) => {
+      return getDetailedCouponIssuesForUser(ctx.user.id);
+    }),
   }),
 
   verification: router({
@@ -615,7 +671,31 @@ export const appRouter = router({
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         // 입금확인 알림톡: created → paid 전환 시 발송
         const prevOrder = await getOrderByOrderId(input.orderId);
-        await updateOrderStatus(input.orderId, { status: input.status });
+        if (!prevOrder) throw new TRPCError({ code: "NOT_FOUND", message: "주문을 찾을 수 없습니다." });
+
+        const allowedTransitions: Record<typeof prevOrder.status, Array<typeof prevOrder.status>> = {
+          created: ["paid", "failed", "cancelled"],
+          paid: ["cancelled"],
+          failed: [],
+          cancelled: [],
+        };
+
+        if (!allowedTransitions[prevOrder.status].includes(input.status)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "허용되지 않는 주문 상태 변경입니다." });
+        }
+
+        const updated = await updateOrderStatus(
+          input.orderId,
+          {
+            status: input.status,
+            paidAt: input.status === "paid" ? new Date() : undefined,
+          },
+          { from: prevOrder.status }
+        );
+        if (!updated) {
+          throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해주세요." });
+        }
+
         if (prevOrder && prevOrder.status === "created" && input.status === "paid") {
           try {
             const { sendBankTransferConfirmAlimtalk } = await import("./_core/kakao.js");
@@ -707,7 +787,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: "UPDATE_PRODUCT",
           targetType: "product",
-          targetId: "0",
+          targetId: id,
           before: JSON.stringify(before),
           after: JSON.stringify(after),
         });
@@ -763,7 +843,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: 'CREATE_PRODUCT',
           targetType: 'product',
-          targetId: "0",
+          targetId: product.id,
           before: null,
           after: JSON.stringify(product),
         });
@@ -780,7 +860,7 @@ export const appRouter = router({
           adminUserId: ctx.user.id,
           actionType: 'DELETE_PRODUCT',
           targetType: 'product',
-          targetId: "0",
+          targetId: input.id,
           before: JSON.stringify(before),
           after: null,
         });
@@ -906,8 +986,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         await updateUserRole(input.userId, "user"); // keep system role as user
-        // Update memberRole and proVerificationStatus directly
-        const db = await import("./db");
+        await setUserProfessionalStatus(input.userId);
         await createAuditLog({
           adminUserId: ctx.user.id,
           actionType: "MANUAL_SET_PROFESSIONAL",
@@ -1019,16 +1098,22 @@ export const appRouter = router({
 
     // ─── Reviews ────────────────────────────────────────────────────────────
     reviewList: protectedProcedure
-      .input(z.object({ category: z.string().optional(), page: z.number().default(1), limit: z.number().default(100) }).optional())
+      .input(z.object({ category: z.string().optional(), productId: z.string().optional(), page: z.number().default(1), limit: z.number().default(100) }).optional())
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        return getReviews({ category: input?.category, page: input?.page ?? 1, limit: input?.limit ?? 100 });
+        return getReviews({
+          category: input?.category,
+          productId: input?.productId,
+          page: input?.page ?? 1,
+          limit: input?.limit ?? 100,
+        });
       }),
 
     createReview: protectedProcedure
       .input(z.object({
         category: z.enum(["before_after", "device", "education", "event", "etc"]).default("etc"),
         categoryLabel: z.string().optional(),
+        productId: z.string().optional(),
         imageUrl: z.string(),
         imageKey: z.string().optional(),
         title: z.string().optional(),
@@ -1411,9 +1496,23 @@ export const appRouter = router({
   }),
 
   order: router({
+    quote: protectedProcedure
+      .input(z.object({
+        items: z.array(z.object({ productId: z.string(), quantity: z.number().min(1) })).min(1),
+        couponIssueId: z.number().optional(),
+        discountCode: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        return buildCheckoutQuote(ctx.user.id, input.items, {
+          couponIssueId: input.couponIssueId,
+          discountCode: input.discountCode,
+        });
+      }),
     create: protectedProcedure
       .input(z.object({
-        items: z.array(z.object({ productId: z.string(), quantity: z.number().min(1) })),
+        items: z.array(z.object({ productId: z.string(), quantity: z.number().min(1) })).min(1, "주문 상품이 비어 있습니다."),
+        couponIssueId: z.number().optional(),
+        discountCode: z.string().optional(),
         recipientName: z.string().min(1, "수령인 이름을 입력해주세요."),
         recipientPhone: z.string().min(1, "연락처를 입력해주세요."),
         shippingZipCode: z.string().min(1, "우편번호를 입력해주세요."),
@@ -1424,29 +1523,31 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const user = await getUserById(ctx.user.id);
         if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+        const quote = await buildCheckoutQuote(ctx.user.id, input.items, {
+          couponIssueId: input.couponIssueId,
+          discountCode: input.discountCode,
+        });
 
-        const isPro = user.memberRole === "professional" && user.proVerificationStatus === "approved";
-
-        const resolvedItems = await Promise.all(
-          input.items.map(async (item) => {
-            const product = await getProductById(item.productId);
-            if (!product?.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "제품을 찾을 수 없습니다." });
-            if (product.isProOnly && !isPro) throw new TRPCError({ code: "FORBIDDEN", message: "전문가 인증 완료 후 구매할 수 있는 상품입니다." });
-            const unitPrice = isPro ? Number(product.pricePro) : Number(product.priceConsumer);
-            return { productId: product.id, productName: product.name, quantity: item.quantity, unitPrice, subtotal: unitPrice * item.quantity };
-          })
-        );
-
-        const totalAmount = resolvedItems.reduce((sum, i) => sum + i.subtotal, 0);
         const orderId = `REAGE-${nanoid(12)}`;
-        const orderName = resolvedItems.length === 1 ? resolvedItems[0].productName : `${resolvedItems[0].productName} 외 ${resolvedItems.length - 1}건`;
+        const orderName = quote.items.length === 1
+          ? quote.items[0].product.name
+          : `${quote.items[0].product.name} 외 ${quote.items.length - 1}건`;
 
         const order = await createOrder(
           {
-            orderId, userId: user.id, userRoleSnapshot: isPro ? "professional" : "consumer",
-            proStatusSnapshot: user.proVerificationStatus, totalAmount: String(totalAmount),
-            finalAmount: String(totalAmount),
-            status: "created", orderName,
+            orderId,
+            userId: user.id,
+            userRoleSnapshot: quote.tier,
+            proStatusSnapshot: user.proVerificationStatus,
+            totalAmount: String(quote.subtotal),
+            discountAmount: String(quote.discountAmount),
+            shippingAmount: String(quote.shippingAmount),
+            finalAmount: String(quote.finalAmount),
+            status: "created",
+            orderName,
+            promotionLabel: quote.promotionLabel,
+            couponIssueId: quote.couponIssueId,
+            discountCodeId: quote.discountCodeId,
             recipientName: input.recipientName,
             recipientPhone: input.recipientPhone,
             shippingZipCode: input.shippingZipCode,
@@ -1454,10 +1555,25 @@ export const appRouter = router({
             shippingAddressDetail: input.shippingAddressDetail,
             shippingMemo: input.shippingMemo,
           },
-          resolvedItems.map((i) => ({ ...i, orderId: 0, unitPrice: String(i.unitPrice), subtotal: String(i.subtotal) }))
+          quote.items.map((item) => ({
+            orderId: 0,
+            productId: item.product.id,
+            productName: item.product.name,
+            quantity: item.quantity,
+            unitPrice: String(item.unitPrice),
+            subtotal: String(item.subtotal),
+          }))
         );
 
-        return { orderId: order.orderId, totalAmount, orderName };
+        return {
+          orderId: order.orderId,
+          totalAmount: quote.subtotal,
+          discountAmount: quote.discountAmount,
+          shippingAmount: quote.shippingAmount,
+          finalAmount: quote.finalAmount,
+          orderName,
+          promotionLabel: quote.promotionLabel,
+        };
       }),
 
     verify: protectedProcedure
@@ -1466,11 +1582,62 @@ export const appRouter = router({
         const order = await getOrderByOrderId(input.orderId);
         if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "주문을 찾을 수 없습니다." });
         if (order.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
-        if (order.status === "paid") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 결제 완료된 주문입니다." });
-        if (Number(order.totalAmount) !== input.amount) throw new TRPCError({ code: "BAD_REQUEST", message: "결제 금액이 일치하지 않습니다." });
+        if (order.status === "paid") return { success: true };
+        if (order.status !== "created") throw new TRPCError({ code: "BAD_REQUEST", message: "결제를 진행할 수 없는 주문 상태입니다." });
+        if (Number(order.finalAmount) !== input.amount) throw new TRPCError({ code: "BAD_REQUEST", message: "결제 금액이 일치하지 않습니다." });
 
-        await confirmTossPayment(input.paymentKey, input.orderId, input.amount);
-        await updateOrderStatus(input.orderId, { status: "paid", paymentKey: input.paymentKey, paidAt: new Date() });
+        const payment = await confirmTossPayment(input.paymentKey, input.orderId, input.amount);
+        try {
+          const finalized = await finalizePaidOrder(input.orderId, input.paymentKey, new Date(), payment.method ?? "카드");
+          if (!finalized.updated) {
+            const latestOrder = await getOrderByOrderId(input.orderId);
+            if (latestOrder?.status === "paid") {
+              return { success: true };
+            }
+            throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 결제 내역을 확인해주세요." });
+          }
+        } catch (error) {
+          if (error instanceof Error && error.message.startsWith("[Stock]")) {
+            const cancelReason = "재고 부족으로 자동 취소";
+            let tossCancelFailed = false;
+            try {
+              await cancelTossPayment(input.paymentKey, cancelReason);
+            } catch (cancelError) {
+              tossCancelFailed = true;
+              console.error("[Payment] 재고 부족 자동 취소 실패:", cancelError);
+              const failedOrder = await getOrderByOrderId(input.orderId);
+              if (failedOrder) {
+                await createCardCancellation({
+                  orderId: failedOrder.id,
+                  paymentKey: input.paymentKey,
+                  cancelAmount: String(failedOrder.finalAmount ?? failedOrder.totalAmount ?? 0),
+                  cancelType: "full",
+                  processedBy: "system",
+                  adminNote: `Toss 자동 취소 실패 - 수동 처리 필요. 사유: ${cancelError instanceof Error ? cancelError.message : String(cancelError)}`,
+                });
+              }
+            }
+
+            await cancelOrderWithHistory({
+              orderId: input.orderId,
+              from: "created",
+              requestedBy: "admin",
+              reason: cancelReason,
+              adminNote: tossCancelFailed ? `${error.message} (Toss 취소 실패 - 수동 환불 필요)` : error.message,
+              processedBy: "system",
+              paymentKey: input.paymentKey,
+            });
+
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: tossCancelFailed
+                ? "결제 직후 재고 부족이 확인되었으나 카드 취소 처리에 실패했습니다. 관리자가 수동으로 취소를 처리할 예정입니다."
+                : "결제 직후 재고 부족이 확인되어 자동 취소되었습니다. 카드사 반영까지 시간이 걸릴 수 있습니다.",
+            });
+          }
+
+          throw error;
+        }
 
         // 주문 완료 알림톡 발송 (비동기, 실패해도 결제 처리에 영향 없음)
         const updatedOrder = await getOrderByOrderId(input.orderId);
@@ -1484,7 +1651,7 @@ export const appRouter = router({
               orderId: updatedOrder.id,
               orderNumber: input.orderId,
               productName: updatedOrder.orderName ?? "",
-              totalAmount: Number(updatedOrder.totalAmount),
+              totalAmount: Number(updatedOrder.finalAmount ?? updatedOrder.totalAmount),
               orderDate,
             }).catch((e: unknown) => console.warn("[Alimtalk] 고객 알림톡 발송 실패:", e));
           }
@@ -1492,7 +1659,7 @@ export const appRouter = router({
           sendAdminNewOrderAlimtalk({
             orderNumber: input.orderId,
             productName: updatedOrder.orderName ?? "",
-            totalAmount: Number(updatedOrder.totalAmount),
+            totalAmount: Number(updatedOrder.finalAmount ?? updatedOrder.totalAmount),
             recipientName: updatedOrder.recipientName ?? ctx.user.name ?? "고객",
           }).catch((e: unknown) => console.warn("[Alimtalk] 관리자 알림 발송 실패:", e));
         }
@@ -1506,7 +1673,9 @@ export const appRouter = router({
         const order = await getOrderByOrderId(input.orderId);
         if (!order) throw new TRPCError({ code: "NOT_FOUND" });
         if (order.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
-        if (order.status !== "paid") await updateOrderStatus(input.orderId, { status: "failed" });
+        if (order.status === "created") {
+          await updateOrderStatus(input.orderId, { status: "failed" }, { from: "created" });
+        }
         return { success: true };
       }),
 
@@ -1517,11 +1686,27 @@ export const appRouter = router({
         const order = await getOrderByOrderId(input.orderId);
         if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "주문을 찾을 수 없습니다." });
         if (order.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "이미 취소된 주문입니다." });
+        if (!["created", "paid"].includes(order.status)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "현재 주문 상태에서는 취소할 수 없습니다." });
+        }
+        const cancellableStatus = order.status === "paid" ? "paid" : "created";
         // 결제완료 상태이면 토스 취소 API 호출
-        if (order.status === "paid" && order.paymentKey) {
+        if (cancellableStatus === "paid" && order.paymentKey) {
           await cancelTossPayment(order.paymentKey, input.cancelReason);
         }
-        await updateOrderStatus(input.orderId, { status: "cancelled" });
+        const cancelled = await cancelOrderWithHistory({
+          orderId: input.orderId,
+          from: cancellableStatus,
+          requestedBy: "admin",
+          reason: input.cancelReason,
+          adminNote: input.cancelReason,
+          processedBy: ctx.user.id,
+          paymentKey: order.paymentKey,
+          restoreInventory: cancellableStatus === "paid",
+        });
+        if (!cancelled.updated) {
+          throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해주세요." });
+        }
         // 취소 알림톡 발송 (비동기)
         if (order.recipientPhone) {
           sendOrderCancelledAlimtalk({
@@ -1552,7 +1737,17 @@ export const appRouter = router({
         if (order.paymentKey) {
           await cancelTossPayment(order.paymentKey, input.cancelReason);
         }
-        await updateOrderStatus(input.orderId, { status: "cancelled" });
+        const cancelled = await cancelOrderWithHistory({
+          orderId: input.orderId,
+          from: "paid",
+          requestedBy: "buyer",
+          reason: input.cancelReason,
+          paymentKey: order.paymentKey,
+          restoreInventory: true,
+        });
+        if (!cancelled.updated) {
+          throw new TRPCError({ code: "CONFLICT", message: "주문 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해주세요." });
+        }
         // 취소 알림톡 발송 (비동기)
         if (order.recipientPhone) {
           sendOrderCancelledAlimtalk({
@@ -2164,4 +2359,3 @@ export type AppRouter = typeof appRouter;
 
 // ─── Gallery Router ────────────────────────────────────────────────────────────
 // (exported separately for type inference)
-

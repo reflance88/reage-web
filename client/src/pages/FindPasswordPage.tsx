@@ -1,20 +1,105 @@
-import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { useEffect, useState } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
-export default function FindPasswordPage() {
-  const [location] = useLocation();
-  const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
-  const tokenFromUrl = params.get("token") || "";
+const RESET_TOKEN_STORAGE_KEY = "reage-password-reset-token";
 
-  const [step, setStep] = useState<"request" | "reset">(tokenFromUrl ? "reset" : "request");
+function getBrowserUrl() {
+  if (typeof window === "undefined") return null;
+  return new URL(window.location.href);
+}
+
+function getRecoveryState(): { token: string; mode: "request" | "reset"; error: string } {
+  const url = getBrowserUrl();
+  if (!url) {
+    return { token: "", mode: "request" as const, error: "" };
+  }
+
+  const hashParams = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+  const searchParams = url.searchParams;
+  const recoveryType = hashParams.get("type") ?? searchParams.get("type");
+  const token =
+    hashParams.get("access_token") ??
+    searchParams.get("access_token") ??
+    searchParams.get("token") ??
+    sessionStorage.getItem(RESET_TOKEN_STORAGE_KEY) ??
+    "";
+  const mode: "request" | "reset" =
+    searchParams.get("mode") === "reset" || Boolean(token) ? "reset" : "request";
+  const error =
+    hashParams.get("error_description") ??
+    searchParams.get("error_description") ??
+    "";
+
+  return {
+    token: recoveryType === "recovery" || searchParams.has("token") || mode === "reset" ? token : "",
+    mode: token ? "reset" : "request",
+    error,
+  };
+}
+
+export default function FindPasswordPage() {
+  const initialRecoveryState = getRecoveryState();
+  const [step, setStep] = useState<"request" | "reset">(initialRecoveryState.mode);
   const [email, setEmail] = useState("");
-  const [token, setToken] = useState(tokenFromUrl);
+  const [token, setToken] = useState(initialRecoveryState.token);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [linkError, setLinkError] = useState(initialRecoveryState.error);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const url = new URL(window.location.href);
+    const hashParams = new URLSearchParams(url.hash.startsWith("#") ? url.hash.slice(1) : url.hash);
+    const searchParams = url.searchParams;
+    const recoveryType = hashParams.get("type") ?? searchParams.get("type");
+    const accessToken =
+      hashParams.get("access_token") ??
+      searchParams.get("access_token") ??
+      searchParams.get("token");
+    const errorDescription =
+      hashParams.get("error_description") ??
+      searchParams.get("error_description");
+
+    if (errorDescription) {
+      sessionStorage.removeItem(RESET_TOKEN_STORAGE_KEY);
+      setToken("");
+      setStep("request");
+      setLinkError(errorDescription);
+      return;
+    }
+
+    if (accessToken && (recoveryType === "recovery" || searchParams.has("token"))) {
+      sessionStorage.setItem(RESET_TOKEN_STORAGE_KEY, accessToken);
+      setToken(accessToken);
+      setStep("reset");
+      setLinkError("");
+
+      url.hash = "";
+      url.searchParams.delete("access_token");
+      url.searchParams.delete("refresh_token");
+      url.searchParams.delete("expires_at");
+      url.searchParams.delete("expires_in");
+      url.searchParams.delete("token");
+      url.searchParams.delete("type");
+      url.searchParams.delete("error");
+      url.searchParams.delete("error_code");
+      url.searchParams.delete("error_description");
+      url.searchParams.set("mode", "reset");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+      return;
+    }
+
+    const storedToken = sessionStorage.getItem(RESET_TOKEN_STORAGE_KEY) ?? "";
+    if (storedToken) {
+      setToken(storedToken);
+      setStep("reset");
+    }
+  }, []);
 
   const requestMutation = trpc.auth.requestPasswordReset.useMutation({
     onSuccess: (_data) => {
@@ -31,10 +116,17 @@ export default function FindPasswordPage() {
 
   const resetMutation = trpc.auth.resetPassword.useMutation({
     onSuccess: () => {
+      sessionStorage.removeItem(RESET_TOKEN_STORAGE_KEY);
       toast.success("비밀번호가 변경되었습니다. 다시 로그인해주세요.");
       setTimeout(() => { window.location.href = "/login"; }, 1500);
     },
     onError: (err: { message?: string }) => {
+      if (err.message?.includes("유효하지 않거나 만료된 링크")) {
+        sessionStorage.removeItem(RESET_TOKEN_STORAGE_KEY);
+        setToken("");
+        setStep("request");
+        setLinkError(err.message);
+      }
       toast.error(err.message || "비밀번호 변경에 실패했습니다.");
       setLoading(false);
     },
@@ -51,6 +143,10 @@ export default function FindPasswordPage() {
     e.preventDefault();
     if (!newPassword || newPassword.length < 8) { toast.error("비밀번호는 8자 이상이어야 합니다."); return; }
     if (newPassword !== confirmPassword) { toast.error("비밀번호가 일치하지 않습니다."); return; }
+    if (!token) {
+      toast.error("유효한 비밀번호 재설정 링크가 없습니다. 다시 요청해주세요.");
+      return;
+    }
     setLoading(true);
     resetMutation.mutate({ token, newPassword });
   };
@@ -85,6 +181,16 @@ export default function FindPasswordPage() {
             <p style={{ fontSize: "13.5px", color: "#6B6B6B", marginBottom: "28px" }}>
               가입한 이메일 주소로 비밀번호 재설정 링크를 보내드립니다.
             </p>
+            {linkError && (
+              <div style={{
+                background: "#FEF2F2", border: "1px solid #FECACA",
+                borderRadius: "12px", padding: "14px 16px", marginBottom: "16px"
+              }}>
+                <p style={{ fontSize: "13px", color: "#991B1B", margin: 0, lineHeight: "1.5" }}>
+                  링크가 유효하지 않거나 이미 사용되었습니다. 다시 비밀번호 재설정을 요청해주세요.
+                </p>
+              </div>
+            )}
             {sent ? (
               <div style={{
                 background: "#F0FDF4", border: "1px solid #86EFAC",

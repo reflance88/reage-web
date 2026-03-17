@@ -172,7 +172,17 @@ export const sbReviewRouter = router({
     .input(
       z.object({
         id: z.string(),
-        data: z.record(z.string(), z.unknown()),
+        data: z.object({
+          category: z.enum(["experience", "education", "product", "general"]).optional(),
+          author_name: z.string().optional(),
+          author_region: z.string().optional(),
+          rating: z.number().min(1).max(5).optional(),
+          title: z.string().optional(),
+          content: z.string().optional(),
+          image_urls: z.array(z.string()).optional(),
+          is_featured: z.boolean().optional(),
+          is_published: z.boolean().optional(),
+        }),
       })
     )
     .mutation(async ({ ctx, input }) => {

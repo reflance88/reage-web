@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { signInWithSocialProvider, type SocialProvider } from "@/lib/supabase-browser";
 
 export default function LoginPage() {
-  const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,22 +36,20 @@ export default function LoginPage() {
     }
   };
 
-  // 소셜 로그인: 프론트 Supabase client로 PKCE 표준 흐름 처리
-  const handleSocialLogin = async (provider: "google" | "kakao") => {
-    const params = new URLSearchParams(window.location.search);
-    const returnTo = params.get("returnTo") || "/index-main.html";
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        // PKCE code_verifier는 Supabase client가 localStorage에 자동 저장
-        redirectTo: `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
-      },
-    });
-    if (error) {
-      toast.error("소셜 로그인 초기화에 실패했습니다.");
-      console.error("[OAuth] signInWithOAuth error:", error);
+  const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/index-main.html";
+
+  const handleSocialLogin = async (provider: SocialProvider) => {
+    setSocialLoading(provider);
+    try {
+      await signInWithSocialProvider(provider, returnTo);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "소셜 로그인을 시작하지 못했습니다.");
+      setSocialLoading(null);
     }
-    // 성공 시 Supabase가 자동으로 provider 로그인 페이지로 리다이렉트
+  };
+
+  const handleUnavailableSocialLogin = () => {
+    toast.error("네이버 로그인은 Supabase 기본 provider를 지원하지 않아 별도 OAuth 구현이 필요합니다.");
   };
 
   return (
@@ -82,10 +80,11 @@ export default function LoginPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
           <button
             onClick={() => handleSocialLogin("kakao")}
+            disabled={Boolean(socialLoading)}
             style={{
               width: "100%", padding: "13px", borderRadius: "10px", border: "none",
               background: "#FEE500", color: "#191919", fontSize: "14px", fontWeight: 600,
-              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+              cursor: socialLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
               transition: "opacity .2s"
             }}
             onMouseOver={e => (e.currentTarget.style.opacity = "0.88")}
@@ -94,15 +93,32 @@ export default function LoginPage() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#191919">
               <path d="M12 3C6.477 3 2 6.477 2 10.8c0 2.7 1.6 5.1 4 6.6l-.9 3.3 3.8-2.5c.97.2 1.98.3 3.1.3 5.523 0 10-3.477 10-7.7C22 6.477 17.523 3 12 3z"/>
             </svg>
-            카카오로 1초 로그인
+            {socialLoading === "kakao" ? "카카오 로그인으로 이동 중..." : "카카오로 1초 로그인"}
+          </button>
+
+          <button
+            onClick={handleUnavailableSocialLogin}
+            disabled={Boolean(socialLoading)}
+            style={{
+              width: "100%", padding: "13px", borderRadius: "10px", border: "none",
+              background: "#03C75A", color: "#fff", fontSize: "14px", fontWeight: 600,
+              cursor: socialLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+              transition: "opacity .2s"
+            }}
+            onMouseOver={e => (e.currentTarget.style.opacity = "0.88")}
+            onMouseOut={e => (e.currentTarget.style.opacity = "1")}
+          >
+            <span style={{ fontSize: "16px", fontWeight: 900, fontFamily: "sans-serif" }}>N</span>
+            네이버는 별도 연동 필요
           </button>
 
           <button
             onClick={() => handleSocialLogin("google")}
+            disabled={Boolean(socialLoading)}
             style={{
               width: "100%", padding: "13px", borderRadius: "10px", border: "1.5px solid #E8E6E3",
               background: "#fff", color: "#1A1412", fontSize: "14px", fontWeight: 600,
-              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+              cursor: socialLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
               transition: "background .2s"
             }}
             onMouseOver={e => (e.currentTarget.style.background = "#F7F5F2")}
@@ -114,7 +130,7 @@ export default function LoginPage() {
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-            구글로 1초 로그인
+            {socialLoading === "google" ? "구글 로그인으로 이동 중..." : "구글로 1초 로그인"}
           </button>
         </div>
 

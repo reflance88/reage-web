@@ -19,9 +19,34 @@
  */
 
 import type { Express, Request, Response } from "express";
+import crypto from "crypto";
 import { getDb } from "../db";
 import { orders, thirdPartyLogs } from "../../drizzle/schema-pg";
 import { eq } from "drizzle-orm";
+
+const TPL_WEBHOOK_SECRET = process.env.TPL_WEBHOOK_SECRET;
+let didWarnNoSecret = false;
+
+function verifyWebhookSignature(req: Request, res: Response): boolean {
+  if (!TPL_WEBHOOK_SECRET) {
+    if (!didWarnNoSecret) {
+      didWarnNoSecret = true;
+      console.warn("[3PL Webhook] TPL_WEBHOOK_SECRET not set — skipping signature verification");
+    }
+    return true;
+  }
+  const signature = req.headers["x-webhook-signature"] as string | undefined;
+  if (!signature) {
+    res.status(401).json({ error: "Missing webhook signature" });
+    return false;
+  }
+  const expected = crypto.createHmac("sha256", TPL_WEBHOOK_SECRET).update(JSON.stringify(req.body)).digest("hex");
+  if (signature !== expected) {
+    res.status(401).json({ error: "Invalid webhook signature" });
+    return false;
+  }
+  return true;
+}
 
 interface ThreePLShippingEvent {
   event: "order_collected" | "shipping_started" | "delivered" | "delivery_failed";
@@ -58,6 +83,8 @@ export function register3PLWebhookRoutes(app: Express) {
    */
   app.post("/api/webhooks/3pl/shipping-update", async (req: Request, res: Response) => {
     try {
+      if (!verifyWebhookSignature(req, res)) return;
+
       const payload = req.body as ThreePLShippingEvent;
 
       // 기본 유효성 검사
@@ -145,6 +172,8 @@ export function register3PLWebhookRoutes(app: Express) {
    */
   app.post("/api/webhooks/3pl/order-collected", async (req: Request, res: Response) => {
     try {
+      if (!verifyWebhookSignature(req, res)) return;
+
       const { orderId, externalOrderId, provider } = req.body as {
         orderId: string;
         externalOrderId?: string;

@@ -12,11 +12,13 @@ const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"));
 const PaymentFailPage = lazy(() => import("./pages/PaymentFailPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const SignupPage = lazy(() => import("./pages/SignupPage"));
+const SignupConfirmPage = lazy(() => import("./pages/SignupConfirmPage"));
 const FindIdPage = lazy(() => import("./pages/FindIdPage"));
 const FindPasswordPage = lazy(() => import("./pages/FindPasswordPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ProductPage = lazy(() => import("./pages/ProductPage"));
-const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const ShopPage = lazy(() => import("./pages/ShopPage"));
+const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
 
 function Home() {
   window.location.replace("/index-main.html");
@@ -38,6 +40,8 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/login" component={LoginPage} />
         <Route path="/signup" component={SignupPage} />
+        <Route path="/signup/confirm" component={SignupConfirmPage} />
+        <Route path="/auth/callback" component={AuthCallbackPage} />
         <Route path="/find-id" component={FindIdPage} />
         <Route path="/find-password" component={FindPasswordPage} />
         <Route path="/mypage" component={MyPage} />
@@ -46,8 +50,8 @@ function Router() {
         <Route path="/payment/success" component={PaymentSuccessPage} />
         <Route path="/payment/fail" component={PaymentFailPage} />
         <Route path="/admin" component={AdminPage} />
+        <Route path="/shop" component={ShopPage} />
         <Route path="/product/:slug" component={ProductPage} />
-        <Route path="/auth/callback" component={AuthCallback} />
       </Switch>
     </Suspense>
   );

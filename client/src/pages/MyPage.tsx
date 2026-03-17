@@ -1,13 +1,53 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
+import { saveCart } from "@/lib/cart";
+import { trpc } from "@/lib/trpc";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 type Tab = "info" | "orders" | "verification";
 
-function formatPrice(n: number | string) {
-  return Number(n).toLocaleString("ko-KR") + "원";
+type AddressForm = {
+  id?: number;
+  label: string;
+  recipientName: string;
+  recipientPhone: string;
+  shippingZipCode: string;
+  shippingAddress: string;
+  shippingAddressDetail: string;
+  isDefault: boolean;
+};
+
+type CouponRow = {
+  issue: {
+    id: number;
+    isUsed: boolean;
+    createdAt: string | Date;
+  };
+  coupon: {
+    name: string;
+    benefitType: string;
+    benefitValue: number;
+    status: string;
+  };
+};
+
+function formatPrice(value: number | string | null | undefined) {
+  return `${Number(value ?? 0).toLocaleString("ko-KR")}원`;
+}
+
+function roleLabel(memberRole?: string | null, verificationStatus?: string | null) {
+  if (memberRole === "membership") return "멤버십 회원";
+  if (memberRole === "professional" && verificationStatus === "approved") return "전문가 회원";
+  return "일반 회원";
+}
+
+function couponLabel(coupon: CouponRow["coupon"]) {
+  if (coupon.benefitType === "discount_amount") return `${coupon.benefitValue.toLocaleString("ko-KR")}원 할인`;
+  if (coupon.benefitType === "discount_rate") return `${coupon.benefitValue}% 할인`;
+  if (coupon.benefitType === "free_basic_shipping" || coupon.benefitType === "free_all_shipping") return "배송비 무료";
+  return "혜택 적용";
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -17,35 +57,35 @@ function StatusBadge({ status }: { status: string }) {
     approved: { label: "승인완료", color: "bg-green-100 text-green-700" },
     rejected: { label: "반려", color: "bg-red-100 text-red-600" },
   };
-  const s = map[status] ?? map.none;
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.color}`}>{s.label}</span>;
+  const current = map[status] ?? map.none;
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${current.color}`}>{current.label}</span>;
 }
 
-function OrderStatusBadge({ status }: { status: string }) {
+function OrderStatusBadge({ status, shippingStatus }: { status: string; shippingStatus?: string | null }) {
   const map: Record<string, { label: string; color: string }> = {
-    pending: { label: "결제대기", color: "bg-gray-100 text-gray-600" },
+    created: { label: "결제대기", color: "bg-gray-100 text-gray-600" },
     paid: { label: "결제완료", color: "bg-green-100 text-green-700" },
-    preparing: { label: "배송준비중", color: "bg-blue-100 text-blue-700" },
+    ready: { label: "배송준비중", color: "bg-blue-100 text-blue-700" },
+    hold: { label: "배송보류", color: "bg-yellow-100 text-yellow-700" },
     shipping: { label: "배송중", color: "bg-indigo-100 text-indigo-700" },
     delivered: { label: "배송완료", color: "bg-purple-100 text-purple-700" },
     cancelled: { label: "취소완료", color: "bg-red-100 text-red-600" },
-    refunded: { label: "환불완료", color: "bg-orange-100 text-orange-700" },
+    failed: { label: "결제실패", color: "bg-red-100 text-red-700" },
   };
-  const s = map[status] ?? { label: status, color: "bg-gray-100 text-gray-600" };
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.color}`}>{s.label}</span>;
+  const key = status === "paid" && shippingStatus && shippingStatus !== "none" && shippingStatus !== "pending_payment"
+    ? shippingStatus
+    : status;
+  const current = map[key] ?? { label: key, color: "bg-gray-100 text-gray-600" };
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${current.color}`}>{current.label}</span>;
 }
 
-/** 결제 후 24시간 이내인지 확인 */
-function isCancellable(order: { status: string; paidAt?: Date | null }): boolean {
-  if (order.status !== "paid") return false;
-  if (!order.paidAt) return false;
-  const paidAt = new Date(order.paidAt);
-  const diffHours = (Date.now() - paidAt.getTime()) / (1000 * 60 * 60);
+function isCancellable(order: { status: string; paidAt?: Date | string | null }) {
+  if (order.status !== "paid" || !order.paidAt) return false;
+  const diffHours = (Date.now() - new Date(order.paidAt).getTime()) / (1000 * 60 * 60);
   return diffHours <= 24;
 }
 
-/** 취소 가능 시간 남은 시간 표시 */
-function remainingCancelTime(paidAt: Date | null | undefined): string {
+function remainingCancelTime(paidAt: Date | string | null | undefined) {
   if (!paidAt) return "";
   const diff = 24 * 60 * 60 * 1000 - (Date.now() - new Date(paidAt).getTime());
   if (diff <= 0) return "취소 기간 만료";
@@ -54,33 +94,71 @@ function remainingCancelTime(paidAt: Date | null | undefined): string {
   return `취소 가능 시간: ${hours}시간 ${minutes}분 남음`;
 }
 
+const emptyAddressForm: AddressForm = {
+  label: "",
+  recipientName: "",
+  recipientPhone: "",
+  shippingZipCode: "",
+  shippingAddress: "",
+  shippingAddressDetail: "",
+  isDefault: false,
+};
+
 export default function MyPage() {
   const { user: authUser, loading: authLoading, logout } = useAuth();
+  const [, navigate] = useLocation();
   const [tab, setTab] = useState<Tab>("info");
   const [cancelConfirmOrderId, setCancelConfirmOrderId] = useState<string | null>(null);
+  const [addressForm, setAddressForm] = useState<AddressForm>(emptyAddressForm);
 
   const { data: user, refetch: refetchUser } = trpc.user.me.useQuery(undefined, { enabled: !!authUser });
   const { data: verification, refetch: refetchVerification } = trpc.verification.get.useQuery(undefined, { enabled: !!authUser });
   const { data: orders, refetch: refetchOrders } = trpc.order.myOrders.useQuery(undefined, { enabled: !!authUser });
+  const addresses = trpc.user.addresses.useQuery(undefined, { enabled: !!authUser });
+  const coupons = trpc.promotion.myCoupons.useQuery(undefined, { enabled: !!authUser });
 
   const updateProfile = trpc.user.updateProfile.useMutation({
-    onSuccess: () => { toast.success("프로필이 저장되었습니다."); refetchUser(); },
-    onError: (e) => toast.error(e.message),
+    onSuccess: () => {
+      toast.success("프로필이 저장되었습니다.");
+      refetchUser();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const saveAddressMutation = trpc.user.saveAddress.useMutation({
+    onSuccess: () => {
+      toast.success(addressForm.id ? "배송지가 수정되었습니다." : "배송지가 저장되었습니다.");
+      setAddressForm(emptyAddressForm);
+      addresses.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const deleteAddressMutation = trpc.user.deleteAddress.useMutation({
+    onSuccess: () => {
+      toast.success("배송지가 삭제되었습니다.");
+      addresses.refetch();
+    },
+    onError: (error) => toast.error(error.message),
   });
 
   const submitVerification = trpc.verification.submit.useMutation({
-    onSuccess: () => { toast.success("사업자 인증 서류가 제출되었습니다. 심사 후 결과를 안내드립니다."); refetchUser(); refetchVerification(); },
-    onError: (e) => toast.error(e.message),
+    onSuccess: () => {
+      toast.success("사업자 인증 서류가 제출되었습니다.");
+      refetchUser();
+      refetchVerification();
+    },
+    onError: (error) => toast.error(error.message),
   });
 
   const cancelByUser = trpc.order.cancelByUser.useMutation({
     onSuccess: () => {
-      toast.success("주문이 취소되었습니다. 환불은 3~5 영업일 내 처리됩니다.");
+      toast.success("주문이 취소되었습니다.");
       setCancelConfirmOrderId(null);
       refetchOrders();
     },
-    onError: (e) => {
-      toast.error(e.message);
+    onError: (error) => {
+      toast.error(error.message);
       setCancelConfirmOrderId(null);
     },
   });
@@ -94,7 +172,10 @@ export default function MyPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (user) { setName(user.name ?? ""); setPhone(user.phone ?? ""); }
+    if (user) {
+      setName(user.name ?? "");
+      setPhone(user.phone ?? "");
+    }
   }, [user]);
 
   useEffect(() => {
@@ -106,14 +187,20 @@ export default function MyPage() {
   }, [verification]);
 
   if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#C9A96E] border-t-transparent rounded-full animate-spin" /></div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#c9a96e] border-t-transparent" />
+      </div>
+    );
   }
 
   if (!authUser) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#FAFAF8]">
-        <p className="text-gray-600">로그인이 필요합니다.</p>
-        <a href={getLoginUrl()} className="px-6 py-2.5 bg-[#C9A96E] text-white rounded-full text-sm font-medium hover:bg-[#b8965e] transition-colors">로그인</a>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f8f4ed]">
+        <p className="text-sm text-[#6f645d]">로그인이 필요합니다.</p>
+        <a href={getLoginUrl()} className="rounded-full bg-[#c9a96e] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#b79258]">
+          로그인
+        </a>
       </div>
     );
   }
@@ -122,9 +209,33 @@ export default function MyPage() {
     updateProfile.mutate({ name: name || undefined, phone: phone || undefined });
   };
 
+  const handleSaveAddress = () => {
+    if (!addressForm.label.trim() || !addressForm.recipientName.trim() || !addressForm.recipientPhone.trim() || !addressForm.shippingZipCode.trim() || !addressForm.shippingAddress.trim()) {
+      toast.error("배송지 정보를 모두 입력해주세요.");
+      return;
+    }
+    saveAddressMutation.mutate({
+      id: addressForm.id,
+      label: addressForm.label,
+      recipientName: addressForm.recipientName,
+      recipientPhone: addressForm.recipientPhone,
+      shippingZipCode: addressForm.shippingZipCode,
+      shippingAddress: addressForm.shippingAddress,
+      shippingAddressDetail: addressForm.shippingAddressDetail || undefined,
+      isDefault: addressForm.isDefault,
+    });
+  };
+
   const handleSubmitVerification = async () => {
-    if (!file) { toast.error("사업자등록증 파일을 첨부해주세요."); return; }
-    if (!bizNumber.trim() || !bizName.trim()) { toast.error("사업자번호와 상호명을 입력해주세요."); return; }
+    if (!file) {
+      toast.error("사업자등록증 파일을 첨부해주세요.");
+      return;
+    }
+    if (!bizNumber.trim() || !bizName.trim()) {
+      toast.error("사업자번호와 상호명을 입력해주세요.");
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = (reader.result as string).split(",")[1];
@@ -140,23 +251,29 @@ export default function MyPage() {
     reader.readAsDataURL(file);
   };
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "info", label: "내 정보" },
-    { id: "orders", label: "주문내역" },
-    { id: "verification", label: "전문가 인증" },
-  ];
+  const handleReorder = (order: NonNullable<typeof orders>[number]) => {
+    saveCart(order.items.map((item) => ({ productId: item.productId, quantity: item.quantity })));
+    toast.success("주문 상품을 장바구니에 담았습니다.");
+    navigate("/cart");
+  };
+
+  const activeCoupons = ((coupons.data ?? []) as CouponRow[]).filter(
+    (row) => row.coupon.status === "active" && !row.issue.isUsed,
+  );
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8]">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <a href="/index-main.html" className="text-lg font-semibold tracking-widest text-[#1a1a1a]">REAGE</a>
+    <div className="min-h-screen bg-[#f8f4ed] text-[#1f1714]">
+      <header className="sticky top-0 z-10 border-b border-black/5 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4">
+          <a href="/index-main.html" className="text-lg font-semibold tracking-[0.35em] text-[#1f1714]">REAGE</a>
           <div className="flex items-center gap-3">
-            <a href="/index-main.html" className="text-sm text-gray-500 hover:text-gray-800 transition-colors">← 홈으로</a>
+            <a href="/shop" className="text-sm text-[#6f645d] transition hover:text-[#1f1714]">쇼핑</a>
             <button
-              onClick={() => { logout(); window.location.href = '/index-main.html'; }}
-              className="text-sm text-red-500 hover:text-red-700 transition-colors font-medium"
+              onClick={async () => {
+                await logout();
+                window.location.href = "/index-main.html";
+              }}
+              className="text-sm font-medium text-[#8b1a1a] transition hover:text-[#731515]"
             >
               로그아웃
             </button>
@@ -164,129 +281,270 @@ export default function MyPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-semibold text-[#1a1a1a] mb-6">마이페이지</h1>
-
-        {/* 회원 등급 배지 */}
-        {user && (
-          <div className="bg-white rounded-xl p-4 mb-6 flex items-center gap-3 border border-gray-100 shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-[#F5EFE4] flex items-center justify-center text-[#C9A96E] font-bold text-lg">
-              {(user.name ?? authUser.name ?? "U")[0]}
+      <main className="mx-auto max-w-4xl px-4 py-8">
+        <div className="mb-6 rounded-[30px] border border-[#eadfce] bg-white px-6 py-6 shadow-[0_18px_50px_rgba(67,44,23,0.08)]">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f5efe4] text-xl font-semibold text-[#c9a96e]">
+                {(user?.name ?? authUser.name ?? "U")[0]}
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-[#1f1714]">{user?.name ?? authUser.name ?? "회원"}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[#6f645d]">
+                  <span>{roleLabel(user?.memberRole, user?.proVerificationStatus)}</span>
+                  <span>·</span>
+                  <StatusBadge status={user?.proVerificationStatus ?? "none"} />
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="font-medium text-[#1a1a1a]">{user.name ?? authUser.name ?? "회원"}</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {user.memberRole === "professional" && user.proVerificationStatus === "approved"
-                  ? "전문가 회원"
-                  : "일반 회원"}
-                {" · "}
-                <StatusBadge status={user.proVerificationStatus} />
-              </p>
+            <div className="rounded-full border border-[#eadfce] bg-[#faf6f0] px-4 py-2 text-sm text-[#5d5049]">
+              보유 쿠폰 {activeCoupons.length}장
             </div>
           </div>
-        )}
+        </div>
 
-        {/* 탭 */}
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6">
-          {tabs.map((t) => (
+        <div className="mb-6 flex gap-1 rounded-full bg-white p-1 shadow-[0_10px_24px_rgba(67,44,23,0.08)]">
+          {[
+            { id: "info", label: "내 정보" },
+            { id: "orders", label: "주문내역" },
+            { id: "verification", label: "전문가 인증" },
+          ].map((item) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${tab === t.id ? "bg-white text-[#1a1a1a] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              key={item.id}
+              onClick={() => setTab(item.id as Tab)}
+              className={`flex-1 rounded-full py-3 text-sm font-medium transition ${
+                tab === item.id ? "bg-[#1f1714] text-white" : "text-[#6f645d] hover:bg-[#faf5ee]"
+              }`}
             >
-              {t.label}
+              {item.label}
             </button>
           ))}
         </div>
 
-        {/* 내 정보 */}
         {tab === "info" && (
-          <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm space-y-4">
-            <h2 className="font-semibold text-[#1a1a1a] mb-2">기본 정보</h2>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">이름</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A96E]/30" placeholder="이름을 입력하세요" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">이메일</label>
-              <input value={user?.email ?? ""} disabled className="w-full border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-400" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">연락처</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A96E]/30" placeholder="010-0000-0000" />
-            </div>
-            <button onClick={handleSaveProfile} disabled={updateProfile.isPending} className="w-full py-2.5 bg-[#C9A96E] text-white rounded-lg text-sm font-medium hover:bg-[#b8965e] transition-colors disabled:opacity-50">
-              {updateProfile.isPending ? "저장 중..." : "저장하기"}
-            </button>
+          <div className="space-y-5">
+            <section className="rounded-[30px] border border-[#eadfce] bg-white px-6 py-6 shadow-[0_18px_50px_rgba(67,44,23,0.06)]">
+              <h2 className="text-lg font-semibold text-[#1f1714]">기본 정보</h2>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label className="block text-sm text-[#5d5049]">
+                  <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">이름</span>
+                  <input value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                </label>
+                <label className="block text-sm text-[#5d5049]">
+                  <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">연락처</span>
+                  <input value={phone} onChange={(event) => setPhone(event.target.value)} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                </label>
+                <label className="block text-sm text-[#5d5049] md:col-span-2">
+                  <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">이메일</span>
+                  <input value={user?.email ?? ""} disabled className="w-full rounded-2xl border border-[#e5dac9] bg-[#faf6f0] px-4 py-3 text-[#8a7b70]" />
+                </label>
+              </div>
+              <button onClick={handleSaveProfile} disabled={updateProfile.isPending} className="mt-5 rounded-full bg-[#c9a96e] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#b79258] disabled:opacity-60">
+                {updateProfile.isPending ? "저장 중..." : "기본 정보 저장"}
+              </button>
+            </section>
+
+            <section className="rounded-[30px] border border-[#eadfce] bg-white px-6 py-6 shadow-[0_18px_50px_rgba(67,44,23,0.06)]">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-[#1f1714]">저장된 배송지</h2>
+                <button
+                  onClick={() => setAddressForm(emptyAddressForm)}
+                  className="text-sm font-medium text-[#8b1a1a]"
+                >
+                  새 배송지 입력
+                </button>
+              </div>
+
+              {(addresses.data?.length ?? 0) > 0 && (
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {(addresses.data ?? []).map((address) => (
+                    <div key={address.id} className="rounded-[24px] border border-[#eadfce] bg-[#faf6f0] px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-[#1f1714]">{address.label}</p>
+                          {address.isDefault && <span className="rounded-full bg-[#1f1714] px-2 py-0.5 text-[11px] text-[#f0d9ae]">기본</span>}
+                        </div>
+                        <div className="flex gap-2 text-xs">
+                          <button
+                            onClick={() => setAddressForm({
+                              id: address.id,
+                              label: address.label,
+                              recipientName: address.recipientName,
+                              recipientPhone: address.recipientPhone,
+                              shippingZipCode: address.shippingZipCode,
+                              shippingAddress: address.shippingAddress,
+                              shippingAddressDetail: address.shippingAddressDetail ?? "",
+                              isDefault: address.isDefault,
+                            })}
+                            className="font-medium text-[#8b1a1a]"
+                          >
+                            수정
+                          </button>
+                          <button
+                            onClick={() => deleteAddressMutation.mutate({ id: address.id })}
+                            className="font-medium text-[#6f645d]"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-sm text-[#5d5049]">{address.recipientName} · {address.recipientPhone}</p>
+                      <p className="mt-1 text-xs leading-5 text-[#8a7b70]">
+                        ({address.shippingZipCode}) {address.shippingAddress} {address.shippingAddressDetail ?? ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="block text-sm text-[#5d5049]">
+                  <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">배송지 이름</span>
+                  <input value={addressForm.label} onChange={(event) => setAddressForm((current) => ({ ...current, label: event.target.value }))} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                </label>
+                <label className="block text-sm text-[#5d5049]">
+                  <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">수령인</span>
+                  <input value={addressForm.recipientName} onChange={(event) => setAddressForm((current) => ({ ...current, recipientName: event.target.value }))} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                </label>
+                <label className="block text-sm text-[#5d5049]">
+                  <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">연락처</span>
+                  <input value={addressForm.recipientPhone} onChange={(event) => setAddressForm((current) => ({ ...current, recipientPhone: event.target.value }))} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                </label>
+                <label className="block text-sm text-[#5d5049]">
+                  <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">우편번호</span>
+                  <input value={addressForm.shippingZipCode} onChange={(event) => setAddressForm((current) => ({ ...current, shippingZipCode: event.target.value }))} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                </label>
+                <label className="block text-sm text-[#5d5049] md:col-span-2">
+                  <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">주소</span>
+                  <input value={addressForm.shippingAddress} onChange={(event) => setAddressForm((current) => ({ ...current, shippingAddress: event.target.value }))} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                </label>
+                <label className="block text-sm text-[#5d5049] md:col-span-2">
+                  <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">상세주소</span>
+                  <input value={addressForm.shippingAddressDetail} onChange={(event) => setAddressForm((current) => ({ ...current, shippingAddressDetail: event.target.value }))} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                </label>
+              </div>
+
+              <label className="mt-4 flex items-center gap-3 text-sm text-[#5d5049]">
+                <input type="checkbox" checked={addressForm.isDefault} onChange={(event) => setAddressForm((current) => ({ ...current, isDefault: event.target.checked }))} />
+                기본 배송지로 저장
+              </label>
+
+              <button onClick={handleSaveAddress} disabled={saveAddressMutation.isPending} className="mt-5 rounded-full bg-[#1f1714] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#372b26] disabled:opacity-60">
+                {saveAddressMutation.isPending ? "저장 중..." : addressForm.id ? "배송지 수정" : "배송지 저장"}
+              </button>
+            </section>
+
+            <section className="rounded-[30px] border border-[#eadfce] bg-white px-6 py-6 shadow-[0_18px_50px_rgba(67,44,23,0.06)]">
+              <h2 className="text-lg font-semibold text-[#1f1714]">보유 쿠폰</h2>
+              {activeCoupons.length === 0 ? (
+                <div className="mt-4 rounded-[24px] bg-[#faf6f0] px-4 py-5 text-sm text-[#6f645d]">
+                  사용 가능한 쿠폰이 없습니다.
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {activeCoupons.map((row) => (
+                    <div key={row.issue.id} className="rounded-[24px] border border-[#eadfce] bg-[#faf6f0] px-4 py-4">
+                      <p className="text-sm font-semibold text-[#1f1714]">{row.coupon.name}</p>
+                      <p className="mt-2 text-sm text-[#8b1a1a]">{couponLabel(row.coupon)}</p>
+                      <p className="mt-2 text-xs text-[#8a7b70]">
+                        발급일 {new Date(row.issue.createdAt).toLocaleDateString("ko-KR")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         )}
 
-        {/* 주문내역 */}
         {tab === "orders" && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {!orders || orders.length === 0 ? (
-              <div className="bg-white rounded-xl p-8 text-center border border-gray-100 shadow-sm">
-                <p className="text-gray-400 text-sm">주문 내역이 없습니다.</p>
-                <a href="/shop.html" className="mt-3 inline-block text-[#C9A96E] text-sm hover:underline">쇼핑하러 가기</a>
+              <div className="rounded-[30px] border border-[#eadfce] bg-white px-8 py-14 text-center shadow-[0_18px_50px_rgba(67,44,23,0.08)]">
+                <p className="text-sm text-[#6f645d]">주문 내역이 없습니다.</p>
+                <a href="/shop" className="mt-4 inline-flex rounded-full bg-[#c9a96e] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#b79258]">
+                  쇼핑하러 가기
+                </a>
               </div>
             ) : (
               orders.map((order) => {
                 const cancellable = isCancellable(order);
+                const paidAmount = Number(order.finalAmount ?? order.totalAmount ?? 0);
+                const discountAmount = Number(order.discountAmount ?? 0);
+                const shippingAmount = Number(order.shippingAmount ?? 0);
+
                 return (
-                  <div key={order.id} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-                    <div className="flex items-start justify-between mb-3">
+                  <div key={order.id} className="rounded-[30px] border border-[#eadfce] bg-white px-6 py-6 shadow-[0_18px_50px_rgba(67,44,23,0.06)]">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <p className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleDateString("ko-KR")}</p>
-                        <p className="font-medium text-[#1a1a1a] mt-0.5">{order.orderName}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">주문번호: {order.orderId}</p>
+                        <p className="text-xs text-[#8a7b70]">{new Date(order.createdAt).toLocaleDateString("ko-KR")}</p>
+                        <p className="mt-1 text-lg font-semibold text-[#1f1714]">{order.orderName}</p>
+                        <p className="mt-1 text-xs text-[#8a7b70]">주문번호 {order.orderId}</p>
                       </div>
-                      <OrderStatusBadge status={order.status} />
+                      <OrderStatusBadge status={order.status} shippingStatus={order.shippingStatus} />
                     </div>
 
-                    {/* 배송지 정보 */}
                     {order.recipientName && (
-                      <div className="bg-gray-50 rounded-lg p-3 mb-3 text-xs text-gray-600 space-y-0.5">
-                        <p className="font-medium text-gray-700">배송지</p>
-                        <p>{order.recipientName} · {order.recipientPhone}</p>
-                        <p>{order.shippingAddress} {order.shippingAddressDetail}</p>
-                        {order.shippingMemo && <p className="text-gray-400">메모: {order.shippingMemo}</p>}
+                      <div className="mt-4 rounded-[24px] bg-[#faf6f0] px-4 py-4 text-sm text-[#5d5049]">
+                        <p className="font-medium text-[#1f1714]">배송지</p>
+                        <p className="mt-2">{order.recipientName} · {order.recipientPhone}</p>
+                        <p className="mt-1">{order.shippingAddress} {order.shippingAddressDetail}</p>
+                        {order.shippingMemo && <p className="mt-1 text-xs text-[#8a7b70]">메모: {order.shippingMemo}</p>}
                       </div>
                     )}
 
-                    <div className="border-t border-gray-50 pt-3 space-y-1">
+                    <div className="mt-4 space-y-2 border-t border-[#f3ebdf] pt-4">
                       {order.items.map((item) => (
-                        <div key={item.id} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{item.productName} × {item.quantity}</span>
-                          <span className="text-[#1a1a1a]">{formatPrice(item.subtotal)}</span>
+                        <div key={item.id} className="flex justify-between gap-4 text-sm">
+                          <span className="text-[#5d5049]">{item.productName} × {item.quantity}</span>
+                          <span className="font-medium text-[#1f1714]">{formatPrice(item.subtotal)}</span>
                         </div>
                       ))}
                     </div>
-                    <div className="border-t border-gray-100 mt-3 pt-3 flex justify-between items-center">
-                      <span className="text-sm text-gray-500">합계</span>
-                      <span className="font-semibold text-[#C9A96E]">{formatPrice(order.totalAmount)}</span>
+
+                    <div className="mt-4 rounded-[24px] bg-[#fff8f6] px-4 py-4">
+                      <div className="flex justify-between text-sm text-[#6f645d]">
+                        <span>상품 금액</span>
+                        <span>{formatPrice(order.totalAmount)}</span>
+                      </div>
+                      <div className="mt-2 flex justify-between text-sm text-[#6f645d]">
+                        <span>할인 금액</span>
+                        <span className="text-[#8b1a1a]">-{formatPrice(discountAmount)}</span>
+                      </div>
+                      <div className="mt-2 flex justify-between text-sm text-[#6f645d]">
+                        <span>배송비</span>
+                        <span>{shippingAmount === 0 ? "무료" : formatPrice(shippingAmount)}</span>
+                      </div>
+                      {order.promotionLabel && (
+                        <div className="mt-2 text-xs text-[#8a7b70]">적용 혜택: {order.promotionLabel}</div>
+                      )}
+                      <div className="mt-3 flex justify-between border-t border-[#f0dfd8] pt-3 text-sm font-semibold text-[#1f1714]">
+                        <span>실결제 금액</span>
+                        <span className="text-[#8b1a1a]">{formatPrice(paidAmount)}</span>
+                      </div>
                     </div>
 
-                    {/* 취소 버튼 (결제완료 + 24시간 이내) */}
-                    {cancellable && (
-                      <div className="mt-3 pt-3 border-t border-gray-50">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-400">{remainingCancelTime(order.paidAt)}</p>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                      <div className="text-xs text-[#8a7b70]">
+                        {cancellable ? remainingCancelTime(order.paidAt) : order.status === "failed" ? "결제가 완료되지 않은 주문입니다." : ""}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleReorder(order)}
+                          className="rounded-full border border-[#c9a96e] px-4 py-2 text-sm font-medium text-[#8b1a1a] transition hover:bg-[#f7efe3]"
+                        >
+                          재주문
+                        </button>
+                        {cancellable && (
                           <button
                             onClick={() => setCancelConfirmOrderId(order.orderId)}
-                            className="text-xs text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors font-medium"
+                            className="rounded-full border border-[#e5b4b4] px-4 py-2 text-sm font-medium text-[#8b1a1a] transition hover:bg-[#fff3f3]"
                           >
                             주문 취소
                           </button>
-                        </div>
+                        )}
                       </div>
-                    )}
-
-                    {/* 취소 완료 안내 */}
-                    {order.status === "cancelled" && (
-                      <div className="mt-3 pt-3 border-t border-gray-50">
-                        <p className="text-xs text-red-400">취소된 주문입니다. 환불은 3~5 영업일 내 처리됩니다.</p>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 );
               })
@@ -294,98 +552,90 @@ export default function MyPage() {
           </div>
         )}
 
-        {/* 전문가 인증 */}
         {tab === "verification" && (
-          <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="font-semibold text-[#1a1a1a]">사업자 인증</h2>
-              {user && <StatusBadge status={user.proVerificationStatus} />}
+          <div className="rounded-[30px] border border-[#eadfce] bg-white px-6 py-6 shadow-[0_18px_50px_rgba(67,44,23,0.06)]">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold text-[#1f1714]">사업자 인증</h2>
+              <StatusBadge status={user?.proVerificationStatus ?? "none"} />
             </div>
 
             {user?.proVerificationStatus === "approved" ? (
-              <div className="text-center py-6">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                </div>
-                <p className="font-medium text-green-700">전문가 인증이 완료되었습니다.</p>
-                <p className="text-sm text-gray-500 mt-1">전문가 할인가로 제품을 구매하실 수 있습니다.</p>
+              <div className="py-10 text-center">
+                <p className="text-lg font-semibold text-green-700">전문가 인증이 완료되었습니다.</p>
+                <p className="mt-2 text-sm text-[#6f645d]">전문가 가격으로 제품을 구매할 수 있습니다.</p>
               </div>
             ) : (
-              <>
-                <p className="text-sm text-gray-500 leading-relaxed">
+              <div className="mt-5 space-y-4">
+                <p className="text-sm leading-7 text-[#6f645d]">
                   사업자등록증을 제출하시면 심사 후 전문가 회원으로 승인됩니다. 승인 완료 시 전문가 할인가가 적용됩니다.
                 </p>
                 {verification?.status === "pending" && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
+                  <div className="rounded-[22px] border border-yellow-200 bg-yellow-50 px-4 py-4 text-sm text-yellow-700">
                     서류 심사가 진행 중입니다. 영업일 기준 1~3일 내 결과를 안내드립니다.
                   </div>
                 )}
                 {verification?.status === "rejected" && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-600">
+                  <div className="rounded-[22px] border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-600">
                     인증이 반려되었습니다. {verification.rejectReason ? `사유: ${verification.rejectReason}` : "서류를 다시 제출해주세요."}
                   </div>
                 )}
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">사업자등록번호 <span className="text-red-400">*</span></label>
-                  <input value={bizNumber} onChange={(e) => setBizNumber(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A96E]/30" placeholder="000-00-00000" />
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block text-sm text-[#5d5049]">
+                    <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">사업자등록번호</span>
+                    <input value={bizNumber} onChange={(event) => setBizNumber(event.target.value)} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                  </label>
+                  <label className="block text-sm text-[#5d5049]">
+                    <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">상호명</span>
+                    <input value={bizName} onChange={(event) => setBizName(event.target.value)} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                  </label>
+                  <label className="block text-sm text-[#5d5049] md:col-span-2">
+                    <span className="mb-2 block text-xs font-semibold text-[#8a7b70]">담당자 연락처</span>
+                    <input value={bizPhone} onChange={(event) => setBizPhone(event.target.value)} className="w-full rounded-2xl border border-[#e5dac9] px-4 py-3 outline-none transition focus:border-[#c9a96e]" />
+                  </label>
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">상호명 <span className="text-red-400">*</span></label>
-                  <input value={bizName} onChange={(e) => setBizName(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A96E]/30" placeholder="상호명 입력" />
+
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  className="cursor-pointer rounded-[24px] border-2 border-dashed border-[#d8c7b5] px-6 py-8 text-center transition hover:border-[#c9a96e]"
+                >
+                  {file ? (
+                    <p className="text-sm font-medium text-[#8b1a1a]">{file.name}</p>
+                  ) : (
+                    <p className="text-sm text-[#8a7b70]">클릭하여 사업자등록증 파일 업로드 (PDF, JPG, PNG)</p>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">담당자 연락처</label>
-                  <input value={bizPhone} onChange={(e) => setBizPhone(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A96E]/30" placeholder="010-0000-0000" />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">사업자등록증 첨부 <span className="text-red-400">*</span></label>
-                  <div
-                    onClick={() => fileRef.current?.click()}
-                    className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center cursor-pointer hover:border-[#C9A96E]/50 transition-colors"
-                  >
-                    {file ? (
-                      <p className="text-sm text-[#C9A96E]">{file.name}</p>
-                    ) : (
-                      <p className="text-sm text-gray-400">클릭하여 파일 선택 (PDF, JPG, PNG)</p>
-                    )}
-                  </div>
-                  <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-                </div>
+                <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+
                 <button
                   onClick={handleSubmitVerification}
                   disabled={submitVerification.isPending || verification?.status === "pending"}
-                  className="w-full py-2.5 bg-[#C9A96E] text-white rounded-lg text-sm font-medium hover:bg-[#b8965e] transition-colors disabled:opacity-50"
+                  className="rounded-full bg-[#c9a96e] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#b79258] disabled:opacity-60"
                 >
-                  {submitVerification.isPending ? "제출 중..." : verification?.status === "pending" ? "심사 중 (재제출 불가)" : "인증 서류 제출"}
+                  {submitVerification.isPending ? "제출 중..." : verification?.status === "pending" ? "심사 중" : "인증 서류 제출"}
                 </button>
-              </>
+              </div>
             )}
           </div>
         )}
       </main>
 
-      {/* 주문 취소 확인 다이얼로그 */}
       {cancelConfirmOrderId && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: "16px", padding: "28px 24px", maxWidth: "360px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
-            <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px", color: "#1a1a1a" }}>주문 취소</h3>
-            <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "6px" }}>
-              주문번호 <strong style={{ color: "#1a1a1a" }}>{cancelConfirmOrderId}</strong>을 취소하시겠습니까?
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-[28px] bg-white px-6 py-6 shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
+            <h3 className="text-lg font-semibold text-[#1f1714]">주문 취소</h3>
+            <p className="mt-3 text-sm leading-6 text-[#6f645d]">
+              주문번호 <strong className="text-[#1f1714]">{cancelConfirmOrderId}</strong>을 취소하시겠습니까?
             </p>
-            <p style={{ fontSize: "13px", color: "#9CA3AF", marginBottom: "20px" }}>
-              결제 금액은 3~5 영업일 내 카드사 환불 처리됩니다.
-            </p>
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setCancelConfirmOrderId(null)}
-                style={{ padding: "9px 18px", borderRadius: "8px", border: "1.5px solid #E5E7EB", background: "#fff", cursor: "pointer", fontSize: "14px" }}
-              >
+            <p className="mt-2 text-xs leading-5 text-[#8a7b70]">환불은 3~5 영업일 내 카드사 반영 기준으로 처리됩니다.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setCancelConfirmOrderId(null)} className="rounded-full border border-[#e5dac9] px-4 py-2 text-sm text-[#5d5049]">
                 돌아가기
               </button>
               <button
                 onClick={() => cancelByUser.mutate({ orderId: cancelConfirmOrderId })}
                 disabled={cancelByUser.isPending}
-                style={{ padding: "9px 18px", borderRadius: "8px", background: "#DC2626", color: "#fff", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 600 }}
+                className="rounded-full bg-[#8b1a1a] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               >
                 {cancelByUser.isPending ? "처리 중..." : "취소 확인"}
               </button>

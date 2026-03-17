@@ -404,8 +404,9 @@ export default function OrderDetailModal({ orderId, onClose }: Props) {
                       <div className="divide-y">
                         {[
                           { label: "상품구매금액", value: formatMoney(data.order.totalAmount) + "원" },
-                          { label: "결제예정금액", value: "0원" },
-                          { label: "총 실결제금액", value: formatMoney(data.order.totalAmount) + "원", highlight: true },
+                          { label: "할인금액", value: formatMoney(data.order.discountAmount) + "원" },
+                          { label: "배송비", value: formatMoney(data.order.shippingAmount) + "원" },
+                          { label: "총 실결제금액", value: formatMoney(data.order.finalAmount ?? data.order.totalAmount) + "원", highlight: true },
                         ].map((row) => (
                           <div key={row.label} className="flex justify-between px-4 py-3">
                             <span className="text-sm text-gray-600">{row.label}</span>
@@ -424,10 +425,10 @@ export default function OrderDetailModal({ orderId, onClose }: Props) {
                       </div>
                       <div className="divide-y">
                         {[
-                          { label: "기본배송비", value: "0원" },
-                          { label: "공급사배송비", value: "0원" },
-                          { label: "개별배송비", value: "0원" },
-                          { label: "지역별배송비", value: "0원" },
+                          { label: "기본배송비", value: formatMoney(data.order.shippingAmount) + "원" },
+                          { label: "프로모션", value: data.order.promotionLabel || "-" },
+                          { label: "결제상태", value: data.order.status || "-" },
+                          { label: "배송상태", value: SHIPPING_STATUS_MAP[data.order.shippingStatus || "none"]?.label || "-" },
                         ].map((row) => (
                           <div key={row.label} className="flex justify-between px-4 py-3">
                             <span className="text-sm text-gray-600">{row.label}</span>

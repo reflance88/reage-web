@@ -1,19 +1,24 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
-// 로그인 페이지로 이동 (Supabase OAuth 기반 — Manus OAuth 제거)
-export const getLoginUrl = (returnPath?: string) => {
-  if (returnPath) {
-    return `/login?returnTo=${encodeURIComponent(returnPath)}`;
-  }
-  return '/login';
+const getCurrentReturnPath = () => {
+  if (typeof window === "undefined") return "/";
+  const { pathname, search, hash } = window.location;
+  return `${pathname}${search}${hash}` || "/";
 };
 
-/**
- * Supabase OAuth 소셜 로그인 URL 생성 함수 (Google / Kakao)
- */
-export const getSocialLoginUrl = (
-  provider: 'kakao' | 'google',
-  returnPath: string = '/'
-): string => {
-  return `/api/auth/social/${provider}?returnTo=${encodeURIComponent(returnPath)}`;
+const buildLocalLoginUrl = (returnTo: string) => {
+  if (typeof window === "undefined") return "/login";
+  const url = new URL("/login", window.location.origin);
+  const normalizedReturnTo = returnTo.trim() || "/";
+
+  if (normalizedReturnTo !== "/login") {
+    url.searchParams.set("returnTo", normalizedReturnTo);
+  }
+
+  return url.toString();
+};
+
+// Generic login links should always land on the local login page.
+export const getLoginUrl = (returnTo: string = getCurrentReturnPath()) => {
+  return buildLocalLoginUrl(returnTo);
 };

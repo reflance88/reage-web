@@ -2,6 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { clearCart } from "@/lib/cart";
 
 export default function PaymentSuccessPage() {
   const [, navigate] = useLocation();
@@ -10,7 +11,7 @@ export default function PaymentSuccessPage() {
   const verify = trpc.order.verify.useMutation({
     onSuccess: () => {
       localStorage.removeItem("pendingOrder");
-      localStorage.removeItem("reage_cart");
+      clearCart();
     },
     onError: (e) => {
       toast.error(e.message ?? "결제 검증에 실패했습니다.");

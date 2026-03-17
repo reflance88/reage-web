@@ -13,8 +13,19 @@ export default function PaymentFailPage() {
     called.current = true;
 
     const params = new URLSearchParams(window.location.search);
-    const orderId = params.get("orderId") ?? "";
-    if (orderId) fail.mutate({ orderId });
+    const orderId = params.get("orderId") ?? localStorage.getItem("pendingOrder") ?? "";
+    if (orderId) {
+      fail.mutate(
+        { orderId },
+        {
+          onSettled: () => {
+            localStorage.removeItem("pendingOrder");
+          },
+        },
+      );
+      return;
+    }
+    localStorage.removeItem("pendingOrder");
   }, []);
 
   return (

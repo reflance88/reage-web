@@ -58,6 +58,24 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+export const savedAddresses = mysqlTable("saved_addresses", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId")
+    .notNull()
+    .references(() => users.id),
+  label: varchar("label", { length: 100 }).notNull(),
+  recipientName: varchar("recipientName", { length: 100 }).notNull(),
+  recipientPhone: varchar("recipientPhone", { length: 30 }).notNull(),
+  shippingZipCode: varchar("shippingZipCode", { length: 10 }).notNull(),
+  shippingAddress: text("shippingAddress").notNull(),
+  shippingAddressDetail: text("shippingAddressDetail"),
+  isDefault: boolean("isDefault").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type SavedAddress = typeof savedAddresses.$inferSelect;
+export type InsertSavedAddress = typeof savedAddresses.$inferInsert;
+
 // ─── Business Verifications ───────────────────────────────────────────────────
 export const businessVerifications = mysqlTable("business_verifications", {
   id: int("id").autoincrement().primaryKey(),
@@ -165,9 +183,11 @@ export const orders = mysqlTable("orders", {
   userId: int("userId")
     .notNull()
     .references(() => users.id),
-  userRoleSnapshot: mysqlEnum("userRoleSnapshot", ["consumer", "professional"]).notNull(),
+  userRoleSnapshot: mysqlEnum("userRoleSnapshot", ["consumer", "professional", "membership"]).notNull(),
   proStatusSnapshot: mysqlEnum("proStatusSnapshot", ["none", "pending", "approved", "rejected"]).notNull(),
   totalAmount: decimal("totalAmount", { precision: 12, scale: 0 }).notNull(),
+  discountAmount: decimal("discountAmount", { precision: 12, scale: 0 }).default("0").notNull(),
+  shippingAmount: decimal("shippingAmount", { precision: 12, scale: 0 }).default("0").notNull(),
   /**
    * 결제 상태: created(주문생성) | paid(결제완료) | failed(결제실패) | cancelled(취소)
    */
@@ -225,6 +245,9 @@ export const orders = mysqlTable("orders", {
   thirdPartySyncedAt: timestamp("thirdPartySyncedAt"),
   /** 관리자 메모 */
   adminMemo: text("adminMemo"),
+  promotionLabel: varchar("promotionLabel", { length: 200 }),
+  couponIssueId: int("couponIssueId"),
+  discountCodeId: int("discountCodeId"),
   paymentKey: varchar("paymentKey", { length: 200 }),
   paymentMethod: varchar("paymentMethod", { length: 50 }),
   paidAt: timestamp("paidAt"),
@@ -513,6 +536,7 @@ export type InsertThirdPartyLog = typeof thirdPartyLogs.$inferInsert;
 // ─── Reviews (후기 관리) ──────────────────────────────────────────────────────
 export const reviews = mysqlTable("reviews", {
   id: int("id").autoincrement().primaryKey(),
+  productId: int("productId"),
   /** 카테고리: before_after | device | education | event | etc */
   category: mysqlEnum("category", [
     "before_after",

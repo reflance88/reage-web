@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { signInWithSocialProvider, type SocialProvider } from "@/lib/supabase-browser";
 
 export default function SignupPage() {
   const [, navigate] = useLocation();
   const [form, setForm] = useState({ name: "", email: "", password: "", passwordConfirm: "" });
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<SocialProvider | null>(null);
   const [agreed, setAgreed] = useState(false);
+  const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "/mypage";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,9 +23,15 @@ export default function SignupPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name: form.name, email: form.email, password: form.password }),
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          origin: window.location.origin,
+          returnTo,
+        }),
       });
-      const data = await res.json() as { error?: string; confirmationRequired?: boolean };
+      const data = await res.json() as { error?: string; confirmationRequired?: boolean; returnTo?: string };
       if (!res.ok) {
         toast.error(data.error || "회원가입에 실패했습니다.");
         setLoading(false);
@@ -31,30 +39,30 @@ export default function SignupPage() {
       }
       if (data.confirmationRequired) {
         toast.success("회원가입이 완료되었습니다. 이메일을 확인하여 가입을 완료해주세요.");
+        navigate(`/signup/confirm?email=${encodeURIComponent(form.email)}&returnTo=${encodeURIComponent(data.returnTo || returnTo)}`);
+        return;
       } else {
         toast.success("회원가입이 완료되었습니다. 환영합니다!");
       }
-      window.location.href = "/index-main.html";
+      window.location.href = data.returnTo || returnTo;
     } catch {
       toast.error("네트워크 오류가 발생했습니다.");
       setLoading(false);
     }
   };
 
-  // 소셜 가입: 프론트 Supabase client로 PKCE 표준 흐름 처리
-  const handleSocial = async (provider: "kakao" | "google") => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        // PKCE code_verifier는 Supabase client가 localStorage에 자동 저장
-        redirectTo: `${window.location.origin}/auth/callback?returnTo=${encodeURIComponent("/index-main.html")}`,
-      },
-    });
-    if (error) {
-      toast.error("소셜 로그인 초기화에 실패했습니다.");
-      console.error("[OAuth] signInWithOAuth error:", error);
+  const handleSocial = async (provider: SocialProvider) => {
+    setSocialLoading(provider);
+    try {
+      await signInWithSocialProvider(provider, returnTo);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "소셜 회원가입을 시작하지 못했습니다.");
+      setSocialLoading(null);
     }
-    // 성공 시 Supabase가 자동으로 provider 로그인 페이지로 리다이렉트
+  };
+
+  const handleUnavailableSocial = () => {
+    toast.error("네이버 로그인은 Supabase 기본 provider를 지원하지 않아 별도 OAuth 구현이 필요합니다.");
   };
 
   const inputStyle = {
@@ -88,14 +96,18 @@ export default function SignupPage() {
 
         {/* 소셜 가입 */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-          <button onClick={() => handleSocial("kakao")} title="카카오로 가입" style={{
+          <button onClick={() => handleSocial("kakao")} disabled={Boolean(socialLoading)} title="카카오로 가입" style={{
             flex: 1, padding: "12px", borderRadius: "10px", border: "none",
-            background: "#FEE500", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#191919"
-          }}>카카오</button>
-          <button onClick={() => handleSocial("google")} title="구글로 가입" style={{
+            background: "#FEE500", cursor: socialLoading ? "not-allowed" : "pointer", fontSize: "12px", fontWeight: 600, color: "#191919"
+          }}>{socialLoading === "kakao" ? "이동 중..." : "카카오"}</button>
+          <button onClick={handleUnavailableSocial} disabled={Boolean(socialLoading)} title="네이버는 별도 연동 필요" style={{
+            flex: 1, padding: "12px", borderRadius: "10px", border: "none",
+            background: "#03C75A", cursor: socialLoading ? "not-allowed" : "pointer", fontSize: "12px", fontWeight: 600, color: "#fff"
+          }}>네이버 별도연동</button>
+          <button onClick={() => handleSocial("google")} disabled={Boolean(socialLoading)} title="구글로 가입" style={{
             flex: 1, padding: "12px", borderRadius: "10px", border: "1.5px solid #E8E6E3",
-            background: "#fff", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#1A1412"
-          }}>구글</button>
+            background: "#fff", cursor: socialLoading ? "not-allowed" : "pointer", fontSize: "12px", fontWeight: 600, color: "#1A1412"
+          }}>{socialLoading === "google" ? "이동 중..." : "구글"}</button>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>

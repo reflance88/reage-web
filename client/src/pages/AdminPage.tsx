@@ -548,7 +548,7 @@ function ShippingDetailModal({ order, onClose, onSave }: { order: any; onClose: 
         <div style={{ display: "grid", gap: "12px", fontSize: "13px", marginBottom: "16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문번호</span><span style={{ fontFamily: "monospace" }}>{order.orderId}</span></div>
           <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>주문명</span><span>{order.orderName}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>결제금액</span><span style={{ fontWeight: 700 }}>{krw(order.totalAmount)}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.muted }}>결제금액</span><span style={{ fontWeight: 700 }}>{krw(order.finalAmount ?? order.totalAmount)}</span></div>
         </div>
         <div style={{ display: "grid", gap: "12px" }}>
           <label style={{ fontSize: "12px", fontWeight: 600, color: C.muted }}>배송 상태
@@ -815,7 +815,7 @@ function OrderSection({ subPage, onNavigate, initialStatusFilter }: { subPage: s
               <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{o.trackingNumber ?? "—"}</span>,
               <span>{o.courierName ?? "—"}</span>,
               <span>{o.orderName ?? "—"}</span>,
-              krw(o.totalAmount),
+              krw(o.finalAmount ?? o.totalAmount),
               <ShippingBadge status={o.shippingStatus ?? "none"} />,
               <Btn size="sm" variant="outline" onClick={() => { setSelectedOrder(o); setShippingModalOpen(true); }}>송장입력</Btn>,
             ])}
@@ -1159,7 +1159,7 @@ function OrderSection({ subPage, onNavigate, initialStatusFilter }: { subPage: s
                 <div><div style={{ fontWeight: 600 }}>{item.userName ?? "—"}</div><div style={{ fontSize: "11px", color: C.muted }}>{item.userEmail ?? "—"}</div></div>,
                 o.orderName ?? "—",
                 <span style={{ fontWeight: 600 }}>{krw(o.totalAmount)}</span>,
-                <span style={{ fontWeight: 600, color: C.primary }}>{krw(o.totalAmount)}</span>,
+                <span style={{ fontWeight: 600, color: C.primary }}>{krw(o.finalAmount ?? o.totalAmount)}</span>,
                 <span style={{ fontSize: "12px", padding: "2px 8px", borderRadius: "4px", background: "#F3F4F6" }}>{paymentMethodLabel}</span>,
                 <StatusBadge status={o.status} />,
                 <ShippingBadge status={o.shippingStatus ?? "none"} />,
@@ -1175,7 +1175,7 @@ function OrderSection({ subPage, onNavigate, initialStatusFilter }: { subPage: s
               <button style={{ fontFamily: "monospace", fontSize: "11px", color: C.blue, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }} onClick={() => setDetailOrderId(o.orderId)}>{o.orderId}</button>,
               <div><div style={{ fontWeight: 600 }}>{item.userName ?? "—"}</div><div style={{ fontSize: "11px", color: C.muted }}>{item.userEmail ?? "—"}</div></div>,
               o.orderName ?? "—",
-              krw(o.totalAmount),
+              krw(o.finalAmount ?? o.totalAmount),
               <StatusBadge status={o.status} />,
               <ShippingBadge status={o.shippingStatus ?? "none"} />,
               fmtDate(o.paidAt),
@@ -2448,14 +2448,16 @@ function ReviewSection() {
   const [selectedCategory, setSelectedCategory] = useState("before_after");
   const [deleteConfirm, setDeleteConfirm] = useState<null | number>(null);
   const [uploading, setUploading] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [titleInput, setTitleInput] = useState("");
   const [descInput, setDescInput] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reviews = trpc.admin.reviewList.useQuery({ category: selectedCategory, page: 1, limit: 100 });
+  const productsQuery = trpc.admin.allProducts.useQuery();
   const uploadImage = trpc.admin.uploadReviewImage.useMutation();
   const createReview = trpc.admin.createReview.useMutation({
-    onSuccess: () => { toast.success("후기 사진이 등록되었습니다."); reviews.refetch(); setTitleInput(""); setDescInput(""); },
+    onSuccess: () => { toast.success("후기 사진이 등록되었습니다."); reviews.refetch(); setTitleInput(""); setDescInput(""); setSelectedProductId(""); },
   });
   const deleteReview = trpc.admin.deleteReview.useMutation({
     onSuccess: () => { toast.success("삭제되었습니다."); reviews.refetch(); setDeleteConfirm(null); },
@@ -2482,6 +2484,7 @@ function ReviewSection() {
         categoryLabel: catLabel,
         imageUrl: url,
         imageKey: key,
+        productId: selectedProductId || undefined,
         title: titleInput || undefined,
         description: descInput || undefined,
         isPublished: true,
@@ -2530,6 +2533,19 @@ function ReviewSection() {
             <textarea value={descInput} onChange={e => setDescInput(e.target.value)} placeholder="간단한 설명을 입력하세요" rows={2}
               style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", resize: "none", boxSizing: "border-box" as any, fontFamily: "inherit" }} />
           </div>
+          <div>
+            <label style={{ fontSize: "12px", fontWeight: 700, color: C.muted, display: "block", marginBottom: "6px" }}>연결 상품 (선택)</label>
+            <select
+              value={selectedProductId}
+              onChange={e => setSelectedProductId(e.target.value)}
+              style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: `1.5px solid ${C.border}`, fontSize: "13px", boxSizing: "border-box" as any, background: "#fff" }}
+            >
+              <option value="">상품 연결 안 함</option>
+              {(productsQuery.data ?? []).map((product: any) => (
+                <option key={product.id} value={product.id}>{product.name}</option>
+              ))}
+            </select>
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleUpload} style={{ display: "none" }} />
             <Btn onClick={() => fileRef.current?.click()} disabled={uploading}>
@@ -2556,6 +2572,11 @@ function ReviewSection() {
                 <img src={r.imageUrl} alt={r.title ?? ""} style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }} />
                 {r.title && (
                   <div style={{ padding: "8px 10px", fontSize: "12px", fontWeight: 600, color: C.text, background: C.white }}>{r.title}</div>
+                )}
+                {r.productId && (
+                  <div style={{ padding: "0 10px 8px", fontSize: "11px", color: C.primary, background: C.white }}>
+                    {(productsQuery.data ?? []).find((product: any) => product.id === r.productId)?.name ?? "연결 상품"}
+                  </div>
                 )}
                 <div style={{ padding: "4px 10px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", background: C.white }}>
                   <span style={{ fontSize: "11px", color: C.muted }}>{fmtDate(r.createdAt)}</span>

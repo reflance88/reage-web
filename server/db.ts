@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { STALE_ORDER_MINUTES } from "@shared/const";
 import {
   AdminAuditLog,
   BusinessVerification,
@@ -16,7 +17,9 @@ import {
   InsertProfile,
   Profile,
   InsertReview,
+  InsertSavedAddress,
   Order,
+  SavedAddress,
   adminAuditLogs,
   businessVerifications,
   cardCancellations,
@@ -29,6 +32,7 @@ import {
   products,
   profiles,
   reviews,
+  savedAddresses,
   thirdPartyLogs,
   InsertCertifiedInstructor,
   certifiedInstructors,
@@ -40,38 +44,87 @@ import {
   InsertDiscountCode,
   RemindAlert,
   InsertRemindAlert,
+  InsertRequestRateLimit,
   coupons,
   couponIssues,
   discountCodes,
   remindAlerts,
+  requestRateLimits,
 } from "../drizzle/schema-pg";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+type DbClient = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+const loggedReadFallbacks = new Set<string>();
+let lastRateLimitCleanupAt = 0;
+let didWarnMissingDbUrl = false;
 
 export async function getDb() {
-  // SUPABASE_DATABASE_URL 우선 사용 (transaction pooler: port 6543)
-  // DATABASE_URL 폴백 (direct connection: port 5432)
   const url = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+  if (!url) {
+    if (!didWarnMissingDbUrl) {
+      didWarnMissingDbUrl = true;
+      console.warn("[Database] SUPABASE_DATABASE_URL or DATABASE_URL is not set");
+    }
+    return null;
+  }
   if (!_db && url) {
     try {
-      // Supabase 연결 시 SSL 필요 (self-signed 인증서 허용)
-      const { Pool } = await import("pg");
-      const pool = new Pool({
-        connectionString: url,
-        ssl: url.includes("supabase") || url.includes("pooler.supabase")
-          ? { rejectUnauthorized: false }
-          : undefined,
-        // transaction pooler 사용 시 prepared statement 비활성화 필요
-        max: 10,
-      });
-      _db = drizzle(pool);
+      _db = drizzle(url);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
   return _db;
+}
+
+async function requireDb() {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("DB not available");
+  }
+  return db;
+}
+
+function logReadFallback(scope: string) {
+  if (loggedReadFallbacks.has(scope)) return;
+  loggedReadFallbacks.add(scope);
+  console.warn(`[Database] ${scope}: DB not available, returning fallback`);
+}
+
+async function readOrFallback<T>(scope: string, fallback: T, query: (db: DbClient) => Promise<T>) {
+  const db = await getDb();
+  if (!db) {
+    logReadFallback(scope);
+    return fallback;
+  }
+  return query(db);
+}
+
+async function pruneExpiredRateLimits(db: DbClient, now: Date) {
+  const nowMs = now.getTime();
+  if (nowMs - lastRateLimitCleanupAt < 60_000) {
+    return;
+  }
+  lastRateLimitCleanupAt = nowMs;
+  await db.delete(requestRateLimits).where(sql`${requestRateLimits.expiresAt} <= ${now}`);
+}
+
+async function expireStaleCreatedOrdersWithDb(db: DbClient, now = new Date()) {
+  const cutoff = new Date(now.getTime() - STALE_ORDER_MINUTES * 60 * 1000);
+  const result = await db
+    .update(orders)
+    .set({ status: "failed", updatedAt: now })
+    .where(and(eq(orders.status, "created"), sql`${orders.createdAt} < ${cutoff}`))
+    .returning({ id: orders.id });
+  return result.length;
+}
+
+export async function expireStaleCreatedOrders(now = new Date()) {
+  const db = await getDb();
+  if (!db) return 0;
+  return expireStaleCreatedOrdersWithDb(db, now);
 }
 
 // ─── Profiles (auth.users 기반) ───────────────────────────────────────────────
@@ -82,8 +135,7 @@ export async function getDb() {
  */
 export async function upsertProfile(profile: InsertProfile): Promise<void> {
   if (!profile.id) throw new Error("Profile id (auth.users.id) is required");
-  const db = await getDb();
-  if (!db) { console.warn("[Database] Cannot upsert profile: database not available"); return; }
+  const db = await requireDb();
 
   try {
     const values: InsertProfile = { id: profile.id };
@@ -116,30 +168,78 @@ export async function upsertProfile(profile: InsertProfile): Promise<void> {
 
 /** auth.users.id (uuid) 기준 조회 */
 export async function getProfileById(id: string): Promise<Profile | undefined> {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(profiles).where(eq(profiles.id, id)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return readOrFallback("getProfileById", undefined, async (db) => {
+    const result = await db.select().from(profiles).where(eq(profiles.id, id)).limit(1);
+    return result.length > 0 ? result[0] : undefined;
+  });
 }
 
 /** Manus openId 기준 조회 (소셜 OAuth 콜백용) */
 export async function getProfileByOpenId(openId: string): Promise<Profile | undefined> {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(profiles).where(eq(profiles.openId, openId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return readOrFallback("getProfileByOpenId", undefined, async (db) => {
+    const result = await db.select().from(profiles).where(eq(profiles.openId, openId)).limit(1);
+    return result.length > 0 ? result[0] : undefined;
+  });
 }
 
 export async function updateProfileData(id: string, data: { name?: string; phone?: string }) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(profiles).set({ ...data, updatedAt: new Date() }).where(eq(profiles.id, id));
+}
+
+export async function getUserSavedAddresses(userId: string): Promise<SavedAddress[]> {
+  return readOrFallback("getUserSavedAddresses", [], async (db) => {
+    return db
+      .select()
+      .from(savedAddresses)
+      .where(eq(savedAddresses.userId, userId))
+      .orderBy(desc(savedAddresses.isDefault), asc(savedAddresses.createdAt));
+  });
+}
+
+export async function createSavedAddress(data: InsertSavedAddress) {
+  const db = await requireDb();
+  return db.transaction(async (tx) => {
+    if (data.isDefault) {
+      await tx
+        .update(savedAddresses)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(eq(savedAddresses.userId, data.userId));
+    }
+
+    const [row] = await tx.insert(savedAddresses).values(data).returning();
+    return row;
+  });
+}
+
+export async function updateSavedAddress(id: number, userId: string, data: Partial<InsertSavedAddress>) {
+  const db = await requireDb();
+  return db.transaction(async (tx) => {
+    if (data.isDefault) {
+      await tx
+        .update(savedAddresses)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(eq(savedAddresses.userId, userId));
+    }
+
+    const [row] = await tx
+      .update(savedAddresses)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(savedAddresses.id, id), eq(savedAddresses.userId, userId)))
+      .returning();
+    return row;
+  });
+}
+
+export async function deleteSavedAddress(id: number, userId: string) {
+  const db = await requireDb();
+  await db.delete(savedAddresses).where(and(eq(savedAddresses.id, id), eq(savedAddresses.userId, userId)));
 }
 
 // 하위 호환 alias (기존 코드에서 getUserByOpenId를 쓰는 곳)
 export const getUserByOpenId = getProfileByOpenId;
 export const getUserById = getProfileById;
-// getUserByEmail alias는 getProfileByEmail 정의 이후로 이동됨 (호이스팅 버그 수정)
+export const getUserByEmail = getProfileByEmail;
 export const updateUserProfile = updateProfileData;
 // 제거된 함수들의 stub (Supabase Auth로 이관됨 — 호출 시 에러 발생)
 export async function createEmailUser(_data: unknown): Promise<never> {
@@ -157,36 +257,40 @@ export async function updateUserPassword(_id: string, _hash: string): Promise<ne
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 export async function getProducts() {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(products).where(eq(products.isActive, true));
+  return readOrFallback("getProducts", [], async (db) => {
+    return db
+      .select()
+      .from(products)
+      .where(and(eq(products.isActive, true), eq(products.visible, true)))
+      .orderBy(desc(products.isRecommended), asc(products.sortOrder), desc(products.createdAt));
+  });
 }
 
 export async function getProductBySlug(slug: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(products).where(eq(products.slug, slug)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return readOrFallback("getProductBySlug", undefined, async (db) => {
+    const result = await db.select().from(products).where(eq(products.slug, slug)).limit(1);
+    return result.length > 0 ? result[0] : undefined;
+  });
 }
 
 export async function getProductById(id: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(products).where(eq(products.id, id)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return readOrFallback("getProductById", undefined, async (db) => {
+    const result = await db.select().from(products).where(eq(products.id, id)).limit(1);
+    return result.length > 0 ? result[0] : undefined;
+  });
 }
 
 // ─── Business Verifications ───────────────────────────────────────────────────
 export async function getLatestVerification(userId: string): Promise<BusinessVerification | undefined> {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db
-    .select()
-    .from(businessVerifications)
-    .where(eq(businessVerifications.userId, userId))
-    .orderBy(desc(businessVerifications.createdAt))
-    .limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return readOrFallback("getLatestVerification", undefined, async (db) => {
+    const result = await db
+      .select()
+      .from(businessVerifications)
+      .where(eq(businessVerifications.userId, userId))
+      .orderBy(desc(businessVerifications.createdAt))
+      .limit(1);
+    return result.length > 0 ? result[0] : undefined;
+  });
 }
 
 export async function createVerification(data: InsertBusinessVerification) {
@@ -203,54 +307,219 @@ export async function createVerification(data: InsertBusinessVerification) {
 }
 
 export async function updateVerification(id: number, data: Partial<BusinessVerification>) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(businessVerifications).set(data).where(eq(businessVerifications.id, id));
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 export async function createOrder(orderData: InsertOrder, items: InsertOrderItem[]) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  await db.insert(orders).values(orderData);
-  const orderResult = await db.select().from(orders).where(eq(orders.orderId, orderData.orderId)).limit(1);
-  const order = orderResult[0];
-  if (!order) throw new Error("Order not found after insert");
-  const itemsWithOrderId = items.map((item) => ({ ...item, orderId: order.id }));
-  await db.insert(orderItems).values(itemsWithOrderId);
-  return order;
+  const db = await requireDb();
+  await expireStaleCreatedOrdersWithDb(db);
+  return db.transaction(async (tx) => {
+    const [order] = await tx.insert(orders).values(orderData).returning();
+    if (!order) throw new Error("Order not found after insert");
+
+    const itemsWithOrderId = items.map((item) => ({ ...item, orderId: order.id }));
+    await tx.insert(orderItems).values(itemsWithOrderId);
+
+    return order;
+  });
+}
+
+export async function finalizePaidOrder(
+  orderId: string,
+  paymentKey: string,
+  paidAt: Date,
+  paymentMethod?: string | null,
+) {
+  const db = await requireDb();
+
+  return db.transaction(async (tx) => {
+    const lockedOrderRows = await tx.execute(sql`
+      SELECT ${orders.id} AS id
+      FROM ${orders}
+      WHERE ${orders.orderId} = ${orderId}
+        AND ${orders.status} = 'created'
+      FOR UPDATE
+    `);
+    const lockedOrderId = Number((lockedOrderRows.rows[0] as { id?: number } | undefined)?.id ?? 0);
+
+    if (!lockedOrderId) {
+      return { updated: false as const };
+    }
+
+    const [order] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.id, lockedOrderId))
+      .limit(1);
+
+    if (!order) {
+      return { updated: false as const };
+    }
+
+    const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+
+    for (const item of items) {
+      const updatedProducts = await tx
+        .update(products)
+        .set({
+          stock: sql`${products.stock} - ${item.quantity}`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(products.id, item.productId), gte(products.stock, item.quantity)))
+        .returning({ id: products.id, name: products.name, stock: products.stock });
+
+      if (updatedProducts.length === 0) {
+        const [product] = await tx
+          .select({ name: products.name, stock: products.stock })
+          .from(products)
+          .where(eq(products.id, item.productId))
+          .limit(1);
+
+        if (!product) {
+          throw new Error("Product not found during payment finalization");
+        }
+
+        throw new Error(`[Stock] ${product.name} 재고가 부족합니다. 남은 재고: ${product.stock}`);
+      }
+    }
+
+    const updatedOrders = await tx
+      .update(orders)
+      .set({
+        status: "paid",
+        shippingStatus: "ready",
+        paymentKey,
+        paymentMethod: paymentMethod ?? "카드",
+        paidAt,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(orders.orderId, orderId), eq(orders.status, "created")))
+      .returning({ id: orders.id });
+
+    if (updatedOrders.length > 0) {
+      if (order.couponIssueId) {
+        await tx
+          .update(couponIssues)
+          .set({ isUsed: true, usedAt: paidAt, orderId: order.id })
+          .where(eq(couponIssues.id, order.couponIssueId));
+      }
+
+      if (order.discountCodeId) {
+        await tx
+          .update(discountCodes)
+          .set({
+            usedCount: sql`${discountCodes.usedCount} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(eq(discountCodes.id, order.discountCodeId));
+      }
+    }
+
+    return { updated: updatedOrders.length > 0 };
+  });
 }
 
 export async function getOrderByOrderId(orderId: string): Promise<Order | undefined> {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(orders).where(eq(orders.orderId, orderId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return readOrFallback("getOrderByOrderId", undefined, async (db) => {
+    const result = await db.select().from(orders).where(eq(orders.orderId, orderId)).limit(1);
+    return result.length > 0 ? result[0] : undefined;
+  });
 }
 
 export async function updateOrderStatus(
   orderId: string,
-  data: { status: "created" | "paid" | "failed" | "cancelled"; paymentKey?: string; paidAt?: Date }
+  data: { status: "created" | "paid" | "failed" | "cancelled"; paymentKey?: string; paidAt?: Date },
+  options?: { from?: Array<"created" | "paid" | "failed" | "cancelled"> | "created" | "paid" | "failed" | "cancelled" }
 ) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(orders).set(data).where(eq(orders.orderId, orderId));
+  const db = await requireDb();
+  const fromStatuses = options?.from
+    ? Array.isArray(options.from)
+      ? options.from
+      : [options.from]
+    : null;
+
+  const conditions = [eq(orders.orderId, orderId)];
+  if (fromStatuses?.length) {
+    conditions.push(inArray(orders.status, fromStatuses));
+  }
+
+  const result = await db
+    .update(orders)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(...conditions))
+    .returning({ id: orders.id });
+
+  return result.length > 0;
+}
+
+export async function consumeRequestRateLimit(params: {
+  bucketKey: string;
+  windowMs: number;
+  max: number;
+}) {
+  const db = await requireDb();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + params.windowMs);
+  const insertData: InsertRequestRateLimit = {
+    bucketKey: params.bucketKey,
+    count: 1,
+    expiresAt,
+    updatedAt: now,
+  };
+
+  const result = await db.execute(sql`
+    INSERT INTO "request_rate_limits" (
+      "bucketKey",
+      "count",
+      "expiresAt",
+      "updatedAt"
+    )
+    VALUES (${insertData.bucketKey}, ${insertData.count}, ${insertData.expiresAt}, ${insertData.updatedAt})
+    ON CONFLICT ("bucketKey")
+    DO UPDATE SET
+      "count" = CASE
+        WHEN "request_rate_limits"."expiresAt" <= ${now} THEN 1
+        ELSE "request_rate_limits"."count" + 1
+      END,
+      "expiresAt" = CASE
+        WHEN "request_rate_limits"."expiresAt" <= ${now} THEN ${expiresAt}
+        ELSE "request_rate_limits"."expiresAt"
+      END,
+      "updatedAt" = ${now}
+    RETURNING "count" AS "count", "expiresAt" AS "expiresAt"
+  `);
+
+  const row = result.rows[0] as { count?: number | string; expiresAt?: string | Date } | undefined;
+  const count = Number(row?.count ?? 0);
+  const retryAt = row?.expiresAt ? new Date(row.expiresAt) : expiresAt;
+  const retryAfterSeconds = Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 1000));
+
+  await pruneExpiredRateLimits(db, now);
+
+  return {
+    allowed: count <= params.max,
+    count,
+    retryAfterSeconds,
+  };
 }
 
 export async function getUserOrders(userId: string) {
-  const db = await getDb();
-  if (!db) return [];
-  return db
-    .select()
-    .from(orders)
-    .where(and(eq(orders.userId, userId), eq(orders.status, "paid")))
-    .orderBy(desc(orders.createdAt));
+  return readOrFallback("getUserOrders", [], async (db) => {
+    await expireStaleCreatedOrdersWithDb(db);
+    return db
+      .select()
+      .from(orders)
+      .where(and(eq(orders.userId, userId), inArray(orders.status, ["created", "paid", "cancelled", "failed"])))
+      .orderBy(desc(orders.createdAt));
+  });
 }
 
 export async function getOrderItems(orderDbId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(orderItems).where(eq(orderItems.orderId, orderDbId));
+  return readOrFallback("getOrderItems", [], async (db) => {
+    return db.select().from(orderItems).where(eq(orderItems.orderId, orderDbId));
+  });
 }
 
 // ─── Email Auth Helpers (Supabase Auth 기반으로 이관됨) ───────────────────────
@@ -260,81 +529,87 @@ export async function getOrderItems(orderDbId: number) {
 
 /** profiles 테이블에서 이메일로 조회 (Supabase Auth 연동 후 profiles.email 기준) */
 export async function getProfileByEmail(email: string): Promise<Profile | undefined> {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(profiles).where(eq(profiles.email, email)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return readOrFallback("getProfileByEmail", undefined, async (db) => {
+    const result = await db.select().from(profiles).where(eq(profiles.email, email)).limit(1);
+    return result.length > 0 ? result[0] : undefined;
+  });
 }
-
-// getUserByEmail alias (getProfileByEmail 정의 이후에 위치 — 호이스팅 버그 수정)
-export const getUserByEmail = getProfileByEmail;
 
 // ─── Admin Helpers ────────────────────────────────────────────────────────────
 export async function getAllUsers(page = 1, limit = 20) {
-  const db = await getDb();
-  if (!db) return { users: [], total: 0 };
-  const offset = (page - 1) * limit;
-  const result = await db.select().from(profiles).orderBy(desc(profiles.createdAt)).limit(limit).offset(offset);
-  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(profiles);
-  return { users: result, total: Number(countRow?.count ?? 0) };
+  return readOrFallback("getAllUsers", { users: [], total: 0 }, async (db) => {
+    const offset = (page - 1) * limit;
+    const result = await db.select().from(profiles).orderBy(desc(profiles.createdAt)).limit(limit).offset(offset);
+    const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(profiles);
+    return { users: result, total: Number(countRow?.count ?? 0) };
+  });
 }
 
 export async function getAllVerifications(status?: "pending" | "approved" | "rejected") {
-  const db = await getDb();
-  if (!db) return [];
-  if (status) {
-    return db.select().from(businessVerifications).where(eq(businessVerifications.status, status)).orderBy(desc(businessVerifications.createdAt));
-  }
-  return db.select().from(businessVerifications).orderBy(desc(businessVerifications.createdAt));
+  return readOrFallback("getAllVerifications", [], async (db) => {
+    if (status) {
+      return db.select().from(businessVerifications).where(eq(businessVerifications.status, status)).orderBy(desc(businessVerifications.createdAt));
+    }
+    return db.select().from(businessVerifications).orderBy(desc(businessVerifications.createdAt));
+  });
 }
 
 export async function approveVerification(id: number, userId: string) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
+  const db = await requireDb();
   await db.update(businessVerifications).set({ status: "approved", reviewedAt: new Date() }).where(eq(businessVerifications.id, id));
   await db.update(profiles).set({ proVerificationStatus: "approved", memberRole: "professional", updatedAt: new Date() }).where(eq(profiles.id, userId));
 }
 
 export async function rejectVerification(id: number, userId: string, reason: string) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
+  const db = await requireDb();
   await db.update(businessVerifications).set({ status: "rejected", rejectReason: reason, reviewedAt: new Date() }).where(eq(businessVerifications.id, id));
   await db.update(profiles).set({ proVerificationStatus: "rejected", updatedAt: new Date() }).where(eq(profiles.id, userId));
 }
 
 export async function getAllOrders(page = 1, limit = 20) {
-  const db = await getDb();
-  if (!db) return { orders: [], total: 0 };
-  const offset = (page - 1) * limit;
-  const result = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(limit).offset(offset);
-  const countResult = await db.select({ count: orders.id }).from(orders);
-  return { orders: result, total: countResult.length };
+  return readOrFallback("getAllOrders", { orders: [], total: 0 }, async (db) => {
+    await expireStaleCreatedOrdersWithDb(db);
+    const offset = (page - 1) * limit;
+    const result = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(limit).offset(offset);
+    const countResult = await db.select({ count: orders.id }).from(orders);
+    return { orders: result, total: countResult.length };
+  });
 }
 
 export async function updateUserRole(id: string, role: "user" | "admin") {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(profiles).set({ role, updatedAt: new Date() }).where(eq(profiles.id, id));
+}
+
+export async function setUserProfessionalStatus(id: string) {
+  const db = await requireDb();
+  await db
+    .update(profiles)
+    .set({
+      memberRole: "professional",
+      proVerificationStatus: "approved",
+      updatedAt: new Date(),
+    })
+    .where(eq(profiles.id, id));
 }
 
 // ─── Admin Audit Log ──────────────────────────────────────────────────────────
 
 export async function createAuditLog(data: InsertAdminAuditLog) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.insert(adminAuditLogs).values(data);
 }
 
 export async function getAuditLogs(targetType?: string, targetId?: string) {
-  const db = await getDb();
-  if (!db) return [];
-  if (targetType && targetId) {
-    return db.select().from(adminAuditLogs)
-      .where(and(eq(adminAuditLogs.targetType, targetType), eq(adminAuditLogs.targetId, targetId)))
-      .orderBy(desc(adminAuditLogs.createdAt))
-      .limit(50);
-  }
-  return db.select().from(adminAuditLogs).orderBy(desc(adminAuditLogs.createdAt)).limit(100);
+  return readOrFallback("getAuditLogs", [], async (db) => {
+    if (targetType && targetId) {
+      return db.select().from(adminAuditLogs)
+        .where(and(eq(adminAuditLogs.targetType, targetType), eq(adminAuditLogs.targetId, targetId)))
+        .orderBy(desc(adminAuditLogs.createdAt))
+        .limit(50);
+    }
+    return db.select().from(adminAuditLogs).orderBy(desc(adminAuditLogs.createdAt)).limit(100);
+  });
 }
 
 // ─── Product Admin ─────────────────────────────────────────────────────────────
@@ -372,15 +647,14 @@ export async function updateProduct(id: string, data: {
   productCode?: string;
   productStatus?: 'new' | 'used' | 'refurbished';
 }) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(products).set({ ...data, updatedAt: new Date() }).where(eq(products.id, id));
 }
 
 export async function getAllProducts() {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(products).orderBy(products.id);
+  return readOrFallback("getAllProducts", [], async (db) => {
+    return db.select().from(products).orderBy(products.id);
+  });
 }
 
 export async function createProduct(data: {
@@ -474,41 +748,40 @@ export async function searchVerifications(opts: {
   page?: number;
   limit?: number;
 }) {
-  const db = await getDb();
-  if (!db) return { items: [], total: 0 };
-  const page = opts.page ?? 1;
-  const limit = opts.limit ?? 20;
-  const offset = (page - 1) * limit;
+  return readOrFallback("searchVerifications", { items: [], total: 0 }, async (db) => {
+    const page = opts.page ?? 1;
+    const limit = opts.limit ?? 20;
+    const offset = (page - 1) * limit;
 
-  // Build base query - join with profiles for name/email search
-  let query = db
-    .select({
-      v: businessVerifications,
-      userName: profiles.name,
-      userEmail: profiles.email,
-    })
-    .from(businessVerifications)
-    .leftJoin(profiles, eq(businessVerifications.userId, profiles.id));
+    let query = db
+      .select({
+        v: businessVerifications,
+        userName: profiles.name,
+        userEmail: profiles.email,
+      })
+      .from(businessVerifications)
+      .leftJoin(profiles, eq(businessVerifications.userId, profiles.id));
 
-  const conditions = [];
-  if (opts.status) conditions.push(eq(businessVerifications.status, opts.status));
-  if (opts.search) {
-    const like = `%${opts.search}%`;
-    conditions.push(
-      or(
-        sql`${businessVerifications.businessNumber} LIKE ${like}`,
-        sql`${businessVerifications.businessName} LIKE ${like}`,
-        sql`${profiles.name} LIKE ${like}`,
-        sql`${profiles.email} LIKE ${like}`
-      )!
-    );
-  }
+    const conditions = [];
+    if (opts.status) conditions.push(eq(businessVerifications.status, opts.status));
+    if (opts.search) {
+      const like = `%${opts.search}%`;
+      conditions.push(
+        or(
+          sql`${businessVerifications.businessNumber} LIKE ${like}`,
+          sql`${businessVerifications.businessName} LIKE ${like}`,
+          sql`${profiles.name} LIKE ${like}`,
+          sql`${profiles.email} LIKE ${like}`
+        )!
+      );
+    }
 
-  const rows = await (conditions.length > 0
-    ? query.where(and(...conditions)).orderBy(desc(businessVerifications.createdAt)).limit(limit).offset(offset)
-    : query.orderBy(desc(businessVerifications.createdAt)).limit(limit).offset(offset));
+    const rows = await (conditions.length > 0
+      ? query.where(and(...conditions)).orderBy(desc(businessVerifications.createdAt)).limit(limit).offset(offset)
+      : query.orderBy(desc(businessVerifications.createdAt)).limit(limit).offset(offset));
 
-  return { items: rows, total: rows.length };
+    return { items: rows, total: rows.length };
+  });
 }
 
 // ─── Order Search ──────────────────────────────────────────────────────────────
@@ -524,23 +797,72 @@ export async function searchOrders(opts: {
   sortCol?: string;
   sortDir?: "asc" | "desc";
 }) {
-  const db = await getDb();
-  if (!db) return { items: [], total: 0 };
-  const page = opts.page ?? 1;
-  const limit = opts.limit ?? 20;
-  const offset = (page - 1) * limit;
+  return readOrFallback("searchOrders", {
+    items: [],
+    total: 0,
+    viewType: (opts.viewType === "item" ? "item" : "order") as "item" | "order",
+  }, async (db) => {
+    await expireStaleCreatedOrdersWithDb(db);
+    const page = opts.page ?? 1;
+    const limit = opts.limit ?? 20;
+    const offset = (page - 1) * limit;
 
-  // 품목주문별 조회: orderItems JOIN
-  if (opts.viewType === "item") {
-    let itemQuery = db
+    if (opts.viewType === "item") {
+      let itemQuery = db
+        .select({
+          o: orders,
+          userEmail: profiles.email,
+          userName: profiles.name,
+          item: orderItems,
+        })
+        .from(orderItems)
+        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .leftJoin(profiles, eq(orders.userId, profiles.id));
+
+      const conditions: ReturnType<typeof eq>[] = [];
+      if (opts.status) conditions.push(eq(orders.status, opts.status) as ReturnType<typeof eq>);
+      if (opts.dateFrom) conditions.push(sql`${orders.createdAt} >= ${opts.dateFrom}` as unknown as ReturnType<typeof eq>);
+      if (opts.dateTo) {
+        const endOfDay = new Date(opts.dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        conditions.push(sql`${orders.createdAt} <= ${endOfDay}` as unknown as ReturnType<typeof eq>);
+      }
+      if (opts.search) {
+        const like = `%${opts.search}%`;
+        if (opts.searchType === "name") {
+          conditions.push(sql`${orders.recipientName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+        } else if (opts.searchType === "email") {
+          conditions.push(sql`${profiles.email} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+        } else if (opts.searchType === "productName") {
+          conditions.push(sql`${orderItems.productName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+        } else {
+          conditions.push(or(
+            sql`${orders.orderId} LIKE ${like}`,
+            sql`${orders.recipientName} LIKE ${like}`,
+            sql`${profiles.email} LIKE ${like}`,
+            sql`${orderItems.productName} LIKE ${like}`
+          )! as unknown as ReturnType<typeof eq>);
+        }
+      }
+
+      const rows = await (conditions.length > 0
+        ? itemQuery.where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(limit).offset(offset)
+        : itemQuery.orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
+
+      const countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id)).leftJoin(profiles, eq(orders.userId, profiles.id));
+      const [countRow] = await (conditions.length > 0 ? (countQuery as any).where(and(...conditions)) : countQuery);
+      const totalCount = Number(countRow?.count ?? rows.length);
+
+      return { items: rows, total: totalCount, viewType: "item" as const };
+    }
+
+    let query = db
       .select({
         o: orders,
         userEmail: profiles.email,
         userName: profiles.name,
-        item: orderItems,
       })
-      .from(orderItems)
-      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .from(orders)
       .leftJoin(profiles, eq(orders.userId, profiles.id));
 
     const conditions: ReturnType<typeof eq>[] = [];
@@ -553,217 +875,182 @@ export async function searchOrders(opts: {
     }
     if (opts.search) {
       const like = `%${opts.search}%`;
-      if (opts.searchType === "name") {
+      if (opts.searchType === "orderId") {
+        conditions.push(sql`${orders.orderId} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+      } else if (opts.searchType === "name") {
         conditions.push(sql`${orders.recipientName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
       } else if (opts.searchType === "email") {
         conditions.push(sql`${profiles.email} LIKE ${like}` as unknown as ReturnType<typeof eq>);
-      } else if (opts.searchType === "productName") {
-        conditions.push(sql`${orderItems.productName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
       } else {
-        conditions.push(or(
-          sql`${orders.orderId} LIKE ${like}`,
-          sql`${orders.recipientName} LIKE ${like}`,
-          sql`${profiles.email} LIKE ${like}`,
-          sql`${orderItems.productName} LIKE ${like}`
-        )! as unknown as ReturnType<typeof eq>);
+        conditions.push(
+          or(
+            sql`${orders.orderId} LIKE ${like}`,
+            sql`${orders.recipientName} LIKE ${like}`,
+            sql`${profiles.email} LIKE ${like}`
+          )! as unknown as ReturnType<typeof eq>
+        );
       }
     }
 
-    const rows = await (conditions.length > 0
-      ? itemQuery.where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(limit).offset(offset)
-      : itemQuery.orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
+    const sortColMap: Record<string, any> = {
+      "주문일": orders.createdAt,
+      "주문번호": orders.orderId,
+      "주문명": orders.orderName,
+      "총 상품 구매금액": orders.totalAmount,
+      "총 실결제금액": orders.totalAmount,
+      "결제상태": orders.status,
+      "배송상태": orders.shippingStatus,
+    };
+    const sortField = (opts.sortCol && sortColMap[opts.sortCol]) ? sortColMap[opts.sortCol] : orders.createdAt;
+    const sortOrder = opts.sortDir === "asc" ? asc(sortField) : desc(sortField);
 
-    // totalCount for pagination
-    let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id)).leftJoin(profiles, eq(orders.userId, profiles.id));
+    const rows = await (conditions.length > 0
+      ? query.where(and(...conditions)).orderBy(sortOrder).limit(limit).offset(offset)
+      : query.orderBy(sortOrder).limit(limit).offset(offset));
+
+    const countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(orders).leftJoin(profiles, eq(orders.userId, profiles.id));
     const [countRow] = await (conditions.length > 0 ? (countQuery as any).where(and(...conditions)) : countQuery);
     const totalCount = Number(countRow?.count ?? rows.length);
 
-    return { items: rows, total: totalCount, viewType: "item" as const };
-  }
-
-  // 주문번호별 조회 (default)
-  let query = db
-    .select({
-      o: orders,
-      userEmail: profiles.email,
-      userName: profiles.name,
-    })
-    .from(orders)
-    .leftJoin(profiles, eq(orders.userId, profiles.id));
-
-  const conditions: ReturnType<typeof eq>[] = [];
-  if (opts.status) conditions.push(eq(orders.status, opts.status) as ReturnType<typeof eq>);
-  if (opts.dateFrom) conditions.push(sql`${orders.createdAt} >= ${opts.dateFrom}` as unknown as ReturnType<typeof eq>);
-  if (opts.dateTo) {
-    const endOfDay = new Date(opts.dateTo);
-    endOfDay.setHours(23, 59, 59, 999);
-    conditions.push(sql`${orders.createdAt} <= ${endOfDay}` as unknown as ReturnType<typeof eq>);
-  }
-  if (opts.search) {
-    const like = `%${opts.search}%`;
-    if (opts.searchType === "orderId") {
-      conditions.push(sql`${orders.orderId} LIKE ${like}` as unknown as ReturnType<typeof eq>);
-    } else if (opts.searchType === "name") {
-      conditions.push(sql`${orders.recipientName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
-    } else if (opts.searchType === "email") {
-      conditions.push(sql`${profiles.email} LIKE ${like}` as unknown as ReturnType<typeof eq>);
-    } else {
-      conditions.push(
-        or(
-          sql`${orders.orderId} LIKE ${like}`,
-          sql`${orders.recipientName} LIKE ${like}`,
-          sql`${profiles.email} LIKE ${like}`
-        )! as unknown as ReturnType<typeof eq>
-      );
-    }
-  }
-
-  // 정렬 컴럼 매핑
-  const sortColMap: Record<string, any> = {
-    "주문일": orders.createdAt,
-    "주문번호": orders.orderId,
-    "주문명": orders.orderName,
-    "총 상품 구매금액": orders.totalAmount,
-    "총 실결제금액": orders.totalAmount,
-    "결제상태": orders.status,
-    "배송상태": orders.shippingStatus,
-  };
-  const sortField = (opts.sortCol && sortColMap[opts.sortCol]) ? sortColMap[opts.sortCol] : orders.createdAt;
-  const sortOrder = opts.sortDir === "asc" ? asc(sortField) : desc(sortField);
-
-  const rows = await (conditions.length > 0
-    ? query.where(and(...conditions)).orderBy(sortOrder).limit(limit).offset(offset)
-    : query.orderBy(sortOrder).limit(limit).offset(offset));
-
-  // totalCount for pagination
-  let countQuery2 = db.select({ count: sql<number>`COUNT(*)` }).from(orders).leftJoin(profiles, eq(orders.userId, profiles.id));
-  const [countRow2] = await (conditions.length > 0 ? (countQuery2 as any).where(and(...conditions)) : countQuery2);
-  const totalCount2 = Number(countRow2?.count ?? rows.length);
-
-  return { items: rows, total: totalCount2, viewType: "order" as const };
+    return { items: rows, total: totalCount, viewType: "order" as const };
+  });
 }
 
 // ─── Dashboard Summary ─────────────────────────────────────────────────────────
 export async function getDashboardSummary() {
-  const db = await getDb();
-  if (!db) return { pendingVerifications: 0, totalUsers: 0, todayOrders: 0, totalPaidAmount: 0 };
+  return readOrFallback("getDashboardSummary", {
+    pendingVerifications: 0,
+    totalUsers: 0,
+    todayOrders: 0,
+    totalPaidAmount: 0,
+    pendingOrders: 0,
+    readyToShip: 0,
+    shippingOrders: 0,
+    deliveredOrders: 0,
+    totalOrders: 0,
+    todayRevenue: 0,
+    cancelRequested: 0,
+    exchangeRequested: 0,
+    returnRequested: 0,
+    refundPending: 0,
+    cancelCompleted: 0,
+    exchangeCompleted: 0,
+    returnCompleted: 0,
+    refundCompleted: 0,
+    monthOrders: 0,
+    monthRevenue: 0,
+    todayRefundAmount: 0,
+    monthRefundAmount: 0,
+    totalRefundAmount: 0,
+    todayNetRevenue: 0,
+    monthNetRevenue: 0,
+  }, async (db) => {
+    const [pendingVerifs] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(businessVerifications)
+      .where(eq(businessVerifications.status, "pending"));
 
-  const [pendingVerifs] = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(businessVerifications)
-    .where(eq(businessVerifications.status, "pending"));
+    const [totalUsers] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(profiles);
 
-  const [totalUsers] = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(profiles);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [todayOrders] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(orders)
+      .where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`));
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const [todayOrders] = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(orders)
-    .where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`));
+    const [totalPaid] = await db
+      .select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` })
+      .from(orders)
+      .where(eq(orders.status, "paid"));
 
-  const [totalPaid] = await db
-    .select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` })
-    .from(orders)
-    .where(eq(orders.status, "paid"));
+    const [pendingOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.status, "created"));
+    const [readyToShip] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "ready"));
+    const [shippingOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "shipping"));
+    const [deliveredOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "delivered"));
+    const [totalOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders);
+    const [todayRevenue] = await db.select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`));
 
-  // 배송 상태별 주문 수
-  const [pendingOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.status, "created"));
-  const [readyToShip] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "ready"));
-  const [shippingOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "shipping"));
-  const [deliveredOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "delivered"));
-  const [totalOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders);
-  const [todayRevenue] = await db.select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`));
+    const [cancelRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(eq(orderCancellations.status, "requested"));
+    const [exchangeRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(eq(orderExchanges.status, "requested"));
+    const [returnRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(eq(orderReturns.status, "requested"));
+    const [refundPending] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(eq(orderRefunds.status, "pending"));
 
-  // CS 신청 건수 (requested 상태)
-  const [cancelRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(eq(orderCancellations.status, "requested"));
-  const [exchangeRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(eq(orderExchanges.status, "requested"));
-  const [returnRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(eq(orderReturns.status, "requested"));
-  const [refundPending] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(eq(orderRefunds.status, "pending"));
+    const [cancelCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(and(eq(orderCancellations.status, "completed"), sql`${orderCancellations.processedAt} >= ${today}`));
+    const [exchangeCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(and(eq(orderExchanges.status, "completed"), sql`${orderExchanges.processedAt} >= ${today}`));
+    const [returnCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(and(eq(orderReturns.status, "completed"), sql`${orderReturns.processedAt} >= ${today}`));
+    const [refundCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${today}`));
 
-  // 오늘 처리 완료 건수
-  const [cancelCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(and(eq(orderCancellations.status, "completed"), sql`${orderCancellations.processedAt} >= ${today}`));
-  const [exchangeCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(and(eq(orderExchanges.status, "completed"), sql`${orderExchanges.processedAt} >= ${today}`));
-  const [returnCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(and(eq(orderReturns.status, "completed"), sql`${orderReturns.processedAt} >= ${today}`));
-  const [refundCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${today}`));
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const [monthOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`));
+    const [monthRevenue] = await db.select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`));
+    const [todayRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${today}`));
+    const [monthRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${monthStart}`));
+    const [totalRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(eq(orderRefunds.status, "completed"));
 
-  // 이번 달 데이터
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const [monthOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`));
-  const [monthRevenue] = await db.select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`));
-  // 실결제금액 = 총 주문금액 - 환불금액 (취소 완료된 금액 제외)
-  const [todayRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${today}`));
-  const [monthRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${monthStart}`));
-  const [totalRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(eq(orderRefunds.status, "completed"));
-
-  return {
-    pendingVerifications: Number(pendingVerifs?.count ?? 0),
-    totalUsers: Number(totalUsers?.count ?? 0),
-    todayOrders: Number(todayOrders?.count ?? 0),
-    totalPaidAmount: Number(totalPaid?.total ?? 0),
-    pendingOrders: Number(pendingOrders?.count ?? 0),
-    readyToShip: Number(readyToShip?.count ?? 0),
-    shippingOrders: Number(shippingOrders?.count ?? 0),
-    deliveredOrders: Number(deliveredOrders?.count ?? 0),
-    totalOrders: Number(totalOrders?.count ?? 0),
-    todayRevenue: Number(todayRevenue?.total ?? 0),
-    cancelRequested: Number(cancelRequested?.count ?? 0),
-    exchangeRequested: Number(exchangeRequested?.count ?? 0),
-    returnRequested: Number(returnRequested?.count ?? 0),
-    refundPending: Number(refundPending?.count ?? 0),
-    cancelCompleted: Number(cancelCompleted?.count ?? 0),
-    exchangeCompleted: Number(exchangeCompleted?.count ?? 0),
-    returnCompleted: Number(returnCompleted?.count ?? 0),
-    refundCompleted: Number(refundCompleted?.count ?? 0),
-    // 이번 달
-    monthOrders: Number(monthOrders?.count ?? 0),
-    monthRevenue: Number(monthRevenue?.total ?? 0),
-    // 환불 금액
-    todayRefundAmount: Number(todayRefundAmount?.total ?? 0),
-    monthRefundAmount: Number(monthRefundAmount?.total ?? 0),
-    totalRefundAmount: Number(totalRefundAmount?.total ?? 0),
-    // 실결제금액 = 주문금액 - 환불금액
-    todayNetRevenue: Number(todayRevenue?.total ?? 0) - Number(todayRefundAmount?.total ?? 0),
-    monthNetRevenue: Number(monthRevenue?.total ?? 0) - Number(monthRefundAmount?.total ?? 0),
-  };
+    return {
+      pendingVerifications: Number(pendingVerifs?.count ?? 0),
+      totalUsers: Number(totalUsers?.count ?? 0),
+      todayOrders: Number(todayOrders?.count ?? 0),
+      totalPaidAmount: Number(totalPaid?.total ?? 0),
+      pendingOrders: Number(pendingOrders?.count ?? 0),
+      readyToShip: Number(readyToShip?.count ?? 0),
+      shippingOrders: Number(shippingOrders?.count ?? 0),
+      deliveredOrders: Number(deliveredOrders?.count ?? 0),
+      totalOrders: Number(totalOrders?.count ?? 0),
+      todayRevenue: Number(todayRevenue?.total ?? 0),
+      cancelRequested: Number(cancelRequested?.count ?? 0),
+      exchangeRequested: Number(exchangeRequested?.count ?? 0),
+      returnRequested: Number(returnRequested?.count ?? 0),
+      refundPending: Number(refundPending?.count ?? 0),
+      cancelCompleted: Number(cancelCompleted?.count ?? 0),
+      exchangeCompleted: Number(exchangeCompleted?.count ?? 0),
+      returnCompleted: Number(returnCompleted?.count ?? 0),
+      refundCompleted: Number(refundCompleted?.count ?? 0),
+      monthOrders: Number(monthOrders?.count ?? 0),
+      monthRevenue: Number(monthRevenue?.total ?? 0),
+      todayRefundAmount: Number(todayRefundAmount?.total ?? 0),
+      monthRefundAmount: Number(monthRefundAmount?.total ?? 0),
+      totalRefundAmount: Number(totalRefundAmount?.total ?? 0),
+      todayNetRevenue: Number(todayRevenue?.total ?? 0) - Number(todayRefundAmount?.total ?? 0),
+      monthNetRevenue: Number(monthRevenue?.total ?? 0) - Number(monthRefundAmount?.total ?? 0),
+    };
+  });
 }
 
 // ─── Dashboard Chart Data ───────────────────────────────────────────────────────
 
 /** 최근 N일간 일별 주문 수 + 매출 집계 */
 export async function getDailyOrderStats(days = 30) {
-  const db = await getDb();
-  if (!db) return [];
+  return readOrFallback("getDailyOrderStats", [], async (db) => {
+    const rows = await db.execute(sql`
+      SELECT
+        DATE(paid_at) AS day,
+        COUNT(*) AS order_count,
+        COALESCE(SUM(total_amount), 0) AS revenue
+      FROM orders
+      WHERE status = 'paid'
+        AND paid_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
+      GROUP BY DATE(paid_at)
+      ORDER BY day ASC
+    `);
 
-  const rows = await db.execute(sql`
-    SELECT
-      DATE(paid_at) AS day,
-      COUNT(*) AS order_count,
-      COALESCE(SUM(total_amount), 0) AS revenue
-    FROM orders
-    WHERE status = 'paid'
-      AND paid_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
-    GROUP BY DATE(paid_at)
-    ORDER BY day ASC
-  `);
-
-  return (rows.rows as any[]).map((r: any) => ({
-    day: String(r.day),
-    orderCount: Number(r.order_count),
-    revenue: Number(r.revenue),
-  }));
+    return (rows.rows as any[]).map((r: any) => ({
+      day: String(r.day),
+      orderCount: Number(r.order_count),
+      revenue: Number(r.revenue),
+    }));
+  });
 }
 
 /** 최근 N일간 일별 신규 가입자 수 집계 (profiles 기준) */
 export async function getDailySignupStats(days = 30) {
-  const db = await getDb();
-  if (!db) return [];
-
-  const rows = await db.execute(sql`
+  return readOrFallback("getDailySignupStats", [], async (db) => {
+    const rows = await db.execute(sql`
     SELECT
       DATE(created_at) AS day,
       COUNT(*) AS signup_count
@@ -773,29 +1060,29 @@ export async function getDailySignupStats(days = 30) {
     ORDER BY day ASC
   `);
 
-  return (rows.rows as any[]).map((r: any) => ({
-    day: String(r.day),
-    signupCount: Number(r.signup_count),
-  }));
+    return (rows.rows as any[]).map((r: any) => ({
+      day: String(r.day),
+      signupCount: Number(r.signup_count),
+    }));
+  });
 }
 
 /** 인증 상태별 현황 */
 export async function getVerificationStatusStats() {
-  const db = await getDb();
-  if (!db) return { pending: 0, approved: 0, rejected: 0 };
+  return readOrFallback("getVerificationStatusStats", { pending: 0, approved: 0, rejected: 0 }, async (db) => {
+    const rows = await db.execute(sql`
+      SELECT status, COUNT(*) AS cnt
+      FROM business_verifications
+      GROUP BY status
+    `);
 
-  const rows = await db.execute(sql`
-    SELECT status, COUNT(*) AS cnt
-    FROM business_verifications
-    GROUP BY status
-  `);
-
-  const result = { pending: 0, approved: 0, rejected: 0 };
-  for (const r of (rows.rows as any[])) {
-    const s = r.status as keyof typeof result;
-    if (s in result) result[s] = Number(r.cnt);
-  }
-  return result;
+    const result = { pending: 0, approved: 0, rejected: 0 };
+    for (const r of (rows.rows as any[])) {
+      const s = r.status as keyof typeof result;
+      if (s in result) result[s] = Number(r.cnt);
+    }
+    return result;
+  });
 }
 
 // ─── Gallery Posts ─────────────────────────────────────────────────────────────
@@ -845,14 +1132,12 @@ export async function createGalleryPost(data: InsertGalleryPost) {
 }
 
 export async function updateGalleryPost(id: number, data: Partial<GalleryPost>) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(galleryPosts).set({ ...data, updatedAt: new Date() }).where(eq(galleryPosts.id, id));
 }
 
 export async function deleteGalleryPost(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(galleryPosts).where(eq(galleryPosts.id, id));
 }
 
@@ -888,14 +1173,12 @@ export async function createMagazinePost(data: InsertMagazinePost) {
 }
 
 export async function updateMagazinePost(id: number, data: Partial<MagazinePost>) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(magazinePosts).set({ ...data, updatedAt: new Date() }).where(eq(magazinePosts.id, id));
 }
 
 export async function deleteMagazinePost(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(magazinePosts).where(eq(magazinePosts.id, id));
 }
 
@@ -916,14 +1199,12 @@ export async function createPostImage(data: InsertPostImage) {
 }
 
 export async function deletePostImage(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(postImages).where(eq(postImages.id, id));
 }
 
 export async function deletePostImagesByPost(postType: "gallery" | "magazine", postId: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(postImages).where(and(eq(postImages.postType, postType), eq(postImages.postId, postId)));
 }
 
@@ -969,174 +1250,166 @@ export async function createPopup(data: InsertPopup) {
 }
 
 export async function updatePopup(id: number, data: Partial<Popup>) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(popups).set({ ...data, updatedAt: new Date() }).where(eq(popups.id, id));
 }
 
 export async function deletePopup(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(popups).where(eq(popups.id, id));
 }
 
 export async function incrementPopupClickCount(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(popups).set({ clickCount: sql`click_count + 1` as any }).where(eq(popups.id, id));
 }
 
 // ─── Page Views ────────────────────────────────────────────────────────────────
 
 export async function recordPageView(data: InsertPageView) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.insert(pageViews).values(data);
 }
 
 export async function getPageViewStats(days = 30) {
-  const db = await getDb();
-  if (!db) return { total: 0, byDay: [], byDevice: [], topPages: [], byHour: [], byDayOfWeek: [] };
+  return readOrFallback("getPageViewStats", { total: 0, byDay: [], byDevice: [], topPages: [], byHour: [], byDayOfWeek: [] }, async (db) => {
+    const [totalRow] = await db.select({ count: sql<number>`COUNT(*)` })
+      .from(pageViews)
+      .where(sql`${pageViews.createdAt} >= NOW() - INTERVAL '1 day' * ${days}`);
 
-  const [totalRow] = await db.select({ count: sql<number>`COUNT(*)` })
-    .from(pageViews)
-    .where(sql`${pageViews.createdAt} >= NOW() - INTERVAL '1 day' * ${days}`);
+    const byDayRows = await db.execute(sql`
+      SELECT DATE(created_at) AS day, COUNT(*) AS cnt, device_type
+      FROM page_views
+      WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
+      GROUP BY DATE(created_at), device_type
+      ORDER BY day ASC
+    `);
 
-  const byDayRows = await db.execute(sql`
-    SELECT DATE(created_at) AS day, COUNT(*) AS cnt, device_type
-    FROM page_views
-    WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
-    GROUP BY DATE(created_at), device_type
-    ORDER BY day ASC
-  `);
+    const byDeviceRows = await db.execute(sql`
+      SELECT device_type, COUNT(*) AS cnt
+      FROM page_views
+      WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
+      GROUP BY device_type
+    `);
 
-  const byDeviceRows = await db.execute(sql`
-    SELECT device_type, COUNT(*) AS cnt
-    FROM page_views
-    WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
-    GROUP BY device_type
-  `);
+    const topPagesRows = await db.execute(sql`
+      SELECT path, COUNT(*) AS cnt
+      FROM page_views
+      WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
+      GROUP BY path
+      ORDER BY cnt DESC
+      LIMIT 10
+    `);
 
-  const topPagesRows = await db.execute(sql`
-    SELECT path, COUNT(*) AS cnt
-    FROM page_views
-    WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
-    GROUP BY path
-    ORDER BY cnt DESC
-    LIMIT 10
-  `);
+    const byHourRows = await db.execute(sql`
+      SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt
+      FROM page_views
+      WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
+      GROUP BY EXTRACT(HOUR FROM created_at)::int
+      ORDER BY hour ASC
+    `);
 
-  const byHourRows = await db.execute(sql`
-    SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt
-    FROM page_views
-    WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
-    GROUP BY EXTRACT(HOUR FROM created_at)::int
-    ORDER BY hour ASC
-  `);
+    const byDayOfWeekRows = await db.execute(sql`
+      SELECT EXTRACT(DOW FROM created_at)::int + 1 AS dow, COUNT(*) AS cnt
+      FROM page_views
+      WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
+      GROUP BY EXTRACT(DOW FROM created_at)::int + 1
+      ORDER BY dow ASC
+    `);
 
-  const byDayOfWeekRows = await db.execute(sql`
-    SELECT EXTRACT(DOW FROM created_at)::int + 1 AS dow, COUNT(*) AS cnt
-    FROM page_views
-    WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
-    GROUP BY EXTRACT(DOW FROM created_at)::int + 1
-    ORDER BY dow ASC
-  `);
-
-  return {
-    total: Number(totalRow?.count ?? 0),
-    byDay: (byDayRows.rows as any[]).map((r: any) => ({ day: String(r.day), count: Number(r.cnt), device: r.device_type })),
-    byDevice: (byDeviceRows.rows as any[]).map((r: any) => ({ device: r.device_type, count: Number(r.cnt) })),
-    topPages: (topPagesRows.rows as any[]).map((r: any) => ({ path: r.path, count: Number(r.cnt) })),
-    byHour: (byHourRows.rows as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
-    byDayOfWeek: (byDayOfWeekRows.rows as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
-  };
+    return {
+      total: Number(totalRow?.count ?? 0),
+      byDay: (byDayRows.rows as any[]).map((r: any) => ({ day: String(r.day), count: Number(r.cnt), device: r.device_type })),
+      byDevice: (byDeviceRows.rows as any[]).map((r: any) => ({ device: r.device_type, count: Number(r.cnt) })),
+      topPages: (topPagesRows.rows as any[]).map((r: any) => ({ path: r.path, count: Number(r.cnt) })),
+      byHour: (byHourRows.rows as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
+      byDayOfWeek: (byDayOfWeekRows.rows as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
+    };
+  });
 }
 
 // ─── Sales Stats ───────────────────────────────────────────────────────────────
 
 export async function getSalesStats(period: "day" | "week" | "month" = "day", days = 30) {
-  const db = await getDb();
-  if (!db) return [];
+  return readOrFallback("getSalesStats", [], async (db) => {
+    let groupBy = "DATE(paid_at)";
+    if (period === "week") groupBy = "TO_CHAR(paid_at, 'IYYY-IW')";
+    if (period === "month") groupBy = "TO_CHAR(paid_at, 'YYYY-MM')";
 
-  let groupBy = "DATE(paid_at)";
-  if (period === "week") groupBy = "TO_CHAR(paid_at, 'IYYY-IW')";
-  if (period === "month") groupBy = "TO_CHAR(paid_at, 'YYYY-MM')";
+    const rows = await db.execute(sql`
+      SELECT
+        ${sql.raw(groupBy)} AS period_key,
+        COUNT(*) AS order_count,
+        COALESCE(SUM(total_amount), 0) AS revenue
+      FROM orders
+      WHERE status = 'paid'
+        AND paid_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
+      GROUP BY ${sql.raw(groupBy)}
+      ORDER BY period_key ASC
+    `);
 
-  const rows = await db.execute(sql`
-    SELECT
-      ${sql.raw(groupBy)} AS period_key,
-      COUNT(*) AS order_count,
-      COALESCE(SUM(total_amount), 0) AS revenue
-    FROM orders
-    WHERE status = 'paid'
-      AND paid_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
-    GROUP BY ${sql.raw(groupBy)}
-    ORDER BY period_key ASC
-  `);
-
-  return (rows.rows as any[]).map((r: any) => ({
-    periodKey: String(r.period_key),
-    orderCount: Number(r.order_count),
-    revenue: Number(r.revenue),
-  }));
+    return (rows.rows as any[]).map((r: any) => ({
+      periodKey: String(r.period_key),
+      orderCount: Number(r.order_count),
+      revenue: Number(r.revenue),
+    }));
+  });
 }
 
 export async function getProductSalesStats() {
-  const db = await getDb();
-  if (!db) return { topSelling: [], cartAnalysis: [] };
+  return readOrFallback("getProductSalesStats", { topSelling: [], cartAnalysis: [] }, async (db) => {
+    const topSellingRows = await db.execute(sql`
+      SELECT oi.product_id, oi.product_name, SUM(oi.quantity) AS total_qty, SUM(oi.subtotal) AS total_revenue
+      FROM order_items oi
+      JOIN orders o ON oi.order_id = o.id
+      WHERE o.status = 'paid'
+      GROUP BY oi.product_id, oi.product_name
+      ORDER BY total_qty DESC
+      LIMIT 10
+    `);
 
-  const topSellingRows = await db.execute(sql`
-    SELECT oi.product_id, oi.product_name, SUM(oi.quantity) AS total_qty, SUM(oi.subtotal) AS total_revenue
-    FROM order_items oi
-    JOIN orders o ON oi.order_id = o.id
-    WHERE o.status = 'paid'
-    GROUP BY oi.product_id, oi.product_name
-    ORDER BY total_qty DESC
-    LIMIT 10
-  `);
-
-  return {
-    topSelling: (topSellingRows.rows as any[]).map((r: any) => ({
-      productId: Number(r.product_id),
-      productName: String(r.product_name),
-      totalQty: Number(r.total_qty),
-      totalRevenue: Number(r.total_revenue),
-    })),
-    cartAnalysis: [],
-  };
+    return {
+      topSelling: (topSellingRows.rows as any[]).map((r: any) => ({
+        productId: Number(r.product_id),
+        productName: String(r.product_name),
+        totalQty: Number(r.total_qty),
+        totalRevenue: Number(r.total_revenue),
+      })),
+      cartAnalysis: [],
+    };
+  });
 }
 
 export async function getCustomerStats() {
-  const db = await getDb();
-  if (!db) return { byMemberRole: [], byDayOfWeek: [], byHour: [] };
+  return readOrFallback("getCustomerStats", { byMemberRole: [], byDayOfWeek: [], byHour: [] }, async (db) => {
+    const byMemberRoleRows = await db.execute(sql`
+      SELECT member_role, COUNT(*) AS cnt
+      FROM profiles
+      GROUP BY member_role
+    `);
 
-  const byMemberRoleRows = await db.execute(sql`
-    SELECT member_role, COUNT(*) AS cnt
-    FROM profiles
-    GROUP BY member_role
-  `);
+    const byDowRows = await db.execute(sql`
+      SELECT EXTRACT(DOW FROM created_at)::int + 1 AS dow, COUNT(*) AS cnt
+      FROM orders
+      WHERE status = 'paid'
+      GROUP BY EXTRACT(DOW FROM created_at)::int + 1
+      ORDER BY dow ASC
+    `);
 
-  const byDowRows = await db.execute(sql`
-    SELECT EXTRACT(DOW FROM created_at)::int + 1 AS dow, COUNT(*) AS cnt
-    FROM orders
-    WHERE status = 'paid'
-    GROUP BY EXTRACT(DOW FROM created_at)::int + 1
-    ORDER BY dow ASC
-  `);
+    const byHourRows = await db.execute(sql`
+      SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt
+      FROM orders
+      WHERE status = 'paid'
+      GROUP BY EXTRACT(HOUR FROM created_at)::int
+      ORDER BY hour ASC
+    `);
 
-  const byHourRows = await db.execute(sql`
-    SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt
-    FROM orders
-    WHERE status = 'paid'
-    GROUP BY EXTRACT(HOUR FROM created_at)::int
-    ORDER BY hour ASC
-  `);
-
-  return {
-    byMemberRole: (byMemberRoleRows.rows as any[]).map((r: any) => ({ role: r.member_role, count: Number(r.cnt) })),
-    byDayOfWeek: (byDowRows.rows as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
-    byHour: (byHourRows.rows as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
-  };
+    return {
+      byMemberRole: (byMemberRoleRows.rows as any[]).map((r: any) => ({ role: r.member_role, count: Number(r.cnt) })),
+      byDayOfWeek: (byDowRows.rows as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
+      byHour: (byHourRows.rows as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
+    };
+  });
 }
 
 // ─── Shipping Status & 3PL Helpers ───────────────────────────────────────────
@@ -1161,27 +1434,26 @@ export async function updateOrderShipping(
     paymentMethod?: string | null;
   }
 ) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(orders).set(data as any).where(eq(orders.orderId, orderId));
+  const db = await requireDb();
+  await db.update(orders).set({ ...(data as any), updatedAt: new Date() }).where(eq(orders.orderId, orderId));
 }
 
 export async function getOrdersByShippingStatus(
   shippingStatus: "pending_payment" | "ready" | "hold" | "shipping" | "delivered",
   opts: { page?: number; limit?: number; search?: string; dateFrom?: Date; dateTo?: Date } = {}
 ) {
-  const db = await getDb();
-  if (!db) return { rows: [], total: 0 };
-  const { page = 1, limit = 20 } = opts;
-  const offset = (page - 1) * limit;
-  const rows = await db
-    .select()
-    .from(orders)
-    .where(eq(orders.shippingStatus, shippingStatus))
-    .orderBy(desc(orders.createdAt))
-    .limit(limit)
-    .offset(offset);
-  return { rows, total: rows.length };
+  return readOrFallback("getOrdersByShippingStatus", { rows: [], total: 0 }, async (db) => {
+    const { page = 1, limit = 20 } = opts;
+    const offset = (page - 1) * limit;
+    const rows = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.shippingStatus, shippingStatus))
+      .orderBy(desc(orders.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return { rows, total: rows.length };
+  });
 }
 
 // ─── Order Cancellations ─────────────────────────────────────────────────────
@@ -1195,18 +1467,18 @@ export async function getCancellations(opts: {
   dateFrom?: Date;
   dateTo?: Date;
 } = {}) {
-  const db = await getDb();
-  if (!db) return { rows: [], total: 0 };
-  const { page = 1, limit = 20 } = opts;
-  const offset = (page - 1) * limit;
-  const rows = await db
-    .select()
-    .from(orderCancellations)
-    .leftJoin(orders, eq(orderCancellations.orderId, orders.id))
-    .orderBy(desc(orderCancellations.createdAt))
-    .limit(limit)
-    .offset(offset);
-  return { rows, total: rows.length };
+  return readOrFallback("getCancellations", { rows: [], total: 0 }, async (db) => {
+    const { page = 1, limit = 20 } = opts;
+    const offset = (page - 1) * limit;
+    const rows = await db
+      .select()
+      .from(orderCancellations)
+      .leftJoin(orders, eq(orderCancellations.orderId, orders.id))
+      .orderBy(desc(orderCancellations.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return { rows, total: rows.length };
+  });
 }
 
 export async function createCancellation(data: InsertOrderCancellation) {
@@ -1220,25 +1492,24 @@ export async function createCancellation(data: InsertOrderCancellation) {
 }
 
 export async function updateCancellation(id: number, data: Partial<InsertOrderCancellation>) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(orderCancellations).set(data as any).where(eq(orderCancellations.id, id));
+  const db = await requireDb();
+  await db.update(orderCancellations).set({ ...(data as any), updatedAt: new Date() }).where(eq(orderCancellations.id, id));
 }
 
 // ─── Order Exchanges ──────────────────────────────────────────────────────────
 export async function getExchanges(opts: { status?: string; page?: number; limit?: number } = {}) {
-  const db = await getDb();
-  if (!db) return { rows: [], total: 0 };
-  const { page = 1, limit = 20 } = opts;
-  const offset = (page - 1) * limit;
-  const rows = await db
-    .select()
-    .from(orderExchanges)
-    .leftJoin(orders, eq(orderExchanges.orderId, orders.id))
-    .orderBy(desc(orderExchanges.createdAt))
-    .limit(limit)
-    .offset(offset);
-  return { rows, total: rows.length };
+  return readOrFallback("getExchanges", { rows: [], total: 0 }, async (db) => {
+    const { page = 1, limit = 20 } = opts;
+    const offset = (page - 1) * limit;
+    const rows = await db
+      .select()
+      .from(orderExchanges)
+      .leftJoin(orders, eq(orderExchanges.orderId, orders.id))
+      .orderBy(desc(orderExchanges.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return { rows, total: rows.length };
+  });
 }
 
 export async function createExchange(data: InsertOrderExchange) {
@@ -1252,25 +1523,24 @@ export async function createExchange(data: InsertOrderExchange) {
 }
 
 export async function updateExchange(id: number, data: Partial<InsertOrderExchange>) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(orderExchanges).set(data as any).where(eq(orderExchanges.id, id));
+  const db = await requireDb();
+  await db.update(orderExchanges).set({ ...(data as any), updatedAt: new Date() }).where(eq(orderExchanges.id, id));
 }
 
 // ─── Order Returns ────────────────────────────────────────────────────────────
 export async function getReturns(opts: { status?: string; page?: number; limit?: number } = {}) {
-  const db = await getDb();
-  if (!db) return { rows: [], total: 0 };
-  const { page = 1, limit = 20 } = opts;
-  const offset = (page - 1) * limit;
-  const rows = await db
-    .select()
-    .from(orderReturns)
-    .leftJoin(orders, eq(orderReturns.orderId, orders.id))
-    .orderBy(desc(orderReturns.createdAt))
-    .limit(limit)
-    .offset(offset);
-  return { rows, total: rows.length };
+  return readOrFallback("getReturns", { rows: [], total: 0 }, async (db) => {
+    const { page = 1, limit = 20 } = opts;
+    const offset = (page - 1) * limit;
+    const rows = await db
+      .select()
+      .from(orderReturns)
+      .leftJoin(orders, eq(orderReturns.orderId, orders.id))
+      .orderBy(desc(orderReturns.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return { rows, total: rows.length };
+  });
 }
 
 export async function createReturn(data: InsertOrderReturn) {
@@ -1284,25 +1554,24 @@ export async function createReturn(data: InsertOrderReturn) {
 }
 
 export async function updateReturn(id: number, data: Partial<InsertOrderReturn>) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(orderReturns).set(data as any).where(eq(orderReturns.id, id));
+  const db = await requireDb();
+  await db.update(orderReturns).set({ ...(data as any), updatedAt: new Date() }).where(eq(orderReturns.id, id));
 }
 
 // ─── Order Refunds ────────────────────────────────────────────────────────────
 export async function getRefunds(opts: { status?: string; page?: number; limit?: number } = {}) {
-  const db = await getDb();
-  if (!db) return { rows: [], total: 0 };
-  const { page = 1, limit = 20 } = opts;
-  const offset = (page - 1) * limit;
-  const rows = await db
-    .select()
-    .from(orderRefunds)
-    .leftJoin(orders, eq(orderRefunds.orderId, orders.id))
-    .orderBy(desc(orderRefunds.createdAt))
-    .limit(limit)
-    .offset(offset);
-  return { rows, total: rows.length };
+  return readOrFallback("getRefunds", { rows: [], total: 0 }, async (db) => {
+    const { page = 1, limit = 20 } = opts;
+    const offset = (page - 1) * limit;
+    const rows = await db
+      .select()
+      .from(orderRefunds)
+      .leftJoin(orders, eq(orderRefunds.orderId, orders.id))
+      .orderBy(desc(orderRefunds.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return { rows, total: rows.length };
+  });
 }
 
 export async function createRefund(data: InsertOrderRefund) {
@@ -1316,25 +1585,24 @@ export async function createRefund(data: InsertOrderRefund) {
 }
 
 export async function updateRefund(id: number, data: Partial<InsertOrderRefund>) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(orderRefunds).set(data as any).where(eq(orderRefunds.id, id));
+  const db = await requireDb();
+  await db.update(orderRefunds).set({ ...(data as any), updatedAt: new Date() }).where(eq(orderRefunds.id, id));
 }
 
 // ─── Card Cancellations ───────────────────────────────────────────────────────
 export async function getCardCancellations(opts: { page?: number; limit?: number } = {}) {
-  const db = await getDb();
-  if (!db) return { rows: [], total: 0 };
-  const { page = 1, limit = 20 } = opts;
-  const offset = (page - 1) * limit;
-  const rows = await db
-    .select()
-    .from(cardCancellations)
-    .leftJoin(orders, eq(cardCancellations.orderId, orders.id))
-    .orderBy(desc(cardCancellations.cancelledAt))
-    .limit(limit)
-    .offset(offset);
-  return { rows, total: rows.length };
+  return readOrFallback("getCardCancellations", { rows: [], total: 0 }, async (db) => {
+    const { page = 1, limit = 20 } = opts;
+    const offset = (page - 1) * limit;
+    const rows = await db
+      .select()
+      .from(cardCancellations)
+      .leftJoin(orders, eq(cardCancellations.orderId, orders.id))
+      .orderBy(desc(cardCancellations.cancelledAt))
+      .limit(limit)
+      .offset(offset);
+    return { rows, total: rows.length };
+  });
 }
 
 export async function createCardCancellation(data: InsertCardCancellation) {
@@ -1347,72 +1615,176 @@ export async function createCardCancellation(data: InsertCardCancellation) {
   return result[0];
 }
 
+export async function cancelOrderWithHistory(params: {
+  orderId: string;
+  from: "created" | "paid";
+  requestedBy: "buyer" | "admin";
+  reason: string;
+  adminNote?: string | null;
+  processedBy?: string | null;
+  paymentKey?: string | null;
+  restoreInventory?: boolean;
+}) {
+  const db = await requireDb();
+  const now = new Date();
+  const updateData: Partial<InsertOrder> = {
+    status: "cancelled",
+    updatedAt: now,
+  };
+  if (params.paymentKey) {
+    updateData.paymentKey = params.paymentKey;
+  }
+
+  return db.transaction(async (tx) => {
+    const [cancelledOrder] = await tx
+      .update(orders)
+      .set(updateData)
+      .where(and(eq(orders.orderId, params.orderId), eq(orders.status, params.from)))
+      .returning();
+
+    if (!cancelledOrder) {
+      return { updated: false as const };
+    }
+
+    if (params.restoreInventory) {
+      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, cancelledOrder.id));
+      for (const item of items) {
+        await tx
+          .update(products)
+          .set({
+            stock: sql`${products.stock} + ${item.quantity}`,
+            updatedAt: now,
+          })
+          .where(eq(products.id, item.productId));
+      }
+    }
+
+    if (cancelledOrder.couponIssueId) {
+      await tx
+        .update(couponIssues)
+        .set({
+          isUsed: false,
+          usedAt: null,
+          orderId: null,
+        })
+        .where(eq(couponIssues.id, cancelledOrder.couponIssueId));
+    }
+
+    if (cancelledOrder.discountCodeId) {
+      await tx
+        .update(discountCodes)
+        .set({
+          usedCount: sql`GREATEST(${discountCodes.usedCount} - 1, 0)`,
+          updatedAt: now,
+        })
+        .where(eq(discountCodes.id, cancelledOrder.discountCodeId));
+    }
+
+    const [cancellation] = await tx
+      .insert(orderCancellations)
+      .values({
+        orderId: cancelledOrder.id,
+        requestedBy: params.requestedBy,
+        reason: params.reason,
+        status: "completed",
+        cancelType: params.from === "paid" || params.paymentKey ? "post_payment" : "pre_payment",
+        cancelAmount: String(cancelledOrder.finalAmount ?? cancelledOrder.totalAmount ?? 0),
+        adminNote: params.adminNote ?? null,
+        processedAt: now,
+      })
+      .returning();
+
+    const [cardCancellation] = params.paymentKey
+      ? await tx
+          .insert(cardCancellations)
+          .values({
+            orderId: cancelledOrder.id,
+            paymentKey: params.paymentKey,
+            cancelAmount: String(cancelledOrder.finalAmount ?? cancelledOrder.totalAmount ?? 0),
+            cancelType: "full",
+            processedBy: params.processedBy ?? params.requestedBy,
+            adminNote: params.adminNote ?? params.reason,
+            cancelledAt: now,
+          })
+          .returning()
+      : [null];
+
+    return {
+      updated: true as const,
+      order: cancelledOrder,
+      cancellation,
+      cardCancellation,
+    };
+  });
+}
+
 // ─── 3PL Webhook Logs ─────────────────────────────────────────────────────────
 export async function createThirdPartyLog(data: InsertThirdPartyLog) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.insert(thirdPartyLogs).values(data);
 }
 
 export async function getThirdPartyLogs(orderId?: number, opts: { page?: number; limit?: number } = {}) {
-  const db = await getDb();
-  if (!db) return [];
-  const { limit = 50 } = opts;
-  const q = db.select().from(thirdPartyLogs).orderBy(desc(thirdPartyLogs.createdAt)).limit(limit);
-  if (orderId) {
-    return db.select().from(thirdPartyLogs)
-      .where(eq(thirdPartyLogs.orderId, orderId))
-      .orderBy(desc(thirdPartyLogs.createdAt)).limit(limit);
-  }
-  return q;
+  return readOrFallback("getThirdPartyLogs", [], async (db) => {
+    const { limit = 50 } = opts;
+    const q = db.select().from(thirdPartyLogs).orderBy(desc(thirdPartyLogs.createdAt)).limit(limit);
+    if (orderId) {
+      return db.select().from(thirdPartyLogs)
+        .where(eq(thirdPartyLogs.orderId, orderId))
+        .orderBy(desc(thirdPartyLogs.createdAt)).limit(limit);
+    }
+    return q;
+  });
 }
 
 // ─── Order Dashboard Summary (확장) ──────────────────────────────────────────
 export async function getOrderDashboardSummary() {
-  const db = await getDb();
-  if (!db) return null;
+  return readOrFallback("getOrderDashboardSummary", null, async (db) => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+    const [todayStats, monthStats, pendingPayment, ready, hold, shipping, delivered,
+      cancelRequested, exchangeRequested, returnRequested, refundPending] = await Promise.all([
+      db.select({
+        count: sql<number>`COUNT(*)`,
+        revenue: sql<number>`COALESCE(SUM(CAST("totalAmount" AS numeric)), 0)`,
+      }).from(orders).where(and(eq(orders.status, "paid"), gte(orders.paidAt, todayStart))),
+      db.select({
+        count: sql<number>`COUNT(*)`,
+        revenue: sql<number>`COALESCE(SUM(CAST("totalAmount" AS numeric)), 0)`,
+      }).from(orders).where(and(eq(orders.status, "paid"), gte(orders.paidAt, monthStart))),
+      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "pending_payment")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "ready")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "hold")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "shipping")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "delivered")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(eq(orderCancellations.status, "requested")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(eq(orderExchanges.status, "requested")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(eq(orderReturns.status, "requested")),
+      db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(eq(orderRefunds.status, "pending")),
+    ]);
 
-  const [todayOrders, monthOrders, pendingPayment, ready, hold, shipping, delivered,
-    cancelRequested, exchangeRequested, returnRequested, refundPending] = await Promise.all([
-    db.select().from(orders).where(and(eq(orders.status, "paid"), gte(orders.paidAt, todayStart))),
-    db.select().from(orders).where(and(eq(orders.status, "paid"), gte(orders.paidAt, monthStart))),
-    db.select().from(orders).where(eq(orders.shippingStatus, "pending_payment")),
-    db.select().from(orders).where(eq(orders.shippingStatus, "ready")),
-    db.select().from(orders).where(eq(orders.shippingStatus, "hold")),
-    db.select().from(orders).where(eq(orders.shippingStatus, "shipping")),
-    db.select().from(orders).where(eq(orders.shippingStatus, "delivered")),
-    db.select().from(orderCancellations).where(eq(orderCancellations.status, "requested")),
-    db.select().from(orderExchanges).where(eq(orderExchanges.status, "requested")),
-    db.select().from(orderReturns).where(eq(orderReturns.status, "requested")),
-    db.select().from(orderRefunds).where(eq(orderRefunds.status, "pending")),
-  ]);
-
-  const todaySales = todayOrders.reduce((s, o) => s + Number(o.totalAmount), 0);
-  const monthSales = monthOrders.reduce((s, o) => s + Number(o.totalAmount), 0);
-
-  return {
-    today: { orders: todayOrders.length, sales: todaySales },
-    month: { orders: monthOrders.length, sales: monthSales },
-    shipping: {
-      pendingPayment: pendingPayment.length,
-      ready: ready.length,
-      hold: hold.length,
-      shipping: shipping.length,
-      delivered: delivered.length,
-    },
-    cs: {
-      cancelRequested: cancelRequested.length,
-      exchangeRequested: exchangeRequested.length,
-      returnRequested: returnRequested.length,
-      refundPending: refundPending.length,
-    },
-  };
+    return {
+      today: { orders: Number(todayStats[0].count), sales: Number(todayStats[0].revenue) },
+      month: { orders: Number(monthStats[0].count), sales: Number(monthStats[0].revenue) },
+      shipping: {
+        pendingPayment: Number(pendingPayment[0].count),
+        ready: Number(ready[0].count),
+        hold: Number(hold[0].count),
+        shipping: Number(shipping[0].count),
+        delivered: Number(delivered[0].count),
+      },
+      cs: {
+        cancelRequested: Number(cancelRequested[0].count),
+        exchangeRequested: Number(exchangeRequested[0].count),
+        returnRequested: Number(returnRequested[0].count),
+        refundPending: Number(refundPending[0].count),
+      },
+    };
+  });
 }
 
 // ─── Order Detail (Full) ──────────────────────────────────────────────────────
@@ -1457,9 +1829,8 @@ export async function getOrderDetailFull(orderId: string) {
 
 // ─── Update Order Admin Memo ──────────────────────────────────────────────────
 export async function updateOrderAdminMemo(orderId: string, adminMemo: string) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(orders).set({ adminMemo }).where(eq(orders.orderId, orderId));
+  const db = await requireDb();
+  await db.update(orders).set({ adminMemo, updatedAt: new Date() }).where(eq(orders.orderId, orderId));
 }
 
 // ─── Update Order Shipping Info ───────────────────────────────────────────────
@@ -1470,14 +1841,14 @@ export async function updateOrderShippingInfo(orderId: string, data: {
   shippingZipCode?: string;
   shippingMemo?: string;
 }) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(orders).set(data).where(eq(orders.orderId, orderId));
+  const db = await requireDb();
+  await db.update(orders).set({ ...data, updatedAt: new Date() }).where(eq(orders.orderId, orderId));
 }
 
 // ─── Reviews (후기 관리) ──────────────────────────────────────────────────────
 export async function getReviews(opts?: {
   category?: string;
+  productId?: string;
   publishedOnly?: boolean;
   page?: number;
   limit?: number;
@@ -1490,6 +1861,7 @@ export async function getReviews(opts?: {
 
   const conditions = [];
   if (opts?.category) conditions.push(eq(reviews.category, opts.category as any));
+  if (opts?.productId) conditions.push(eq(reviews.productId, opts.productId));
   if (opts?.publishedOnly) conditions.push(eq(reviews.isPublished, true));
 
   const items = await db
@@ -1528,14 +1900,12 @@ export async function createReview(data: InsertReview) {
 }
 
 export async function updateReview(id: number, data: Partial<InsertReview>) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(reviews).set(data).where(eq(reviews.id, id));
 }
 
 export async function deleteReview(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(reviews).where(eq(reviews.id, id));
 }
 
@@ -1563,22 +1933,19 @@ export async function getCertifiedInstructorById(id: number) {
 }
 
 export async function createCertifiedInstructor(data: InsertCertifiedInstructor) {
-  const db = await getDb();
-  if (!db) return undefined;
+  const db = await requireDb();
   await db.insert(certifiedInstructors).values(data);
   const [row] = await db.select().from(certifiedInstructors).orderBy(desc(certifiedInstructors.createdAt)).limit(1);
   return row;
 }
 
 export async function updateCertifiedInstructor(id: number, data: Partial<InsertCertifiedInstructor>) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(certifiedInstructors).set({ ...data, updatedAt: new Date() }).where(eq(certifiedInstructors.id, id));
 }
 
 export async function deleteCertifiedInstructor(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(certifiedInstructors).where(eq(certifiedInstructors.id, id));
 }
 
@@ -1607,22 +1974,19 @@ export async function getCouponById(id: number) {
 }
 
 export async function createCoupon(data: InsertCoupon) {
-  const db = await getDb();
-  if (!db) return undefined;
+  const db = await requireDb();
   await db.insert(coupons).values(data);
   const [row] = await db.select().from(coupons).orderBy(desc(coupons.createdAt)).limit(1);
   return row;
 }
 
 export async function updateCoupon(id: number, data: Partial<InsertCoupon>) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(coupons).set({ ...data, updatedAt: new Date() }).where(eq(coupons.id, id));
 }
 
 export async function deleteCoupon(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(coupons).where(eq(coupons.id, id));
 }
 
@@ -1645,9 +2009,25 @@ export async function getCouponIssues(opts: { couponId?: number; userId?: string
   return { items, total: Number(countRow?.count ?? 0) };
 }
 
-export async function issueCouponToUser(couponId: number, userId: string) {
+export async function getDetailedCouponIssuesForUser(userId: string) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return [];
+  return db
+    .select({
+      issue: couponIssues,
+      coupon: coupons,
+    })
+    .from(couponIssues)
+    .innerJoin(coupons, eq(couponIssues.couponId, coupons.id))
+    .where(and(
+      eq(couponIssues.userId, userId),
+      eq(couponIssues.isDeleted, false),
+    ))
+    .orderBy(desc(couponIssues.createdAt));
+}
+
+export async function issueCouponToUser(couponId: number, userId: string) {
+  const db = await requireDb();
   // 16자리 쿠폰 번호 생성
   const couponNumber = Date.now().toString().slice(-10) + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
   await db.insert(couponIssues).values({ couponId, userId, couponNumber });
@@ -1658,8 +2038,7 @@ export async function issueCouponToUser(couponId: number, userId: string) {
 }
 
 export async function deleteCouponIssue(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(couponIssues).set({ isDeleted: true }).where(eq(couponIssues.id, id));
 }
 
@@ -1690,22 +2069,19 @@ export async function getDiscountCodeByCode(code: string) {
 }
 
 export async function createDiscountCode(data: InsertDiscountCode) {
-  const db = await getDb();
-  if (!db) return undefined;
+  const db = await requireDb();
   await db.insert(discountCodes).values(data);
   const [row] = await db.select().from(discountCodes).orderBy(desc(discountCodes.createdAt)).limit(1);
   return row;
 }
 
 export async function updateDiscountCode(id: number, data: Partial<InsertDiscountCode>) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(discountCodes).set({ ...data, updatedAt: new Date() }).where(eq(discountCodes.id, id));
 }
 
 export async function deleteDiscountCode(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(discountCodes).where(eq(discountCodes.id, id));
 }
 
@@ -1729,22 +2105,19 @@ export async function getRemindAlertById(id: number) {
 }
 
 export async function createRemindAlert(data: InsertRemindAlert) {
-  const db = await getDb();
-  if (!db) return undefined;
+  const db = await requireDb();
   await db.insert(remindAlerts).values(data);
   const [row] = await db.select().from(remindAlerts).orderBy(desc(remindAlerts.createdAt)).limit(1);
   return row;
 }
 
 export async function updateRemindAlert(id: number, data: Partial<InsertRemindAlert>) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.update(remindAlerts).set({ ...data, updatedAt: new Date() }).where(eq(remindAlerts.id, id));
 }
 
 export async function deleteRemindAlert(id: number) {
-  const db = await getDb();
-  if (!db) return;
+  const db = await requireDb();
   await db.delete(remindAlerts).where(eq(remindAlerts.id, id));
 }
 

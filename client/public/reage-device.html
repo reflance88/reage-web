@@ -971,6 +971,12 @@
     cursor: pointer;
     text-decoration: none;
     color: inherit;
+    display: flex;
+    flex-direction: column;
+  }
+  #cream-products .product-card-link {
+    color: inherit;
+    text-decoration: none;
     display: block;
   }
   #cream-products .product-card:hover {
@@ -1030,47 +1036,286 @@
     font-weight: 700;
     color: #6B0F1A;
   }
+  #cream-products .product-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  #cream-products .product-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  #cream-products .product-badge-new {
+    background: rgba(107,15,26,.08);
+    color: #6B0F1A;
+  }
+  #cream-products .product-badge-pro {
+    background: #1A1412;
+    color: #D4B07A;
+  }
+  #cream-products .product-badge-stock {
+    background: rgba(200,162,106,.12);
+    color: #8B6914;
+  }
+  #cream-products .product-badge-soldout {
+    background: rgba(139,21,37,.1);
+    color: #8B1525;
+  }
+  #cream-products .product-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 0 20px 20px;
+    margin-top: auto;
+  }
+  #cream-products .product-action-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform .2s, background .2s, border-color .2s, color .2s;
+  }
+  #cream-products .product-action-btn:hover {
+    transform: translateY(-2px);
+  }
+  #cream-products .product-action-btn-cart {
+    background: #fff;
+    color: #6B0F1A;
+    border: 1.5px solid rgba(107,15,26,.22);
+  }
+  #cream-products .product-action-btn-cart:hover {
+    background: rgba(107,15,26,.04);
+  }
+  #cream-products .product-action-btn-buy {
+    background: #6B0F1A;
+    color: #fff;
+  }
+  #cream-products .product-action-btn-buy:hover {
+    background: #8B1525;
+  }
+  #cream-products .product-action-btn[disabled] {
+    background: #F1EFEC;
+    color: #A39B96;
+    border-color: #E8E6E3;
+    cursor: not-allowed;
+    transform: none;
+  }
+  #cream-products-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%) translateY(16px);
+    background: rgba(26,20,18,.94);
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 10px 40px rgba(0,0,0,.22);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease, transform .22s ease;
+    z-index: 1300;
+  }
+  #cream-products-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
   @media (max-width: 768px) {
+    #cream-products .product-card-actions {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 <script>
 (function() {
+  var CART_KEY = "reage_cart";
+  var toastTimer = null;
+
+  function parseTrpcPayload(data) {
+    return (data && data.result && data.result.data && (data.result.data.json || data.result.data)) || null;
+  }
+
+  function getPricingTier(user) {
+    if (!user) return "consumer";
+    if (user.memberRole === "membership") return "membership";
+    if (user.memberRole === "professional" && user.proVerificationStatus === "approved") return "professional";
+    return "consumer";
+  }
+
+  function canAccessProProducts(user) {
+    var tier = getPricingTier(user);
+    return tier === "professional" || tier === "membership";
+  }
+
+  function parsePrice(value) {
+    if (value === null || value === undefined || value === "") return null;
+    var parsed = Number(String(value).replace(/,/g, ""));
+    return isFinite(parsed) ? parsed : null;
+  }
+
+  function resolveDisplayPrice(product, user) {
+    var consumerPrice = parsePrice(product.priceConsumer) || 0;
+    var proPrice = parsePrice(product.pricePro);
+    var membershipPrice = parsePrice(product.priceMembership);
+    var membershipDiscountRate = Number((user && user.membershipDiscountRate) || 0);
+    var tier = getPricingTier(user);
+
+    if (tier === "membership") {
+      if (membershipPrice !== null) return membershipPrice;
+      if (proPrice !== null && membershipDiscountRate > 0) {
+        return Math.max(proPrice - Math.floor((proPrice * membershipDiscountRate) / 100), 0);
+      }
+      return proPrice !== null ? proPrice : consumerPrice;
+    }
+
+    if (tier === "professional" && proPrice !== null) {
+      return proPrice;
+    }
+
+    return consumerPrice;
+  }
+
+  function loadCart() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(CART_KEY) || "[]");
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(function(item) {
+          return item && typeof item.productId === "string" && Number(item.quantity) > 0;
+        })
+        .map(function(item) {
+          return {
+            productId: item.productId,
+            quantity: Math.max(1, parseInt(item.quantity, 10) || 1),
+          };
+        });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveCart(items) {
+    var merged = {};
+    items.forEach(function(item) {
+      if (!item || !item.productId) return;
+      merged[item.productId] = (merged[item.productId] || 0) + (item.quantity || 1);
+    });
+
+    var normalized = Object.keys(merged).map(function(productId) {
+      return { productId: productId, quantity: merged[productId] };
+    });
+
+    localStorage.setItem(CART_KEY, JSON.stringify(normalized));
+    window.dispatchEvent(new Event("reage:cart-updated"));
+  }
+
+  function addToCart(productId) {
+    var cart = loadCart();
+    var existing = cart.find(function(item) { return item.productId === productId; });
+    if (existing) existing.quantity += 1;
+    else cart.push({ productId: productId, quantity: 1 });
+    saveCart(cart);
+  }
+
+  function showToast(message) {
+    var toast = document.getElementById("cream-products-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "cream-products-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() {
+      toast.classList.remove("show");
+    }, 1800);
+  }
+
+  async function fetchCurrentUser() {
+    try {
+      var res = await fetch("/api/trpc/user.me?input=%7B%22json%22%3Anull%7D", { credentials: "include" });
+      if (!res.ok) return null;
+      return parseTrpcPayload(await res.json());
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function loadCreamProducts() {
     var grid = document.getElementById("cream-products-grid");
     try {
       var res = await fetch("/api/trpc/product.list?input=%7B%22json%22%3Anull%7D");
       var data = await res.json();
-      var products = (data && data.result && data.result.data && data.result.data.json) ? data.result.data.json : [];
+      var products = parseTrpcPayload(data) || [];
       var visible = products.filter(function(p) { return p.visible !== false && p.isActive !== false; });
       if (visible.length === 0) {
         grid.innerHTML = "<div style='text-align:center;padding:60px;color:#6B6B6B;grid-column:1/-1'>등록된 제품이 없습니다.</div>";
         return;
       }
-      var userRole = "normal";
-      try {
-        var meRes = await fetch("/api/trpc/auth.me?input=%7B%22json%22%3Anull%7D", { credentials: "include" });
-        var meData = await meRes.json();
-        userRole = (meData && meData.result && meData.result.data && meData.result.data.json && meData.result.data.json.memberRole) ? meData.result.data.json.memberRole : "normal";
-      } catch(e) {}
+      var currentUser = await fetchCurrentUser();
+      var tier = getPricingTier(currentUser);
       grid.innerHTML = visible.map(function(p) {
-        var price = p.priceConsumer;
+        var price = resolveDisplayPrice(p, currentUser);
         var priceLabel = "일반 판매가";
-        if (userRole === "pro" && p.pricePro) { price = p.pricePro; priceLabel = "전문가 판매가"; }
-        else if (userRole === "membership" && p.priceMembership) { price = p.priceMembership; priceLabel = "멤버십 판매가"; }
+        if (tier === "professional") priceLabel = "전문가 판매가";
+        else if (tier === "membership") priceLabel = "멤버십 판매가";
         var priceStr = price ? Number(price).toLocaleString("ko-KR") + "원" : "가격 문의";
+        var soldOut = Number(p.stock || 0) <= 0;
+        var restricted = p.isProOnly && !canAccessProProducts(currentUser);
+        var badges = [];
+        if (p.isNew) badges.push("<span class='product-badge product-badge-new'>NEW</span>");
+        if (p.isProOnly) badges.push("<span class='product-badge product-badge-pro'>전문가 전용</span>");
+        if (soldOut) badges.push("<span class='product-badge product-badge-soldout'>품절</span>");
+        else badges.push("<span class='product-badge product-badge-stock'>재고 " + Number(p.stock || 0) + "개</span>");
         var imgHtml = p.imageUrl
           ? "<img src='" + p.imageUrl + "' alt='" + p.name + "' class='product-card-img' />"
           : "<div class='product-card-img-placeholder'>🧴</div>";
-        return "<a href='/product/" + p.slug + "' class='product-card'>" +
+        var cartLabel = restricted ? "인증 필요" : soldOut ? "품절" : "장바구니 담기";
+        var buyLabel = restricted ? "인증 후 구매" : soldOut ? "품절" : "구매하기";
+        var disabledAttr = (restricted || soldOut) ? " disabled" : "";
+        return "<div class='product-card'>" +
+          "<a href='/product/" + p.slug + "' class='product-card-link'>" +
           imgHtml +
           "<div class='product-card-body'>" +
           "<div class='product-card-series'>REAGE CREAM SERIES</div>" +
           "<div class='product-card-name'>" + p.name + "</div>" +
           "<div class='product-card-summary'>" + (p.summaryDescription || p.description || "") + "</div>" +
+          "<div class='product-card-meta'>" + badges.join("") + "</div>" +
           "<div class='product-card-price-label'>" + priceLabel + "</div>" +
           "<div class='product-card-price'>" + priceStr + "</div>" +
-          "</div></a>";
+          "</div></a>" +
+          "<div class='product-card-actions'>" +
+          "<button type='button' class='product-action-btn product-action-btn-cart' data-cart-action='cart' data-product-id='" + p.id + "'" + disabledAttr + ">" + cartLabel + "</button>" +
+          "<button type='button' class='product-action-btn product-action-btn-buy' data-cart-action='buy' data-product-id='" + p.id + "'" + disabledAttr + ">" + buyLabel + "</button>" +
+          "</div></div>";
       }).join("");
+
+      grid.addEventListener("click", function(event) {
+        var button = event.target.closest("[data-cart-action]");
+        if (!button) return;
+        event.preventDefault();
+        var productId = button.getAttribute("data-product-id");
+        var action = button.getAttribute("data-cart-action");
+        if (!productId) return;
+
+        addToCart(productId);
+        if (action === "buy") {
+          window.location.href = "/checkout";
+          return;
+        }
+        showToast("장바구니에 담았습니다.");
+      });
     } catch(e) {
       grid.innerHTML = "<div style='text-align:center;padding:60px;color:#6B6B6B;grid-column:1/-1'>제품 정보를 불러오는 중 오류가 발생했습니다.</div>";
     }

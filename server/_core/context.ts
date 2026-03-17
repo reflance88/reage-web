@@ -3,6 +3,7 @@ import type { Profile } from "../../drizzle/schema-pg";
 import { sdk } from "./sdk";
 import { COOKIE_NAME, SB_ACCESS_COOKIE, SB_REFRESH_COOKIE } from "../../shared/const";
 import { getProfileById, getProfileByOpenId, upsertProfile } from "../db";
+import { parseCookies } from "./cookies";
 import { supabaseAdmin } from "./supabase";
 
 export type TrpcContext = {
@@ -10,19 +11,6 @@ export type TrpcContext = {
   res: CreateExpressContextOptions["res"];
   user: Profile | null;
 };
-
-/**
- * 쿠키에서 값을 파싱합니다.
- */
-function parseCookies(cookieHeader: string | undefined): Record<string, string> {
-  const cookies: Record<string, string> = {};
-  if (!cookieHeader) return cookies;
-  cookieHeader.split(";").forEach((part) => {
-    const [k, ...v] = part.trim().split("=");
-    if (k) cookies[k.trim()] = decodeURIComponent(v.join("="));
-  });
-  return cookies;
-}
 
 /**
  * Supabase Auth access token으로 사용자를 검증합니다.
