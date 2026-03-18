@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
+import { readJsonResponse } from "@/lib/http";
 import { signInWithSocialProvider, type SocialProvider } from "@/lib/supabase-browser";
 
 export default function SignupPage() {
@@ -31,7 +32,7 @@ export default function SignupPage() {
           returnTo,
         }),
       });
-      const data = await res.json() as { error?: string; confirmationRequired?: boolean; returnTo?: string };
+      const data = await readJsonResponse<{ error?: string; confirmationRequired?: boolean; returnTo?: string }>(res);
       if (!res.ok) {
         toast.error(data.error || "회원가입에 실패했습니다.");
         setLoading(false);
@@ -45,8 +46,8 @@ export default function SignupPage() {
         toast.success("회원가입이 완료되었습니다. 환영합니다!");
       }
       window.location.href = data.returnTo || returnTo;
-    } catch {
-      toast.error("네트워크 오류가 발생했습니다.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "네트워크 오류가 발생했습니다.");
       setLoading(false);
     }
   };
@@ -59,10 +60,6 @@ export default function SignupPage() {
       toast.error(error instanceof Error ? error.message : "소셜 회원가입을 시작하지 못했습니다.");
       setSocialLoading(null);
     }
-  };
-
-  const handleUnavailableSocial = () => {
-    toast.error("네이버 로그인은 Supabase 기본 provider를 지원하지 않아 별도 OAuth 구현이 필요합니다.");
   };
 
   const inputStyle = {
@@ -100,10 +97,6 @@ export default function SignupPage() {
             flex: 1, padding: "12px", borderRadius: "10px", border: "none",
             background: "#FEE500", cursor: socialLoading ? "not-allowed" : "pointer", fontSize: "12px", fontWeight: 600, color: "#191919"
           }}>{socialLoading === "kakao" ? "이동 중..." : "카카오"}</button>
-          <button onClick={handleUnavailableSocial} disabled={Boolean(socialLoading)} title="네이버는 별도 연동 필요" style={{
-            flex: 1, padding: "12px", borderRadius: "10px", border: "none",
-            background: "#03C75A", cursor: socialLoading ? "not-allowed" : "pointer", fontSize: "12px", fontWeight: 600, color: "#fff"
-          }}>네이버 별도연동</button>
           <button onClick={() => handleSocial("google")} disabled={Boolean(socialLoading)} title="구글로 가입" style={{
             flex: 1, padding: "12px", borderRadius: "10px", border: "1.5px solid #E8E6E3",
             background: "#fff", cursor: socialLoading ? "not-allowed" : "pointer", fontSize: "12px", fontWeight: 600, color: "#1A1412"

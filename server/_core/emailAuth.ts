@@ -14,7 +14,7 @@
 import type { Express, Request, Response } from "express";
 import { createClient, type EmailOtpType, type Session, type User } from "@supabase/supabase-js";
 import { SB_ACCESS_COOKIE, SB_REFRESH_COOKIE } from "../../shared/const";
-import { clearAuthCookies, requireAdminRequest, sanitizeReturnPath, signOutAuthSession } from "./authSession";
+import { clearAuthCookies, getAuthenticatedProfileFromRequest, requireAdminRequest, sanitizeReturnPath, signOutAuthSession } from "./authSession";
 import { getSessionCookieOptions, parseCookies } from "./cookies";
 import { supabaseAdmin } from "./supabase";
 import * as db from "../db";
@@ -78,6 +78,17 @@ async function syncProfileFromAuthUser(user: User, overrides?: { loginMethod?: s
 }
 
 export function registerEmailAuthRoutes(app: Express): void {
+  app.get("/api/auth/me", async (req: Request, res: Response) => {
+    try {
+      const profile = await getAuthenticatedProfileFromRequest(req);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ user: profile });
+    } catch (error) {
+      console.error("[EmailAuth] me error:", error);
+      res.status(500).json({ error: "사용자 정보를 확인하지 못했습니다." });
+    }
+  });
+
   app.get("/api/auth/public-config", (_req: Request, res: Response) => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       res.status(500).json({ error: "Supabase 공개 인증 설정이 누락되었습니다." });

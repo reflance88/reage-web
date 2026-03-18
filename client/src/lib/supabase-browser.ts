@@ -1,4 +1,5 @@
 import { createClient, type Provider, type SupabaseClient } from "@supabase/supabase-js";
+import { readJsonResponse } from "@/lib/http";
 
 export type SocialProvider = "google" | "kakao";
 
@@ -37,6 +38,11 @@ function getSessionStorage() {
   };
 }
 
+function clearSessionStorageKey(key: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(key);
+}
+
 async function getPublicAuthConfig(): Promise<PublicAuthConfig> {
   if (!authConfigPromise) {
     authConfigPromise = (async () => {
@@ -44,11 +50,11 @@ async function getPublicAuthConfig(): Promise<PublicAuthConfig> {
         method: "GET",
         credentials: "omit",
       });
-      const data = (await res.json()) as {
+      const data = await readJsonResponse<{
         error?: string;
         supabaseUrl?: string;
         supabaseAnonKey?: string;
-      };
+      }>(res);
 
       if (!res.ok || !data.supabaseUrl || !data.supabaseAnonKey) {
         throw new Error(data.error || "Supabase 인증 설정을 불러오지 못했습니다.");
@@ -123,7 +129,7 @@ export async function finalizeSocialAuthSession(authCode: string, returnTo: stri
       returnTo: sanitizeReturnTo(returnTo),
     }),
   });
-  const payload = (await res.json()) as { error?: string; returnTo?: string };
+  const payload = await readJsonResponse<{ error?: string; returnTo?: string }>(res);
 
   if (!res.ok) {
     throw new Error(payload.error || "로그인 세션을 완료하지 못했습니다.");
@@ -133,10 +139,9 @@ export async function finalizeSocialAuthSession(authCode: string, returnTo: stri
 }
 
 export async function clearSocialAuthSession() {
-  try {
-    const supabase = await getBrowserSupabaseAuthClient();
-    await supabase.auth.signOut({ scope: "local" });
-  } catch {
-    // Ignore browser-side cleanup failures.
-  }
+  // Only clear browser-side PKCE/session artifacts.
+  // Calling supabase.auth.signOut() here revokes the freshly issued social session,
+  // which is the same session we persist into HttpOnly server cookies on callback completion.
+  clearSessionStorageKey(SOCIAL_AUTH_STORAGE_KEY);
+  clearSessionStorageKey(`${SOCIAL_AUTH_STORAGE_KEY}-code-verifier`);
 }

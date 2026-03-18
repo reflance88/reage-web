@@ -631,8 +631,11 @@
     #final-cta::before {
       content: '';
       position: absolute; inset: 0;
-      background: url('microcurrent_energy.jpg') center/cover no-repeat;
-      opacity: 0.12;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(200,162,106,0.22), transparent 42%),
+        radial-gradient(circle at 80% 30%, rgba(255,255,255,0.1), transparent 36%),
+        linear-gradient(135deg, rgba(255,255,255,0.04), rgba(107,15,26,0.12));
+      opacity: 1;
     }
     .final-inner { position: relative; z-index: 1; }
     .final-title {
@@ -1966,6 +1969,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   calcRevenue();
 
+  /* 시작시 실행 */
+  updateProgress();
+  updateScrollspy();
+
 }); // DOMContentLoaded end
 
   /* 15. 모바일 메뉴 토글 */
@@ -2041,9 +2048,6 @@ document.addEventListener('DOMContentLoaded', function() {
   `;
   document.head.appendChild(rippleStyle);
 
-  /* 시작시 실행 */
-  updateProgress();
-  updateScrollspy();
 </script>
 <script src="/header-auth.js"></script>
 <script src="/header-products.js"></script>

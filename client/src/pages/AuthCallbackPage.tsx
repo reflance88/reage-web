@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { readJsonResponse } from "@/lib/http";
 import { clearSocialAuthSession, finalizeSocialAuthSession } from "@/lib/supabase-browser";
 
 type CallbackPayload =
@@ -41,7 +42,9 @@ function parseCallbackPayload(): CallbackPayload {
 
   return {
     kind: "error",
-    message: errorMessage ?? "유효한 인증 정보가 없습니다. 이메일 링크를 다시 확인해주세요.",
+    message:
+      errorMessage ??
+      `인증 코드가 없습니다. Supabase Redirect URL에 ${window.location.origin}/auth/callback 이 정확히 등록되어 있는지 확인한 뒤 다시 로그인해주세요.`,
     returnTo,
   };
 }
@@ -65,6 +68,9 @@ export default function AuthCallbackPage() {
     const payload = parseCallbackPayload();
 
     if (payload.kind === "error") {
+      console.warn("[AuthCallback] Missing Supabase auth payload", {
+        url: window.location.href,
+      });
       stripSensitiveUrlParts();
       setStatus("error");
       setMessage(payload.message);
@@ -100,7 +106,7 @@ export default function AuthCallbackPage() {
           credentials: "include",
           body: JSON.stringify(body),
         });
-        const data = (await res.json()) as { error?: string; returnTo?: string };
+        const data = await readJsonResponse<{ error?: string; returnTo?: string }>(res);
 
         if (!res.ok) {
           throw new Error(data.error || "이메일 인증을 완료하지 못했습니다.");

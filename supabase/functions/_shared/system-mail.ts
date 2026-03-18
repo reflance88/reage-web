@@ -30,6 +30,7 @@ export interface BusinessVerificationNotificationInput {
 }
 
 const DEFAULT_INQUIRY_ADMIN_EMAIL = "reflance88@gmail.com";
+const DEFAULT_APP_BASE_URL = "https://reage-web.vercel.app";
 
 const INQUIRY_TYPE_LABEL: Record<string, string> = {
   trial: "체험 예약",
@@ -54,6 +55,11 @@ function normalizeEmailRecipient(value?: string | null) {
 
 function resolveAdminEmailRecipient(override?: string | null) {
   return normalizeEmailRecipient(override) ?? DEFAULT_INQUIRY_ADMIN_EMAIL;
+}
+
+function resolveAdminPortalUrl() {
+  const baseUrl = (Deno.env.get("APP_BASE_URL") ?? DEFAULT_APP_BASE_URL).replace(/\/$/, "");
+  return `${baseUrl}/admin`;
 }
 
 export function buildInquiryNotificationMail(
@@ -139,7 +145,7 @@ export function buildInquiryNotificationMail(
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:8px 0 16px;">
-                    <a href="https://reageweb-aerfeijb.manus.space/admin"
+                    <a href="${resolveAdminPortalUrl()}"
                        style="display:inline-block;background:#6B0F1A;color:#ffffff;text-decoration:none;
                               font-size:14px;font-weight:700;padding:13px 36px;border-radius:10px;
                               letter-spacing:.02em;">
@@ -177,7 +183,7 @@ export function buildInquiryNotificationMail(
 ${data.email ? `이메일: ${data.email}\n` : ""}${data.shop_name ? `상호명: ${data.shop_name}\n` : ""}${data.region ? `지역: ${data.region}\n` : ""}${data.preferred_date ? `선호 날짜: ${data.preferred_date}\n` : ""}${data.message ? `\n문의 내용:\n${data.message}\n` : ""}
 접수 시각: ${receivedAt}
 
-관리자 페이지: https://reageweb-aerfeijb.manus.space/admin
+관리자 페이지: ${resolveAdminPortalUrl()}
   `.trim();
 
   return { to, subject, html, text };
