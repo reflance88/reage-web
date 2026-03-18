@@ -613,7 +613,8 @@
           20년간 검증된 올핸드 미세전류 시스템입니다.
         </p>
         <div class="device-hero-btns">
-          <a href="#features" class="btn-gold">기기 기능 보기</a>
+          <a href="/shop" class="btn-gold">구매하기</a>
+          <a href="/cart" class="btn-outline-light">장바구니</a>
           <a href="#spec-detail" class="btn-outline-light">상세 스펙 확인</a>
         </div>
       </div>
@@ -1109,6 +1110,31 @@
     cursor: not-allowed;
     transform: none;
   }
+  #cream-products .product-grid-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 56px 28px;
+    background: #fff;
+    border: 1px solid #E8E6E3;
+    border-radius: 20px;
+    box-shadow: 0 24px 50px rgba(26,20,18,.06);
+  }
+  #cream-products .product-grid-empty p {
+    margin: 0;
+    color: var(--gray);
+    line-height: 1.7;
+  }
+  #cream-products .product-grid-empty-actions {
+    margin-top: 24px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #cream-products .product-grid-empty-actions a {
+    min-width: 144px;
+    justify-content: center;
+  }
   #cream-products-toast {
     position: fixed;
     left: 50%;
@@ -1242,6 +1268,16 @@
     }, 1800);
   }
 
+  function renderProductFallback(message) {
+    return "<div class='product-grid-empty'>" +
+      "<p>" + message + "</p>" +
+      "<div class='product-grid-empty-actions'>" +
+      "<a href='/shop' class='btn-gold'>구매하기</a>" +
+      "<a href='/cart' class='btn-outline'>장바구니</a>" +
+      "</div>" +
+      "</div>";
+  }
+
   async function fetchCurrentUser() {
     try {
       var res = await fetch("/api/trpc/user.me?input=%7B%22json%22%3Anull%7D", { credentials: "include" });
@@ -1260,7 +1296,7 @@
       var products = parseTrpcPayload(data) || [];
       var visible = products.filter(function(p) { return p.visible !== false && p.isActive !== false; });
       if (visible.length === 0) {
-        grid.innerHTML = "<div style='text-align:center;padding:60px;color:#6B6B6B;grid-column:1/-1'>등록된 제품이 없습니다.</div>";
+        grid.innerHTML = renderProductFallback("현재 등록된 판매 제품이 없어도 쇼핑 페이지로 바로 이동하실 수 있습니다.");
         return;
       }
       var currentUser = await fetchCurrentUser();
@@ -1317,7 +1353,7 @@
         showToast("장바구니에 담았습니다.");
       });
     } catch(e) {
-      grid.innerHTML = "<div style='text-align:center;padding:60px;color:#6B6B6B;grid-column:1/-1'>제품 정보를 불러오는 중 오류가 발생했습니다.</div>";
+      grid.innerHTML = renderProductFallback("제품 정보를 불러오는 중 오류가 발생했습니다. 쇼핑 페이지에서 바로 확인해 주세요.");
     }
   }
   if (document.readyState === "loading") {
