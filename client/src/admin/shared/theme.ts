@@ -1,0 +1,15 @@
+export const ADMIN_COLORS = {
+  bg: "#F7F5F2",
+  white: "#FFFFFF",
+  primary: "#6B0F1A",
+  gold: "#C9A96E",
+  border: "#E8E6E3",
+  text: "#1A1412",
+  muted: "#6B6B6B",
+  sidebar: "#1A1412",
+  sidebarText: "rgba(255,255,255,0.75)",
+  sidebarActive: "#6B0F1A",
+  blue: "#1D4ED8",
+  green: "#166534",
+  orange: "#B45309",
+} as const;

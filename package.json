@@ -12,7 +12,8 @@
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:push:pg": "drizzle-kit generate --config=drizzle-pg.config.ts && drizzle-kit migrate --config=drizzle-pg.config.ts",
-    "db:studio:pg": "drizzle-kit studio --config=drizzle-pg.config.ts"
+    "db:studio:pg": "drizzle-kit studio --config=drizzle-pg.config.ts",
+    "db:seed:products:pg": "node scripts/seed-products-pg.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

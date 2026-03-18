@@ -9,6 +9,16 @@ const { products } = await import("../drizzle/schema.ts");
 
 const productData = [
   {
+    slug: "reage-device",
+    name: "레아쥬기기",
+    description: "REAGE 올핸드 미세전류 기기 도입 상담 상품",
+    priceConsumer: "0",
+    pricePro: "0",
+    isProOnly: false,
+    stock: 999,
+    isActive: true,
+  },
+  {
     slug: "s1-cream",
     name: "S1크림",
     description: "레아쥬 S1 미세전류 크림",

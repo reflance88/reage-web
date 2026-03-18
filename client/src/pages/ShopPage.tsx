@@ -9,6 +9,13 @@ function formatPrice(value: number | string | null | undefined) {
   return amount === null ? "가격 문의" : `${amount.toLocaleString("ko-KR")}원`;
 }
 
+function resolveProductLink(slug: string, detailPageUrl: string | null | undefined) {
+  if (detailPageUrl && detailPageUrl.startsWith("/")) {
+    return detailPageUrl;
+  }
+  return `/product/${slug}`;
+}
+
 export default function ShopPage() {
   const { user: authUser } = useAuth();
   const { data: products, isLoading } = trpc.product.list.useQuery();
@@ -89,14 +96,19 @@ export default function ShopPage() {
             {(products ?? []).map((product) => {
               const currentPrice = resolveUnitPrice(product, tier, membershipDiscountRate);
               const consumerPrice = parsePrice(product.priceConsumer);
+              const isInquiryProduct = currentPrice <= 0 && !!product.detailPageUrl && !product.detailPageUrl.startsWith("/product/");
               const soldOut = product.stock <= 0;
               const restricted = product.isProOnly && !canAccessProProducts(tier);
-              const discounted = consumerPrice !== null && currentPrice < consumerPrice;
+              const discounted = !isInquiryProduct && consumerPrice !== null && currentPrice < consumerPrice;
+              const productLink = resolveProductLink(product.slug, product.detailPageUrl);
+              const priceLabel = isInquiryProduct ? "구매 안내" : "현재 적용가";
+              const priceValue = isInquiryProduct ? "도입 상담" : formatPrice(currentPrice);
+              const stockBadge = isInquiryProduct ? "도입 상담 상품" : soldOut ? "품절" : `재고 ${product.stock}개`;
 
               return (
                 <a
                   key={product.id}
-                  href={`/product/${product.slug}`}
+                  href={productLink}
                   className="group overflow-hidden rounded-[28px] border border-[#eadfce] bg-white shadow-[0_18px_50px_rgba(67,44,23,0.08)] transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(67,44,23,0.12)]"
                 >
                   <div className="relative aspect-[1.05] overflow-hidden bg-[linear-gradient(160deg,#f8f2ea_0%,#f1e4d2_100%)]">
@@ -115,9 +127,10 @@ export default function ShopPage() {
                       {product.isNew && <span className="rounded-full bg-[#8b1a1a] px-3 py-1 text-[11px] font-semibold text-white">NEW</span>}
                       {product.isRecommended && <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-[#6d5230]">추천</span>}
                       {product.isProOnly && <span className="rounded-full bg-[#1f1714] px-3 py-1 text-[11px] font-semibold text-[#f0d9ae]">전문가 전용</span>}
+                      {isInquiryProduct && <span className="rounded-full bg-[#1f1714] px-3 py-1 text-[11px] font-semibold text-[#f0d9ae]">도입 상담</span>}
                     </div>
                     <div className="absolute bottom-4 right-4 rounded-full border border-black/5 bg-white/90 px-3 py-1 text-[11px] font-medium text-[#5d5049]">
-                      {soldOut ? "품절" : `재고 ${product.stock}개`}
+                      {stockBadge}
                     </div>
                   </div>
 
@@ -133,8 +146,8 @@ export default function ShopPage() {
                     <div className="rounded-[20px] bg-[#faf6f0] px-4 py-4">
                       <div className="flex items-end justify-between gap-4">
                         <div>
-                          <p className="text-xs text-[#8a7b70]">현재 적용가</p>
-                          <p className="mt-1 text-2xl font-semibold text-[#1f1714]">{formatPrice(currentPrice)}</p>
+                          <p className="text-xs text-[#8a7b70]">{priceLabel}</p>
+                          <p className="mt-1 text-2xl font-semibold text-[#1f1714]">{priceValue}</p>
                         </div>
                         {discounted && (
                           <div className="text-right">
@@ -145,6 +158,9 @@ export default function ShopPage() {
                       </div>
                       {tier === "membership" && product.priceMembership && (
                         <p className="mt-3 text-xs text-[#8b1a1a]">멤버십 전용 가격이 적용되었습니다.</p>
+                      )}
+                      {isInquiryProduct && (
+                        <p className="mt-3 text-xs text-[#8b1a1a]">기기 도입 상담 후 구매 가능한 상품입니다.</p>
                       )}
                       {restricted && (
                         <p className="mt-3 text-xs text-[#8b1a1a]">
