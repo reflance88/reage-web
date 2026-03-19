@@ -198,7 +198,7 @@ function PopupForm({ popup, onSave, onCancel }: { popup?: any; onSave: (data: an
         <div style={rowStyle}>
           <span style={labelStyle}>하단 문구</span>
           <div style={{ display: "flex", gap: "16px", paddingTop: "8px" }}>
-            {[{ v: "today", l: "오늘 하루 열지 않기" }, { v: "week", l: "일주일간 열지 않기" }, { v: "none", l: "없음" }].map((option) => (
+            {[{ v: "today", l: "오늘 하루 보지 않기" }, { v: "week", l: "일주일간 열지 않기" }, { v: "none", l: "없음" }].map((option) => (
               <label key={option.v} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "13px" }}>
                 <input type="radio" name="bottomText" value={option.v} checked={bottomText === option.v} onChange={() => setBottomText(option.v)} />
                 {option.l}
@@ -309,7 +309,7 @@ export function PopupSection({ subPage, onNavigate }: { subPage: string; onNavig
   }
 
   const popupTypeLabel = (value: string) => (value === "pc" ? "PC" : value === "mobile" ? "모바일" : "PC + 모바일");
-  const bottomTextLabel = (value: string) => (value === "today" ? "오늘 하루 열지 않기" : value === "week" ? "일주일간 열지 않기" : "없음");
+  const bottomTextLabel = (value: string) => (value === "today" ? "오늘 하루 보지 않기" : value === "week" ? "일주일간 열지 않기" : "없음");
 
   return (
     <div>
