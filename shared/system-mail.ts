@@ -94,7 +94,7 @@ export function buildInquiryNotificationMail(
               <div style="font-size:26px;font-weight:800;letter-spacing:.12em;color:#ffffff;">
                 RE<span style="color:#C9A96E;">A</span>GE
               </div>
-              <div style="font-size:11px;color:#9B8B7A;letter-spacing:.2em;margin-top:4px;">올핸드 미세전류 테라피</div>
+              <div style="font-size:11px;color:#9B8B7A;letter-spacing:.2em;margin-top:4px;">올핸드 주파 미세전류 테라피</div>
             </td>
           </tr>
           <tr>
@@ -207,7 +207,7 @@ export function buildBusinessVerificationApplicantMail(
       <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 4px 40px rgba(26,20,18,.10);border:1px solid #E8E6E3;">
         <tr><td style="background:#1A1412;padding:32px 40px;text-align:center;">
           <div style="font-size:28px;font-weight:800;letter-spacing:.12em;color:#ffffff;">RE<span style="color:#C9A96E;">A</span>GE</div>
-          <div style="font-size:11px;color:#9B8B7A;letter-spacing:.2em;margin-top:4px;">올핸드 미세전류 테라피</div>
+          <div style="font-size:11px;color:#9B8B7A;letter-spacing:.2em;margin-top:4px;">올핸드 주파 미세전류 테라피</div>
         </td></tr>
         <tr><td style="padding:40px 40px 32px;">
           <h1 style="font-size:20px;font-weight:700;color:#1A1412;margin:0 0 12px;">사업자 인증 신청 접수 완료</h1>

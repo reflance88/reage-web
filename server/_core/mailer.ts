@@ -106,7 +106,7 @@ export async function sendPasswordResetEmail(
               <div style="font-size:28px;font-weight:800;letter-spacing:.12em;color:#ffffff;">
                 RE<span style="color:#C9A96E;">A</span>GE
               </div>
-              <div style="font-size:11px;color:#9B8B7A;letter-spacing:.2em;margin-top:4px;">올핸드 미세전류 테라피</div>
+              <div style="font-size:11px;color:#9B8B7A;letter-spacing:.2em;margin-top:4px;">올핸드 주파 미세전류 테라피</div>
             </td>
           </tr>
           <!-- 본문 -->
