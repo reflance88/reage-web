@@ -151,3 +151,4 @@ pnpm lint      # 린팅 검사
 ---
 
 **Made with ❤️ using [Manus](https://manus.so)**
+- Previous commit: Create README.md for the project
