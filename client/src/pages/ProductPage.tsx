@@ -100,7 +100,7 @@ export default function ProductPage() {
         <div className="rounded-[28px] border border-[#eadfce] bg-white px-8 py-10 text-center shadow-[0_20px_60px_rgba(67,44,23,0.08)]">
           <p className="text-lg font-medium text-[#1f1714]">상품을 찾을 수 없습니다.</p>
           <p className="mt-2 text-sm text-[#6f645d]">비노출 또는 판매 종료된 상품일 수 있습니다.</p>
-          <a href="/shop" className="mt-5 inline-flex rounded-full bg-[#c9a96e] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#b79258]">
+          <a href="/reage-device.html" className="mt-5 inline-flex rounded-full bg-[#c9a96e] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#b79258]">
             상품 목록으로 이동
           </a>
         </div>
@@ -116,7 +116,7 @@ export default function ProductPage() {
           <nav className="hidden items-center gap-6 text-sm text-[#6f645d] md:flex">
             <a href="/brand-intro.html" className="transition hover:text-[#1f1714]">브랜드</a>
             <a href="/therapy.html" className="transition hover:text-[#1f1714]">레아쥬테라피</a>
-            <a href="/shop" className="font-medium text-[#8b1a1a]">제품소개</a>
+            <a href="/reage-device.html" className="font-medium text-[#8b1a1a]">제품소개</a>
             <a href="/review.html" className="transition hover:text-[#1f1714]">후기</a>
           </nav>
           <div className="flex items-center gap-2">
@@ -139,7 +139,7 @@ export default function ProductPage() {
       <div className="mx-auto max-w-6xl px-4 py-4 text-sm text-[#87796f]">
         <a href="/index-main.html" className="transition hover:text-[#1f1714]">홈</a>
         <span className="mx-2">/</span>
-        <a href="/shop" className="transition hover:text-[#1f1714]">제품소개</a>
+        <a href="/reage-device.html" className="transition hover:text-[#1f1714]">제품소개</a>
         <span className="mx-2">/</span>
         <span className="text-[#1f1714]">{product.name}</span>
       </div>
@@ -375,7 +375,7 @@ export default function ProductPage() {
                 <p className="text-xs font-medium tracking-[0.3em] text-[#c9a96e]">YOU MAY ALSO LIKE</p>
                 <h2 className="mt-2 text-2xl font-semibold text-[#1f1714]">함께 보면 좋은 제품</h2>
               </div>
-              <a href="/shop" className="text-sm font-medium text-[#8b1a1a] underline underline-offset-4">
+              <a href="/reage-device.html" className="text-sm font-medium text-[#8b1a1a] underline underline-offset-4">
                 전체 상품 보기
               </a>
             </div>

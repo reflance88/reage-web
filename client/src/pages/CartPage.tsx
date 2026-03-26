@@ -138,8 +138,8 @@ export default function CartPage() {
         {cartItems.length === 0 ? (
           <div className="rounded-[28px] border border-[#eadfce] bg-white px-8 py-14 text-center shadow-[0_20px_60px_rgba(67,44,23,0.08)]">
             <p className="text-base text-[#6f645d]">장바구니가 비어 있습니다.</p>
-            <a href="/shop" className="mt-5 inline-flex rounded-full bg-[#c9a96e] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#b79258]">
-              쇼핑하러 가기
+            <a href="/reage-device.html" className="mt-5 inline-flex rounded-full bg-[#c9a96e] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#b79258]">
+              제품 보러 가기
             </a>
           </div>
         ) : (

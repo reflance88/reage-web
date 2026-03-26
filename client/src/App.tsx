@@ -17,11 +17,15 @@ const FindIdPage = lazy(() => import("./pages/FindIdPage"));
 const FindPasswordPage = lazy(() => import("./pages/FindPasswordPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ProductPage = lazy(() => import("./pages/ProductPage"));
-const ShopPage = lazy(() => import("./pages/ShopPage"));
 const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
 
 function Home() {
   window.location.replace("/index-main.html");
+  return null;
+}
+
+function LegacyShopRedirect() {
+  window.location.replace("/reage-device.html");
   return null;
 }
 
@@ -50,7 +54,7 @@ function Router() {
         <Route path="/payment/success" component={PaymentSuccessPage} />
         <Route path="/payment/fail" component={PaymentFailPage} />
         <Route path="/admin" component={AdminPage} />
-        <Route path="/shop" component={ShopPage} />
+        <Route path="/shop" component={LegacyShopRedirect} />
         <Route path="/product/:slug" component={ProductPage} />
       </Switch>
     </Suspense>

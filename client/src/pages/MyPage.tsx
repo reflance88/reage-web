@@ -277,7 +277,7 @@ export default function MyPage() {
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4">
           <a href="/index-main.html" className="text-lg font-semibold tracking-[0.35em] text-[#1f1714]">REAGE</a>
           <div className="flex items-center gap-3">
-            <a href="/shop" className="text-sm text-[#6f645d] transition hover:text-[#1f1714]">쇼핑</a>
+            <a href="/reage-device.html" className="text-sm text-[#6f645d] transition hover:text-[#1f1714]">제품소개</a>
             <button
               onClick={async () => {
                 await logout();
@@ -472,8 +472,8 @@ export default function MyPage() {
             {!orders || orders.length === 0 ? (
               <div className="rounded-[30px] border border-[#eadfce] bg-white px-8 py-14 text-center shadow-[0_18px_50px_rgba(67,44,23,0.08)]">
                 <p className="text-sm text-[#6f645d]">주문 내역이 없습니다.</p>
-                <a href="/shop" className="mt-4 inline-flex rounded-full bg-[#c9a96e] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#b79258]">
-                  쇼핑하러 가기
+                <a href="/reage-device.html" className="mt-4 inline-flex rounded-full bg-[#c9a96e] px-6 py-3 text-sm font-medium text-white transition hover:bg-[#b79258]">
+                  제품 보러 가기
                 </a>
               </div>
             ) : (
