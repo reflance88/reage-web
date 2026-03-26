@@ -223,7 +223,6 @@
       aspect-ratio: 1;
       background: linear-gradient(135deg, rgba(200,162,106,.08) 0%, rgba(107,15,26,.2) 100%);
       border: 1px solid rgba(200,162,106,.2);
-      display: flex; align-items: center; justify-content: center;
     }
     .device-hero-visual-placeholder {
       display: flex; flex-direction: column;
@@ -257,11 +256,10 @@
       gap: 80px; align-items: center;
     }
     .device-intro-visual {
+      position: relative;
       border-radius: var(--radius); overflow: hidden;
       aspect-ratio: 4/3;
       background: var(--light-gray);
-      display: flex; align-items: center; justify-content: center;
-      color: var(--gray); font-size: 13px; letter-spacing: .1em;
     }
 
     /* ─── 기능 상세 ─── */
@@ -355,11 +353,10 @@
       gap: 80px; align-items: start;
     }
     .spec-detail-visual {
+      position: relative;
       border-radius: var(--radius); overflow: hidden;
       aspect-ratio: 1;
       background: var(--light-gray);
-      display: flex; align-items: center; justify-content: center;
-      color: var(--gray); font-size: 13px; letter-spacing: .1em;
     }
     .spec-table { width: 100%; border-collapse: collapse; margin-top: 28px; }
     .spec-table tr { border-bottom: 1px solid var(--light-gray); }
@@ -620,7 +617,7 @@
       <div class="device-hero-visual fade-in" style="transition-delay:.2s">
         <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/XJcjlYyYshHUOjCk.jpg"
              alt="레아쥬 미세전류 기기"
-             style="width:100%; height:100%; object-fit:contain; padding:16px; filter:drop-shadow(0 20px 60px rgba(200,162,106,.35)) drop-shadow(0 4px 20px rgba(0,0,0,.5));">
+             style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; border-radius:20px;">
       </div>
     </div>
   </div>
@@ -676,7 +673,7 @@
         </div>
       </div>
       <div class="device-intro-visual fade-in" style="transition-delay:.2s;padding:0;">
-        <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/giEBQlKccbTHbasL.webp" alt="레아쥬 기기 상세 이미지" style="width:100%;height:100%;object-fit:contain;display:block;" />
+        <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/giEBQlKccbTHbasL.webp" alt="레아쥬 기기 상세 이미지" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; border-radius:var(--radius);" />
       </div>
     </div>
   </div>
@@ -843,7 +840,7 @@
       <div class="spec-detail-visual fade-in" style="background: linear-gradient(135deg, #f5f0e8 0%, #ede8de 100%); padding: 0;">
         <img src="https://files.manuscdn.com/user_upload_by_module/session_file/310519663306521822/XJcjlYyYshHUOjCk.jpg"
              alt="레아쥬 기기 상세"
-             style="width:100%; height:100%; object-fit:contain; padding:24px; filter:drop-shadow(0 12px 40px rgba(0,0,0,.15));">
+             style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; border-radius:var(--radius);">
       </div>
       <div class="fade-in" style="transition-delay:.2s">
         <div class="eyebrow">Technical Specifications</div>
