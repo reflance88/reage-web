@@ -104,7 +104,9 @@ export async function getDb() {
   if (!url) {
     if (!didWarnMissingDbUrl) {
       didWarnMissingDbUrl = true;
-      console.warn("[Database] SUPABASE_DATABASE_URL or DATABASE_URL is not set");
+      console.warn(
+        "[Database] SUPABASE_DATABASE_URL or DATABASE_URL is not set"
+      );
     }
     return null;
   }
@@ -133,7 +135,11 @@ function logReadFallback(scope: string) {
   console.warn(`[Database] ${scope}: DB not available, returning fallback`);
 }
 
-async function readOrFallback<T>(scope: string, fallback: T, query: (db: DbClient) => Promise<T>) {
+async function readOrFallback<T>(
+  scope: string,
+  fallback: T,
+  query: (db: DbClient) => Promise<T>
+) {
   const db = await getDb();
   if (!db) {
     logReadFallback(scope);
@@ -148,7 +154,9 @@ async function pruneExpiredRateLimits(db: DbClient, now: Date) {
     return;
   }
   lastRateLimitCleanupAt = nowMs;
-  await db.delete(requestRateLimits).where(sql`${requestRateLimits.expiresAt} <= ${now}`);
+  await db
+    .delete(requestRateLimits)
+    .where(sql`${requestRateLimits.expiresAt} <= ${now}`);
 }
 
 async function expireStaleCreatedOrdersWithDb(db: DbClient, now = new Date()) {
@@ -156,7 +164,9 @@ async function expireStaleCreatedOrdersWithDb(db: DbClient, now = new Date()) {
   const result = await db
     .update(orders)
     .set({ status: "failed", updatedAt: now })
-    .where(and(eq(orders.status, "created"), sql`${orders.createdAt} < ${cutoff}`))
+    .where(
+      and(eq(orders.status, "created"), sql`${orders.createdAt} < ${cutoff}`)
+    )
     .returning({ id: orders.id });
   return result.length;
 }
@@ -168,16 +178,28 @@ export async function expireStaleCreatedOrders(now = new Date()) {
 }
 
 function isCompatOrderStatus(value: unknown): value is OrderRecord["status"] {
-  return value === "created" || value === "paid" || value === "failed" || value === "cancelled";
+  return (
+    value === "created" ||
+    value === "paid" ||
+    value === "failed" ||
+    value === "cancelled"
+  );
 }
 
 function normalizeRpcOrder(data: unknown): OrderRecord | null {
   if (!data || typeof data !== "object") return null;
   const value = data as Partial<OrderRecord>;
-  if (!isCompatOrderStatus(value.status) || typeof value.orderId !== "string" || typeof value.userId !== "string") {
+  if (
+    !isCompatOrderStatus(value.status) ||
+    typeof value.orderId !== "string" ||
+    typeof value.userId !== "string"
+  ) {
     return null;
   }
-  if ((typeof value.id !== "string" && typeof value.id !== "number") || value.id === "") {
+  if (
+    (typeof value.id !== "string" && typeof value.id !== "number") ||
+    value.id === ""
+  ) {
     return null;
   }
 
@@ -213,17 +235,29 @@ function normalizeRpcOrder(data: unknown): OrderRecord | null {
 
 function normalizeRpcOrderList(data: unknown): OrderRecord[] | null {
   if (!Array.isArray(data)) return null;
-  const rows = data.map((row) => normalizeRpcOrder(row));
-  if (rows.some((row) => row === null)) return null;
+  const rows = data.map(row => normalizeRpcOrder(row));
+  if (rows.some(row => row === null)) return null;
   return rows as OrderRecord[];
 }
 
 function normalizeRpcOrderItem(data: unknown): OrderItemRecord | null {
   if (!data || typeof data !== "object") return null;
   const value = data as Partial<OrderItemRecord>;
-  if ((typeof value.id !== "string" && typeof value.id !== "number") || value.id === "") return null;
-  if ((typeof value.orderId !== "string" && typeof value.orderId !== "number") || value.orderId === "") return null;
-  if (typeof value.productName !== "string" || typeof value.quantity !== "number") return null;
+  if (
+    (typeof value.id !== "string" && typeof value.id !== "number") ||
+    value.id === ""
+  )
+    return null;
+  if (
+    (typeof value.orderId !== "string" && typeof value.orderId !== "number") ||
+    value.orderId === ""
+  )
+    return null;
+  if (
+    typeof value.productName !== "string" ||
+    typeof value.quantity !== "number"
+  )
+    return null;
   return {
     id: value.id,
     orderId: value.orderId,
@@ -237,8 +271,8 @@ function normalizeRpcOrderItem(data: unknown): OrderItemRecord | null {
 
 function normalizeRpcOrderItemList(data: unknown): OrderItemRecord[] | null {
   if (!Array.isArray(data)) return null;
-  const rows = data.map((row) => normalizeRpcOrderItem(row));
-  if (rows.some((row) => row === null)) return null;
+  const rows = data.map(row => normalizeRpcOrderItem(row));
+  if (rows.some(row => row === null)) return null;
   return rows as OrderItemRecord[];
 }
 
@@ -273,7 +307,15 @@ function mapDbOrder(order: Order): OrderRecord {
   };
 }
 
-function mapDbOrderItem(item: { id: number; orderId: number; productId: string; productName: string; quantity: number; unitPrice: string; subtotal: string; }): OrderItemRecord {
+function mapDbOrderItem(item: {
+  id: number;
+  orderId: number;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: string;
+  subtotal: string;
+}): OrderItemRecord {
   return {
     id: item.id,
     orderId: item.orderId,
@@ -287,19 +329,34 @@ function mapDbOrderItem(item: { id: number; orderId: number; productId: string; 
 
 function getRpcErrorMessage(error: unknown) {
   if (!error || typeof error !== "object") return null;
-  const value = error as { message?: string; details?: string | null; hint?: string | null };
+  const value = error as {
+    message?: string;
+    details?: string | null;
+    hint?: string | null;
+  };
   const raw = [value.message, value.details, value.hint]
-    .filter((item): item is string => typeof item === "string" && item.length > 0)
+    .filter(
+      (item): item is string => typeof item === "string" && item.length > 0
+    )
     .join(" ");
   return raw || null;
 }
 
 function shouldFallbackFromOrderRpc(error: unknown) {
   const raw = getRpcErrorMessage(error) ?? "";
-  if (error && typeof error === "object" && (error as { code?: string }).code === "PGRST202") {
+  if (
+    error &&
+    typeof error === "object" &&
+    (error as { code?: string }).code === "PGRST202"
+  ) {
     return true;
   }
-  return /Could not find the function/i.test(raw) || /fetch failed/i.test(raw) || /ENOTFOUND/i.test(raw) || error instanceof TypeError;
+  return (
+    /Could not find the function/i.test(raw) ||
+    /fetch failed/i.test(raw) ||
+    /ENOTFOUND/i.test(raw) ||
+    error instanceof TypeError
+  );
 }
 
 function toRpcError(error: unknown) {
@@ -322,7 +379,15 @@ export async function upsertProfile(profile: InsertProfile): Promise<void> {
     const values: InsertProfile = { id: profile.id };
     const updateSet: Record<string, unknown> = {};
 
-    const textFields = ["name", "email", "loginMethod", "openId"] as const;
+    const textFields = [
+      "name",
+      "email",
+      "loginMethod",
+      "openId",
+      "username",
+      "phone",
+      "landlinePhone",
+    ] as const;
     type TextField = (typeof textFields)[number];
     const assignNullable = (field: TextField) => {
       const value = profile[field];
@@ -333,14 +398,39 @@ export async function upsertProfile(profile: InsertProfile): Promise<void> {
     };
     textFields.forEach(assignNullable);
 
-    if (profile.lastSignedIn !== undefined) { values.lastSignedIn = profile.lastSignedIn; updateSet.lastSignedIn = profile.lastSignedIn; }
-    if (profile.role !== undefined) { values.role = profile.role; updateSet.role = profile.role; }
-    else if (profile.openId === ENV.ownerOpenId) { values.role = "admin"; updateSet.role = "admin"; }
+    const booleanFields = [
+      "marketingSmsConsent",
+      "marketingEmailConsent",
+    ] as const;
+    type BooleanField = (typeof booleanFields)[number];
+    const assignBoolean = (field: BooleanField) => {
+      const value = profile[field];
+      if (value === undefined) return;
+      values[field] = value;
+      updateSet[field] = value;
+    };
+    booleanFields.forEach(assignBoolean);
+
+    if (profile.lastSignedIn !== undefined) {
+      values.lastSignedIn = profile.lastSignedIn;
+      updateSet.lastSignedIn = profile.lastSignedIn;
+    }
+    if (profile.role !== undefined) {
+      values.role = profile.role;
+      updateSet.role = profile.role;
+    } else if (profile.openId === ENV.ownerOpenId) {
+      values.role = "admin";
+      updateSet.role = "admin";
+    }
 
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
-    if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
+    if (Object.keys(updateSet).length === 0)
+      updateSet.lastSignedIn = new Date();
 
-    await db.insert(profiles).values(values).onConflictDoUpdate({ target: profiles.id, set: updateSet });
+    await db
+      .insert(profiles)
+      .values(values)
+      .onConflictDoUpdate({ target: profiles.id, set: updateSet });
   } catch (error) {
     console.error("[Database] Failed to upsert profile:", error);
     throw error;
@@ -349,27 +439,66 @@ export async function upsertProfile(profile: InsertProfile): Promise<void> {
 
 /** auth.users.id (uuid) 기준 조회 */
 export async function getProfileById(id: string): Promise<Profile | undefined> {
-  return readOrFallback("getProfileById", undefined, async (db) => {
-    const result = await db.select().from(profiles).where(eq(profiles.id, id)).limit(1);
+  return readOrFallback("getProfileById", undefined, async db => {
+    const result = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.id, id))
+      .limit(1);
     return result.length > 0 ? result[0] : undefined;
   });
 }
 
 /** Manus openId 기준 조회 (소셜 OAuth 콜백용) */
-export async function getProfileByOpenId(openId: string): Promise<Profile | undefined> {
-  return readOrFallback("getProfileByOpenId", undefined, async (db) => {
-    const result = await db.select().from(profiles).where(eq(profiles.openId, openId)).limit(1);
+export async function getProfileByOpenId(
+  openId: string
+): Promise<Profile | undefined> {
+  return readOrFallback("getProfileByOpenId", undefined, async db => {
+    const result = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.openId, openId))
+      .limit(1);
     return result.length > 0 ? result[0] : undefined;
   });
 }
 
-export async function updateProfileData(id: string, data: { name?: string; phone?: string }) {
-  const db = await requireDb();
-  await db.update(profiles).set({ ...data, updatedAt: new Date() }).where(eq(profiles.id, id));
+export async function getProfileByUsername(
+  username: string
+): Promise<Profile | undefined> {
+  return readOrFallback("getProfileByUsername", undefined, async db => {
+    const result = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.username, username))
+      .limit(1);
+    return result.length > 0 ? result[0] : undefined;
+  });
 }
 
-export async function getUserSavedAddresses(userId: string): Promise<SavedAddress[]> {
-  return readOrFallback("getUserSavedAddresses", [], async (db) => {
+export async function updateProfileData(
+  id: string,
+  data: {
+    username?: string | null;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    landlinePhone?: string | null;
+    marketingSmsConsent?: boolean;
+    marketingEmailConsent?: boolean;
+  }
+) {
+  const db = await requireDb();
+  await db
+    .update(profiles)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(profiles.id, id));
+}
+
+export async function getUserSavedAddresses(
+  userId: string
+): Promise<SavedAddress[]> {
+  return readOrFallback("getUserSavedAddresses", [], async db => {
     return db
       .select()
       .from(savedAddresses)
@@ -380,7 +509,7 @@ export async function getUserSavedAddresses(userId: string): Promise<SavedAddres
 
 export async function createSavedAddress(data: InsertSavedAddress) {
   const db = await requireDb();
-  return db.transaction(async (tx) => {
+  return db.transaction(async tx => {
     if (data.isDefault) {
       await tx
         .update(savedAddresses)
@@ -393,9 +522,13 @@ export async function createSavedAddress(data: InsertSavedAddress) {
   });
 }
 
-export async function updateSavedAddress(id: number, userId: string, data: Partial<InsertSavedAddress>) {
+export async function updateSavedAddress(
+  id: number,
+  userId: string,
+  data: Partial<InsertSavedAddress>
+) {
   const db = await requireDb();
-  return db.transaction(async (tx) => {
+  return db.transaction(async tx => {
     if (data.isDefault) {
       await tx
         .update(savedAddresses)
@@ -414,7 +547,9 @@ export async function updateSavedAddress(id: number, userId: string, data: Parti
 
 export async function deleteSavedAddress(id: number, userId: string) {
   const db = await requireDb();
-  await db.delete(savedAddresses).where(and(eq(savedAddresses.id, id), eq(savedAddresses.userId, userId)));
+  await db
+    .delete(savedAddresses)
+    .where(and(eq(savedAddresses.id, id), eq(savedAddresses.userId, userId)));
 }
 
 // 하위 호환 alias (기존 코드에서 getUserByOpenId를 쓰는 곳)
@@ -424,46 +559,75 @@ export const getUserByEmail = getProfileByEmail;
 export const updateUserProfile = updateProfileData;
 // 제거된 함수들의 stub (Supabase Auth로 이관됨 — 호출 시 에러 발생)
 export async function createEmailUser(_data: unknown): Promise<never> {
-  throw new Error('createEmailUser is removed. Use Supabase Auth signUp instead.');
+  throw new Error(
+    "createEmailUser is removed. Use Supabase Auth signUp instead."
+  );
 }
-export async function updateUserResetToken(_id: string, _token: string, _expiresAt: Date): Promise<never> {
-  throw new Error('updateUserResetToken is removed. Use Supabase Auth resetPasswordForEmail instead.');
+export async function updateUserResetToken(
+  _id: string,
+  _token: string,
+  _expiresAt: Date
+): Promise<never> {
+  throw new Error(
+    "updateUserResetToken is removed. Use Supabase Auth resetPasswordForEmail instead."
+  );
 }
 export async function getUserByResetToken(_token: string): Promise<never> {
-  throw new Error('getUserByResetToken is removed. Use Supabase Auth verifyOtp instead.');
+  throw new Error(
+    "getUserByResetToken is removed. Use Supabase Auth verifyOtp instead."
+  );
 }
-export async function updateUserPassword(_id: string, _hash: string): Promise<never> {
-  throw new Error('updateUserPassword is removed. Use Supabase Auth updateUser instead.');
+export async function updateUserPassword(
+  _id: string,
+  _hash: string
+): Promise<never> {
+  throw new Error(
+    "updateUserPassword is removed. Use Supabase Auth updateUser instead."
+  );
 }
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 export async function getProducts() {
-  return readOrFallback("getProducts", [], async (db) => {
+  return readOrFallback("getProducts", [], async db => {
     return db
       .select()
       .from(products)
       .where(and(eq(products.isActive, true), eq(products.visible, true)))
-      .orderBy(desc(products.isRecommended), asc(products.sortOrder), desc(products.createdAt));
+      .orderBy(
+        desc(products.isRecommended),
+        asc(products.sortOrder),
+        desc(products.createdAt)
+      );
   });
 }
 
 export async function getProductBySlug(slug: string) {
-  return readOrFallback("getProductBySlug", undefined, async (db) => {
-    const result = await db.select().from(products).where(eq(products.slug, slug)).limit(1);
+  return readOrFallback("getProductBySlug", undefined, async db => {
+    const result = await db
+      .select()
+      .from(products)
+      .where(eq(products.slug, slug))
+      .limit(1);
     return result.length > 0 ? result[0] : undefined;
   });
 }
 
 export async function getProductById(id: string) {
-  return readOrFallback("getProductById", undefined, async (db) => {
-    const result = await db.select().from(products).where(eq(products.id, id)).limit(1);
+  return readOrFallback("getProductById", undefined, async db => {
+    const result = await db
+      .select()
+      .from(products)
+      .where(eq(products.id, id))
+      .limit(1);
     return result.length > 0 ? result[0] : undefined;
   });
 }
 
 // ─── Business Verifications ───────────────────────────────────────────────────
-export async function getLatestVerification(userId: string): Promise<BusinessVerification | undefined> {
-  return readOrFallback("getLatestVerification", undefined, async (db) => {
+export async function getLatestVerification(
+  userId: string
+): Promise<BusinessVerification | undefined> {
+  return readOrFallback("getLatestVerification", undefined, async db => {
     const result = await db
       .select()
       .from(businessVerifications)
@@ -487,20 +651,32 @@ export async function createVerification(data: InsertBusinessVerification) {
   return result[0];
 }
 
-export async function updateVerification(id: number, data: Partial<BusinessVerification>) {
+export async function updateVerification(
+  id: number,
+  data: Partial<BusinessVerification>
+) {
   const db = await requireDb();
-  await db.update(businessVerifications).set(data).where(eq(businessVerifications.id, id));
+  await db
+    .update(businessVerifications)
+    .set(data)
+    .where(eq(businessVerifications.id, id));
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
-async function createOrderWithDb(orderData: InsertOrder, items: InsertOrderItem[]): Promise<OrderRecord> {
+async function createOrderWithDb(
+  orderData: InsertOrder,
+  items: InsertOrderItem[]
+): Promise<OrderRecord> {
   const db = await requireDb();
   await expireStaleCreatedOrdersWithDb(db);
-  const order = await db.transaction(async (tx) => {
+  const order = await db.transaction(async tx => {
     const [order] = await tx.insert(orders).values(orderData).returning();
     if (!order) throw new Error("Order not found after insert");
 
-    const itemsWithOrderId = items.map((item) => ({ ...item, orderId: order.id }));
+    const itemsWithOrderId = items.map(item => ({
+      ...item,
+      orderId: order.id,
+    }));
     await tx.insert(orderItems).values(itemsWithOrderId);
 
     return order;
@@ -508,7 +684,10 @@ async function createOrderWithDb(orderData: InsertOrder, items: InsertOrderItem[
   return mapDbOrder(order);
 }
 
-async function createOrderWithRpc(orderData: InsertOrder, items: InsertOrderItem[]): Promise<OrderRecord> {
+async function createOrderWithRpc(
+  orderData: InsertOrder,
+  items: InsertOrderItem[]
+): Promise<OrderRecord> {
   const { data, error } = await supabaseAdmin.rpc("create_checkout_order", {
     p_user_id: orderData.userId,
     p_order_number: orderData.orderId,
@@ -526,7 +705,7 @@ async function createOrderWithRpc(orderData: InsertOrder, items: InsertOrderItem
     p_promotion_label: orderData.promotionLabel ?? null,
     p_coupon_issue_id: orderData.couponIssueRefId ?? null,
     p_discount_code_id: orderData.discountCodeRefId ?? null,
-    p_items: items.map((item) => ({
+    p_items: items.map(item => ({
       productId: item.productId,
       productName: item.productName,
       quantity: item.quantity,
@@ -546,14 +725,20 @@ async function createOrderWithRpc(orderData: InsertOrder, items: InsertOrderItem
   return normalized;
 }
 
-export async function createOrder(orderData: InsertOrder, items: InsertOrderItem[]) {
+export async function createOrder(
+  orderData: InsertOrder,
+  items: InsertOrderItem[]
+) {
   try {
     return await createOrderWithRpc(orderData, items);
   } catch (error) {
     if (!shouldFallbackFromOrderRpc(error)) {
       throw error;
     }
-    console.warn("[Order] create_checkout_order RPC unavailable, falling back to legacy DB logic:", error);
+    console.warn(
+      "[Order] create_checkout_order RPC unavailable, falling back to legacy DB logic:",
+      error
+    );
     return createOrderWithDb(orderData, items);
   }
 }
@@ -562,11 +747,11 @@ async function finalizePaidOrderWithDb(
   orderId: string,
   paymentKey: string,
   paidAt: Date,
-  paymentMethod?: string | null,
+  paymentMethod?: string | null
 ) {
   const db = await requireDb();
 
-  return db.transaction(async (tx) => {
+  return db.transaction(async tx => {
     const lockedOrderRows = await tx.execute(sql`
       SELECT ${orders.id} AS id
       FROM ${orders}
@@ -574,7 +759,9 @@ async function finalizePaidOrderWithDb(
         AND ${orders.status} = 'created'
       FOR UPDATE
     `);
-    const lockedOrderId = Number((lockedOrderRows.rows[0] as { id?: number } | undefined)?.id ?? 0);
+    const lockedOrderId = Number(
+      (lockedOrderRows.rows[0] as { id?: number } | undefined)?.id ?? 0
+    );
 
     if (!lockedOrderId) {
       return { updated: false as const };
@@ -590,7 +777,10 @@ async function finalizePaidOrderWithDb(
       return { updated: false as const };
     }
 
-    const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+    const items = await tx
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, order.id));
 
     for (const item of items) {
       const updatedProducts = await tx
@@ -599,8 +789,17 @@ async function finalizePaidOrderWithDb(
           stock: sql`${products.stock} - ${item.quantity}`,
           updatedAt: new Date(),
         })
-        .where(and(eq(products.id, item.productId), gte(products.stock, item.quantity)))
-        .returning({ id: products.id, name: products.name, stock: products.stock });
+        .where(
+          and(
+            eq(products.id, item.productId),
+            gte(products.stock, item.quantity)
+          )
+        )
+        .returning({
+          id: products.id,
+          name: products.name,
+          stock: products.stock,
+        });
 
       if (updatedProducts.length === 0) {
         const [product] = await tx
@@ -613,7 +812,9 @@ async function finalizePaidOrderWithDb(
           throw new Error("Product not found during payment finalization");
         }
 
-        throw new Error(`[Stock] ${product.name} 재고가 부족합니다. 남은 재고: ${product.stock}`);
+        throw new Error(
+          `[Stock] ${product.name} 재고가 부족합니다. 남은 재고: ${product.stock}`
+        );
       }
     }
 
@@ -672,20 +873,27 @@ async function finalizePaidOrderWithRpc(
   orderId: string,
   paymentKey: string,
   paidAt: Date,
-  paymentMethod?: string | null,
+  paymentMethod?: string | null
 ) {
-  const { data, error } = await supabaseAdmin.rpc("finalize_checkout_order_paid", {
-    p_order_number: orderId,
-    p_payment_key: paymentKey,
-    p_paid_at: paidAt.toISOString(),
-    p_payment_method: paymentMethod ?? null,
-  });
+  const { data, error } = await supabaseAdmin.rpc(
+    "finalize_checkout_order_paid",
+    {
+      p_order_number: orderId,
+      p_payment_key: paymentKey,
+      p_paid_at: paidAt.toISOString(),
+      p_payment_method: paymentMethod ?? null,
+    }
+  );
 
   if (error) {
     throw toRpcError(error);
   }
 
-  if (!data || typeof data !== "object" || typeof (data as { updated?: unknown }).updated !== "boolean") {
+  if (
+    !data ||
+    typeof data !== "object" ||
+    typeof (data as { updated?: unknown }).updated !== "boolean"
+  ) {
     throw new Error("Invalid finalize_checkout_order_paid RPC response");
   }
 
@@ -696,27 +904,43 @@ export async function finalizePaidOrder(
   orderId: string,
   paymentKey: string,
   paidAt: Date,
-  paymentMethod?: string | null,
+  paymentMethod?: string | null
 ) {
   try {
-    return await finalizePaidOrderWithRpc(orderId, paymentKey, paidAt, paymentMethod);
+    return await finalizePaidOrderWithRpc(
+      orderId,
+      paymentKey,
+      paidAt,
+      paymentMethod
+    );
   } catch (error) {
     if (!shouldFallbackFromOrderRpc(error)) {
       throw error;
     }
-    console.warn("[Order] finalize_checkout_order_paid RPC unavailable, falling back to legacy DB logic:", error);
+    console.warn(
+      "[Order] finalize_checkout_order_paid RPC unavailable, falling back to legacy DB logic:",
+      error
+    );
     return finalizePaidOrderWithDb(orderId, paymentKey, paidAt, paymentMethod);
   }
 }
 
-async function getOrderByOrderIdWithDb(orderId: string): Promise<OrderRecord | undefined> {
-  return readOrFallback("getOrderByOrderId", undefined, async (db) => {
-    const result = await db.select().from(orders).where(eq(orders.orderId, orderId)).limit(1);
+async function getOrderByOrderIdWithDb(
+  orderId: string
+): Promise<OrderRecord | undefined> {
+  return readOrFallback("getOrderByOrderId", undefined, async db => {
+    const result = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.orderId, orderId))
+      .limit(1);
     return result.length > 0 ? mapDbOrder(result[0]) : undefined;
   });
 }
 
-async function getOrderByOrderIdWithRpc(orderId: string): Promise<OrderRecord | undefined> {
+async function getOrderByOrderIdWithRpc(
+  orderId: string
+): Promise<OrderRecord | undefined> {
   const { data, error } = await supabaseAdmin.rpc("get_checkout_order", {
     p_order_number: orderId,
   });
@@ -733,22 +957,38 @@ async function getOrderByOrderIdWithRpc(orderId: string): Promise<OrderRecord | 
   return normalized;
 }
 
-export async function getOrderByOrderId(orderId: string): Promise<OrderRecord | undefined> {
+export async function getOrderByOrderId(
+  orderId: string
+): Promise<OrderRecord | undefined> {
   try {
     return await getOrderByOrderIdWithRpc(orderId);
   } catch (error) {
     if (!shouldFallbackFromOrderRpc(error)) {
       throw error;
     }
-    console.warn("[Order] get_checkout_order RPC unavailable, falling back to legacy DB logic:", error);
+    console.warn(
+      "[Order] get_checkout_order RPC unavailable, falling back to legacy DB logic:",
+      error
+    );
     return getOrderByOrderIdWithDb(orderId);
   }
 }
 
 async function updateOrderStatusWithDb(
   orderId: string,
-  data: { status: "created" | "paid" | "failed" | "cancelled"; paymentKey?: string; paidAt?: Date },
-  options?: { from?: Array<"created" | "paid" | "failed" | "cancelled"> | "created" | "paid" | "failed" | "cancelled" }
+  data: {
+    status: "created" | "paid" | "failed" | "cancelled";
+    paymentKey?: string;
+    paidAt?: Date;
+  },
+  options?: {
+    from?:
+      | Array<"created" | "paid" | "failed" | "cancelled">
+      | "created"
+      | "paid"
+      | "failed"
+      | "cancelled";
+  }
 ) {
   const db = await requireDb();
   const fromStatuses = options?.from
@@ -773,8 +1013,19 @@ async function updateOrderStatusWithDb(
 
 async function updateOrderStatusWithRpc(
   orderId: string,
-  data: { status: "created" | "paid" | "failed" | "cancelled"; paymentKey?: string; paidAt?: Date },
-  options?: { from?: Array<"created" | "paid" | "failed" | "cancelled"> | "created" | "paid" | "failed" | "cancelled" }
+  data: {
+    status: "created" | "paid" | "failed" | "cancelled";
+    paymentKey?: string;
+    paidAt?: Date;
+  },
+  options?: {
+    from?:
+      | Array<"created" | "paid" | "failed" | "cancelled">
+      | "created"
+      | "paid"
+      | "failed"
+      | "cancelled";
+  }
 ) {
   if (data.status !== "failed") {
     return null;
@@ -794,22 +1045,40 @@ async function updateOrderStatusWithRpc(
   if (!order) return false;
   if (order.status !== "created") return false;
 
-  const { data: result, error } = await supabaseAdmin.rpc("mark_checkout_order_failed", {
-    p_order_number: orderId,
-    p_user_id: order.userId,
-  });
+  const { data: result, error } = await supabaseAdmin.rpc(
+    "mark_checkout_order_failed",
+    {
+      p_order_number: orderId,
+      p_user_id: order.userId,
+    }
+  );
 
   if (error) {
     throw toRpcError(error);
   }
 
-  return Boolean(result && typeof result === "object" && (result as { updated?: boolean }).updated);
+  return Boolean(
+    result &&
+      typeof result === "object" &&
+      (result as { updated?: boolean }).updated
+  );
 }
 
 export async function updateOrderStatus(
   orderId: string,
-  data: { status: "created" | "paid" | "failed" | "cancelled"; paymentKey?: string; paidAt?: Date },
-  options?: { from?: Array<"created" | "paid" | "failed" | "cancelled"> | "created" | "paid" | "failed" | "cancelled" }
+  data: {
+    status: "created" | "paid" | "failed" | "cancelled";
+    paymentKey?: string;
+    paidAt?: Date;
+  },
+  options?: {
+    from?:
+      | Array<"created" | "paid" | "failed" | "cancelled">
+      | "created"
+      | "paid"
+      | "failed"
+      | "cancelled";
+  }
 ) {
   try {
     const rpcResult = await updateOrderStatusWithRpc(orderId, data, options);
@@ -820,7 +1089,10 @@ export async function updateOrderStatus(
     if (!shouldFallbackFromOrderRpc(error)) {
       throw error;
     }
-    console.warn("[Order] mark_checkout_order_failed RPC unavailable, falling back to legacy DB logic:", error);
+    console.warn(
+      "[Order] mark_checkout_order_failed RPC unavailable, falling back to legacy DB logic:",
+      error
+    );
   }
 
   return updateOrderStatusWithDb(orderId, data, options);
@@ -863,10 +1135,15 @@ export async function consumeRequestRateLimit(params: {
     RETURNING "count" AS "count", "expiresAt" AS "expiresAt"
   `);
 
-  const row = result.rows[0] as { count?: number | string; expiresAt?: string | Date } | undefined;
+  const row = result.rows[0] as
+    | { count?: number | string; expiresAt?: string | Date }
+    | undefined;
   const count = Number(row?.count ?? 0);
   const retryAt = row?.expiresAt ? new Date(row.expiresAt) : expiresAt;
-  const retryAfterSeconds = Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 1000));
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((retryAt.getTime() - now.getTime()) / 1000)
+  );
 
   await pruneExpiredRateLimits(db, now);
 
@@ -878,12 +1155,17 @@ export async function consumeRequestRateLimit(params: {
 }
 
 async function getUserOrdersWithDb(userId: string): Promise<OrderRecord[]> {
-  return readOrFallback("getUserOrders", [], async (db) => {
+  return readOrFallback("getUserOrders", [], async db => {
     await expireStaleCreatedOrdersWithDb(db);
     const rows = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.userId, userId), inArray(orders.status, ["created", "paid", "cancelled", "failed"])))
+      .where(
+        and(
+          eq(orders.userId, userId),
+          inArray(orders.status, ["created", "paid", "cancelled", "failed"])
+        )
+      )
       .orderBy(desc(orders.createdAt));
     return rows.map(mapDbOrder);
   });
@@ -912,19 +1194,29 @@ export async function getUserOrders(userId: string) {
     if (!shouldFallbackFromOrderRpc(error)) {
       throw error;
     }
-    console.warn("[Order] list_checkout_user_orders RPC unavailable, falling back to legacy DB logic:", error);
+    console.warn(
+      "[Order] list_checkout_user_orders RPC unavailable, falling back to legacy DB logic:",
+      error
+    );
     return getUserOrdersWithDb(userId);
   }
 }
 
-async function getOrderItemsWithDb(orderDbId: number): Promise<OrderItemRecord[]> {
-  return readOrFallback("getOrderItems", [], async (db) => {
-    const rows = await db.select().from(orderItems).where(eq(orderItems.orderId, orderDbId));
+async function getOrderItemsWithDb(
+  orderDbId: number
+): Promise<OrderItemRecord[]> {
+  return readOrFallback("getOrderItems", [], async db => {
+    const rows = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderDbId));
     return rows.map(mapDbOrderItem);
   });
 }
 
-async function getOrderItemsWithRpc(orderDbId: string): Promise<OrderItemRecord[]> {
+async function getOrderItemsWithRpc(
+  orderDbId: string
+): Promise<OrderItemRecord[]> {
   const { data, error } = await supabaseAdmin.rpc("get_checkout_order_items", {
     p_order_id: orderDbId,
   });
@@ -948,7 +1240,10 @@ export async function getOrderItems(orderDbId: number | string) {
       if (!shouldFallbackFromOrderRpc(error)) {
         throw error;
       }
-      console.warn("[Order] get_checkout_order_items RPC unavailable, falling back to legacy DB logic:", error);
+      console.warn(
+        "[Order] get_checkout_order_items RPC unavailable, falling back to legacy DB logic:",
+        error
+      );
       return [];
     }
   }
@@ -962,49 +1257,96 @@ export async function getOrderItems(orderDbId: number | string) {
 // 아래 함수들은 제거됨: createEmailUser, updateUserResetToken, getUserByResetToken, updateUserPassword
 
 /** profiles 테이블에서 이메일로 조회 (Supabase Auth 연동 후 profiles.email 기준) */
-export async function getProfileByEmail(email: string): Promise<Profile | undefined> {
-  return readOrFallback("getProfileByEmail", undefined, async (db) => {
-    const result = await db.select().from(profiles).where(eq(profiles.email, email)).limit(1);
+export async function getProfileByEmail(
+  email: string
+): Promise<Profile | undefined> {
+  return readOrFallback("getProfileByEmail", undefined, async db => {
+    const result = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.email, email))
+      .limit(1);
     return result.length > 0 ? result[0] : undefined;
   });
 }
 
 // ─── Admin Helpers ────────────────────────────────────────────────────────────
 export async function getAllUsers(page = 1, limit = 20) {
-  return readOrFallback("getAllUsers", { users: [], total: 0 }, async (db) => {
+  return readOrFallback("getAllUsers", { users: [], total: 0 }, async db => {
     const offset = (page - 1) * limit;
-    const result = await db.select().from(profiles).orderBy(desc(profiles.createdAt)).limit(limit).offset(offset);
-    const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(profiles);
+    const result = await db
+      .select()
+      .from(profiles)
+      .orderBy(desc(profiles.createdAt))
+      .limit(limit)
+      .offset(offset);
+    const [countRow] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(profiles);
     return { users: result, total: Number(countRow?.count ?? 0) };
   });
 }
 
-export async function getAllVerifications(status?: "pending" | "approved" | "rejected") {
-  return readOrFallback("getAllVerifications", [], async (db) => {
+export async function getAllVerifications(
+  status?: "pending" | "approved" | "rejected"
+) {
+  return readOrFallback("getAllVerifications", [], async db => {
     if (status) {
-      return db.select().from(businessVerifications).where(eq(businessVerifications.status, status)).orderBy(desc(businessVerifications.createdAt));
+      return db
+        .select()
+        .from(businessVerifications)
+        .where(eq(businessVerifications.status, status))
+        .orderBy(desc(businessVerifications.createdAt));
     }
-    return db.select().from(businessVerifications).orderBy(desc(businessVerifications.createdAt));
+    return db
+      .select()
+      .from(businessVerifications)
+      .orderBy(desc(businessVerifications.createdAt));
   });
 }
 
 export async function approveVerification(id: number, userId: string) {
   const db = await requireDb();
-  await db.update(businessVerifications).set({ status: "approved", reviewedAt: new Date() }).where(eq(businessVerifications.id, id));
-  await db.update(profiles).set({ proVerificationStatus: "approved", memberRole: "professional", updatedAt: new Date() }).where(eq(profiles.id, userId));
+  await db
+    .update(businessVerifications)
+    .set({ status: "approved", reviewedAt: new Date() })
+    .where(eq(businessVerifications.id, id));
+  await db
+    .update(profiles)
+    .set({
+      proVerificationStatus: "approved",
+      memberRole: "professional",
+      updatedAt: new Date(),
+    })
+    .where(eq(profiles.id, userId));
 }
 
-export async function rejectVerification(id: number, userId: string, reason: string) {
+export async function rejectVerification(
+  id: number,
+  userId: string,
+  reason: string
+) {
   const db = await requireDb();
-  await db.update(businessVerifications).set({ status: "rejected", rejectReason: reason, reviewedAt: new Date() }).where(eq(businessVerifications.id, id));
-  await db.update(profiles).set({ proVerificationStatus: "rejected", updatedAt: new Date() }).where(eq(profiles.id, userId));
+  await db
+    .update(businessVerifications)
+    .set({ status: "rejected", rejectReason: reason, reviewedAt: new Date() })
+    .where(eq(businessVerifications.id, id));
+  await db
+    .update(profiles)
+    .set({ proVerificationStatus: "rejected", updatedAt: new Date() })
+    .where(eq(profiles.id, userId));
 }
 
 export async function getAllOrders(page = 1, limit = 20) {
-  return readOrFallback("getAllOrders", { orders: [], total: 0 }, async (db) => {
+  return readOrFallback("getAllOrders", { orders: [], total: 0 }, async db => {
     await expireStaleCreatedOrdersWithDb(db);
     const offset = (page - 1) * limit;
-    const result = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(limit).offset(offset);
+    const result = await db
+      .select()
+      .from(orders)
+      .orderBy(desc(orders.createdAt))
+      .limit(limit)
+      .offset(offset);
     const countResult = await db.select({ count: orders.id }).from(orders);
     return { orders: result, total: countResult.length };
   });
@@ -1012,7 +1354,10 @@ export async function getAllOrders(page = 1, limit = 20) {
 
 export async function updateUserRole(id: string, role: "user" | "admin") {
   const db = await requireDb();
-  await db.update(profiles).set({ role, updatedAt: new Date() }).where(eq(profiles.id, id));
+  await db
+    .update(profiles)
+    .set({ role, updatedAt: new Date() })
+    .where(eq(profiles.id, id));
 }
 
 export async function setUserProfessionalStatus(id: string) {
@@ -1035,58 +1380,75 @@ export async function createAuditLog(data: InsertAdminAuditLog) {
 }
 
 export async function getAuditLogs(targetType?: string, targetId?: string) {
-  return readOrFallback("getAuditLogs", [], async (db) => {
+  return readOrFallback("getAuditLogs", [], async db => {
     if (targetType && targetId) {
-      return db.select().from(adminAuditLogs)
-        .where(and(eq(adminAuditLogs.targetType, targetType), eq(adminAuditLogs.targetId, targetId)))
+      return db
+        .select()
+        .from(adminAuditLogs)
+        .where(
+          and(
+            eq(adminAuditLogs.targetType, targetType),
+            eq(adminAuditLogs.targetId, targetId)
+          )
+        )
         .orderBy(desc(adminAuditLogs.createdAt))
         .limit(50);
     }
-    return db.select().from(adminAuditLogs).orderBy(desc(adminAuditLogs.createdAt)).limit(100);
+    return db
+      .select()
+      .from(adminAuditLogs)
+      .orderBy(desc(adminAuditLogs.createdAt))
+      .limit(100);
   });
 }
 
 // ─── Product Admin ─────────────────────────────────────────────────────────────
-export async function updateProduct(id: string, data: {
-  priceConsumer?: string;
-  pricePro?: string;
-  priceMembership?: string | null;
-  isProOnly?: boolean;
-  visible?: boolean;
-  isActive?: boolean;
-  isRecommended?: boolean;
-  isNew?: boolean;
-  stock?: number;
-  name?: string;
-  description?: string;
-  summaryDescription?: string;
-  shortDescription?: string;
-  priceSupply?: string;
-  priceConsumerOriginal?: string;
-  taxType?: 'taxable' | 'tax_free' | 'exempt';
-  taxRate?: string;
-  shippingType?: 'direct' | 'warehouse' | 'other';
-  weight?: string;
-  manufacturer?: string;
-  brand?: string;
-  origin?: string;
-  seoTitle?: string;
-  seoDescription?: string;
-  seoKeywords?: string;
-  seoImageAlt?: string;
-  adminMemo?: string;
-  thumbnailUrl?: string;
-  detailPageUrl?: string;
-  sortOrder?: number;
-  productCode?: string;
-  productStatus?: 'new' | 'used' | 'refurbished';
-}) {
+export async function updateProduct(
+  id: string,
+  data: {
+    priceConsumer?: string;
+    pricePro?: string;
+    priceMembership?: string | null;
+    isProOnly?: boolean;
+    visible?: boolean;
+    isActive?: boolean;
+    isRecommended?: boolean;
+    isNew?: boolean;
+    stock?: number;
+    name?: string;
+    description?: string;
+    summaryDescription?: string;
+    shortDescription?: string;
+    priceSupply?: string;
+    priceConsumerOriginal?: string;
+    taxType?: "taxable" | "tax_free" | "exempt";
+    taxRate?: string;
+    shippingType?: "direct" | "warehouse" | "other";
+    weight?: string;
+    manufacturer?: string;
+    brand?: string;
+    origin?: string;
+    seoTitle?: string;
+    seoDescription?: string;
+    seoKeywords?: string;
+    seoImageAlt?: string;
+    adminMemo?: string;
+    thumbnailUrl?: string;
+    detailPageUrl?: string;
+    sortOrder?: number;
+    productCode?: string;
+    productStatus?: "new" | "used" | "refurbished";
+  }
+) {
   const db = await requireDb();
-  await db.update(products).set({ ...data, updatedAt: new Date() }).where(eq(products.id, id));
+  await db
+    .update(products)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(products.id, id));
 }
 
 export async function getAllProducts() {
-  return readOrFallback("getAllProducts", [], async (db) => {
+  return readOrFallback("getAllProducts", [], async db => {
     return db.select().from(products).orderBy(products.id);
   });
 }
@@ -1107,14 +1469,14 @@ export async function createProduct(data: {
   isNew?: boolean;
   stock?: number;
   productCode?: string | null;
-  productStatus?: 'new' | 'used' | 'refurbished';
+  productStatus?: "new" | "used" | "refurbished";
   summaryDescription?: string | null;
   shortDescription?: string | null;
   priceSupply?: string | null;
   priceConsumerOriginal?: string | null;
-  taxType?: 'taxable' | 'tax_free' | 'exempt';
+  taxType?: "taxable" | "tax_free" | "exempt";
   taxRate?: string | null;
-  shippingType?: 'direct' | 'warehouse' | 'other';
+  shippingType?: "direct" | "warehouse" | "other";
   weight?: string | null;
   manufacturer?: string | null;
   brand?: string | null;
@@ -1128,7 +1490,7 @@ export async function createProduct(data: {
   sortOrder?: number;
 }) {
   const db = await getDb();
-  if (!db) throw new Error('DB not available');
+  if (!db) throw new Error("DB not available");
   await db.insert(products).values({
     slug: data.slug,
     name: data.name,
@@ -1145,15 +1507,15 @@ export async function createProduct(data: {
     isNew: data.isNew ?? false,
     stock: data.stock ?? 999,
     productCode: data.productCode ?? null,
-    productStatus: data.productStatus ?? 'new',
+    productStatus: data.productStatus ?? "new",
     summaryDescription: data.summaryDescription ?? null,
     shortDescription: data.shortDescription ?? null,
     priceSupply: data.priceSupply ?? null,
     priceConsumerOriginal: data.priceConsumerOriginal ?? null,
-    taxType: data.taxType ?? 'taxable',
-    taxRate: data.taxRate ?? '10.00',
-    shippingType: data.shippingType ?? 'direct',
-    weight: data.weight ?? '1.00',
+    taxType: data.taxType ?? "taxable",
+    taxRate: data.taxRate ?? "10.00",
+    shippingType: data.shippingType ?? "direct",
+    weight: data.weight ?? "1.00",
     manufacturer: data.manufacturer ?? null,
     brand: data.brand ?? null,
     origin: data.origin ?? null,
@@ -1165,13 +1527,17 @@ export async function createProduct(data: {
     detailPageUrl: data.detailPageUrl ?? null,
     sortOrder: data.sortOrder ?? 0,
   });
-  const result = await db.select().from(products).where(eq(products.slug, data.slug)).limit(1);
+  const result = await db
+    .select()
+    .from(products)
+    .where(eq(products.slug, data.slug))
+    .limit(1);
   return result[0];
 }
 
 export async function deleteProduct(id: string) {
   const db = await getDb();
-  if (!db) throw new Error('DB not available');
+  if (!db) throw new Error("DB not available");
   await db.delete(products).where(eq(products.id, id));
 }
 
@@ -1182,40 +1548,52 @@ export async function searchVerifications(opts: {
   page?: number;
   limit?: number;
 }) {
-  return readOrFallback("searchVerifications", { items: [], total: 0 }, async (db) => {
-    const page = opts.page ?? 1;
-    const limit = opts.limit ?? 20;
-    const offset = (page - 1) * limit;
+  return readOrFallback(
+    "searchVerifications",
+    { items: [], total: 0 },
+    async db => {
+      const page = opts.page ?? 1;
+      const limit = opts.limit ?? 20;
+      const offset = (page - 1) * limit;
 
-    let query = db
-      .select({
-        v: businessVerifications,
-        userName: profiles.name,
-        userEmail: profiles.email,
-      })
-      .from(businessVerifications)
-      .leftJoin(profiles, eq(businessVerifications.userId, profiles.id));
+      let query = db
+        .select({
+          v: businessVerifications,
+          userName: profiles.name,
+          userEmail: profiles.email,
+        })
+        .from(businessVerifications)
+        .leftJoin(profiles, eq(businessVerifications.userId, profiles.id));
 
-    const conditions = [];
-    if (opts.status) conditions.push(eq(businessVerifications.status, opts.status));
-    if (opts.search) {
-      const like = `%${opts.search}%`;
-      conditions.push(
-        or(
-          sql`${businessVerifications.businessNumber} LIKE ${like}`,
-          sql`${businessVerifications.businessName} LIKE ${like}`,
-          sql`${profiles.name} LIKE ${like}`,
-          sql`${profiles.email} LIKE ${like}`
-        )!
-      );
+      const conditions = [];
+      if (opts.status)
+        conditions.push(eq(businessVerifications.status, opts.status));
+      if (opts.search) {
+        const like = `%${opts.search}%`;
+        conditions.push(
+          or(
+            sql`${businessVerifications.businessNumber} LIKE ${like}`,
+            sql`${businessVerifications.businessName} LIKE ${like}`,
+            sql`${profiles.name} LIKE ${like}`,
+            sql`${profiles.email} LIKE ${like}`
+          )!
+        );
+      }
+
+      const rows = await (conditions.length > 0
+        ? query
+            .where(and(...conditions))
+            .orderBy(desc(businessVerifications.createdAt))
+            .limit(limit)
+            .offset(offset)
+        : query
+            .orderBy(desc(businessVerifications.createdAt))
+            .limit(limit)
+            .offset(offset));
+
+      return { items: rows, total: rows.length };
     }
-
-    const rows = await (conditions.length > 0
-      ? query.where(and(...conditions)).orderBy(desc(businessVerifications.createdAt)).limit(limit).offset(offset)
-      : query.orderBy(desc(businessVerifications.createdAt)).limit(limit).offset(offset));
-
-    return { items: rows, total: rows.length };
-  });
+  );
 }
 
 // ─── Order Search ──────────────────────────────────────────────────────────────
@@ -1231,236 +1609,420 @@ export async function searchOrders(opts: {
   sortCol?: string;
   sortDir?: "asc" | "desc";
 }) {
-  return readOrFallback("searchOrders", {
-    items: [],
-    total: 0,
-    viewType: (opts.viewType === "item" ? "item" : "order") as "item" | "order",
-  }, async (db) => {
-    await expireStaleCreatedOrdersWithDb(db);
-    const page = opts.page ?? 1;
-    const limit = opts.limit ?? 20;
-    const offset = (page - 1) * limit;
+  return readOrFallback(
+    "searchOrders",
+    {
+      items: [],
+      total: 0,
+      viewType: (opts.viewType === "item" ? "item" : "order") as
+        | "item"
+        | "order",
+    },
+    async db => {
+      await expireStaleCreatedOrdersWithDb(db);
+      const page = opts.page ?? 1;
+      const limit = opts.limit ?? 20;
+      const offset = (page - 1) * limit;
 
-    if (opts.viewType === "item") {
-      let itemQuery = db
+      if (opts.viewType === "item") {
+        let itemQuery = db
+          .select({
+            o: orders,
+            userEmail: profiles.email,
+            userName: profiles.name,
+            item: orderItems,
+          })
+          .from(orderItems)
+          .innerJoin(orders, eq(orderItems.orderId, orders.id))
+          .leftJoin(profiles, eq(orders.userId, profiles.id));
+
+        const conditions: ReturnType<typeof eq>[] = [];
+        if (opts.status)
+          conditions.push(
+            eq(orders.status, opts.status) as ReturnType<typeof eq>
+          );
+        if (opts.dateFrom)
+          conditions.push(
+            sql`${orders.createdAt} >= ${opts.dateFrom}` as unknown as ReturnType<
+              typeof eq
+            >
+          );
+        if (opts.dateTo) {
+          const endOfDay = new Date(opts.dateTo);
+          endOfDay.setHours(23, 59, 59, 999);
+          conditions.push(
+            sql`${orders.createdAt} <= ${endOfDay}` as unknown as ReturnType<
+              typeof eq
+            >
+          );
+        }
+        if (opts.search) {
+          const like = `%${opts.search}%`;
+          if (opts.searchType === "name") {
+            conditions.push(
+              sql`${orders.recipientName} LIKE ${like}` as unknown as ReturnType<
+                typeof eq
+              >
+            );
+          } else if (opts.searchType === "email") {
+            conditions.push(
+              sql`${profiles.email} LIKE ${like}` as unknown as ReturnType<
+                typeof eq
+              >
+            );
+          } else if (opts.searchType === "productName") {
+            conditions.push(
+              sql`${orderItems.productName} LIKE ${like}` as unknown as ReturnType<
+                typeof eq
+              >
+            );
+          } else {
+            conditions.push(
+              or(
+                sql`${orders.orderId} LIKE ${like}`,
+                sql`${orders.recipientName} LIKE ${like}`,
+                sql`${profiles.email} LIKE ${like}`,
+                sql`${orderItems.productName} LIKE ${like}`
+              )! as unknown as ReturnType<typeof eq>
+            );
+          }
+        }
+
+        const rows = await (conditions.length > 0
+          ? itemQuery
+              .where(and(...conditions))
+              .orderBy(desc(orders.createdAt))
+              .limit(limit)
+              .offset(offset)
+          : itemQuery
+              .orderBy(desc(orders.createdAt))
+              .limit(limit)
+              .offset(offset));
+
+        const countQuery = db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(orderItems)
+          .innerJoin(orders, eq(orderItems.orderId, orders.id))
+          .leftJoin(profiles, eq(orders.userId, profiles.id));
+        const [countRow] = await (conditions.length > 0
+          ? (countQuery as any).where(and(...conditions))
+          : countQuery);
+        const totalCount = Number(countRow?.count ?? rows.length);
+
+        return { items: rows, total: totalCount, viewType: "item" as const };
+      }
+
+      let query = db
         .select({
           o: orders,
           userEmail: profiles.email,
           userName: profiles.name,
-          item: orderItems,
         })
-        .from(orderItems)
-        .innerJoin(orders, eq(orderItems.orderId, orders.id))
+        .from(orders)
         .leftJoin(profiles, eq(orders.userId, profiles.id));
 
       const conditions: ReturnType<typeof eq>[] = [];
-      if (opts.status) conditions.push(eq(orders.status, opts.status) as ReturnType<typeof eq>);
-      if (opts.dateFrom) conditions.push(sql`${orders.createdAt} >= ${opts.dateFrom}` as unknown as ReturnType<typeof eq>);
+      if (opts.status)
+        conditions.push(
+          eq(orders.status, opts.status) as ReturnType<typeof eq>
+        );
+      if (opts.dateFrom)
+        conditions.push(
+          sql`${orders.createdAt} >= ${opts.dateFrom}` as unknown as ReturnType<
+            typeof eq
+          >
+        );
       if (opts.dateTo) {
         const endOfDay = new Date(opts.dateTo);
         endOfDay.setHours(23, 59, 59, 999);
-        conditions.push(sql`${orders.createdAt} <= ${endOfDay}` as unknown as ReturnType<typeof eq>);
+        conditions.push(
+          sql`${orders.createdAt} <= ${endOfDay}` as unknown as ReturnType<
+            typeof eq
+          >
+        );
       }
       if (opts.search) {
         const like = `%${opts.search}%`;
-        if (opts.searchType === "name") {
-          conditions.push(sql`${orders.recipientName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+        if (opts.searchType === "orderId") {
+          conditions.push(
+            sql`${orders.orderId} LIKE ${like}` as unknown as ReturnType<
+              typeof eq
+            >
+          );
+        } else if (opts.searchType === "name") {
+          conditions.push(
+            sql`${orders.recipientName} LIKE ${like}` as unknown as ReturnType<
+              typeof eq
+            >
+          );
         } else if (opts.searchType === "email") {
-          conditions.push(sql`${profiles.email} LIKE ${like}` as unknown as ReturnType<typeof eq>);
-        } else if (opts.searchType === "productName") {
-          conditions.push(sql`${orderItems.productName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
+          conditions.push(
+            sql`${profiles.email} LIKE ${like}` as unknown as ReturnType<
+              typeof eq
+            >
+          );
         } else {
-          conditions.push(or(
-            sql`${orders.orderId} LIKE ${like}`,
-            sql`${orders.recipientName} LIKE ${like}`,
-            sql`${profiles.email} LIKE ${like}`,
-            sql`${orderItems.productName} LIKE ${like}`
-          )! as unknown as ReturnType<typeof eq>);
+          conditions.push(
+            or(
+              sql`${orders.orderId} LIKE ${like}`,
+              sql`${orders.recipientName} LIKE ${like}`,
+              sql`${profiles.email} LIKE ${like}`
+            )! as unknown as ReturnType<typeof eq>
+          );
         }
       }
 
-      const rows = await (conditions.length > 0
-        ? itemQuery.where(and(...conditions)).orderBy(desc(orders.createdAt)).limit(limit).offset(offset)
-        : itemQuery.orderBy(desc(orders.createdAt)).limit(limit).offset(offset));
+      const sortColMap: Record<string, any> = {
+        주문일: orders.createdAt,
+        주문번호: orders.orderId,
+        주문명: orders.orderName,
+        "총 상품 구매금액": orders.totalAmount,
+        "총 실결제금액": orders.totalAmount,
+        결제상태: orders.status,
+        배송상태: orders.shippingStatus,
+      };
+      const sortField =
+        opts.sortCol && sortColMap[opts.sortCol]
+          ? sortColMap[opts.sortCol]
+          : orders.createdAt;
+      const sortOrder =
+        opts.sortDir === "asc" ? asc(sortField) : desc(sortField);
 
-      const countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id)).leftJoin(profiles, eq(orders.userId, profiles.id));
-      const [countRow] = await (conditions.length > 0 ? (countQuery as any).where(and(...conditions)) : countQuery);
+      const rows = await (conditions.length > 0
+        ? query
+            .where(and(...conditions))
+            .orderBy(sortOrder)
+            .limit(limit)
+            .offset(offset)
+        : query.orderBy(sortOrder).limit(limit).offset(offset));
+
+      const countQuery = db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .leftJoin(profiles, eq(orders.userId, profiles.id));
+      const [countRow] = await (conditions.length > 0
+        ? (countQuery as any).where(and(...conditions))
+        : countQuery);
       const totalCount = Number(countRow?.count ?? rows.length);
 
-      return { items: rows, total: totalCount, viewType: "item" as const };
+      return { items: rows, total: totalCount, viewType: "order" as const };
     }
-
-    let query = db
-      .select({
-        o: orders,
-        userEmail: profiles.email,
-        userName: profiles.name,
-      })
-      .from(orders)
-      .leftJoin(profiles, eq(orders.userId, profiles.id));
-
-    const conditions: ReturnType<typeof eq>[] = [];
-    if (opts.status) conditions.push(eq(orders.status, opts.status) as ReturnType<typeof eq>);
-    if (opts.dateFrom) conditions.push(sql`${orders.createdAt} >= ${opts.dateFrom}` as unknown as ReturnType<typeof eq>);
-    if (opts.dateTo) {
-      const endOfDay = new Date(opts.dateTo);
-      endOfDay.setHours(23, 59, 59, 999);
-      conditions.push(sql`${orders.createdAt} <= ${endOfDay}` as unknown as ReturnType<typeof eq>);
-    }
-    if (opts.search) {
-      const like = `%${opts.search}%`;
-      if (opts.searchType === "orderId") {
-        conditions.push(sql`${orders.orderId} LIKE ${like}` as unknown as ReturnType<typeof eq>);
-      } else if (opts.searchType === "name") {
-        conditions.push(sql`${orders.recipientName} LIKE ${like}` as unknown as ReturnType<typeof eq>);
-      } else if (opts.searchType === "email") {
-        conditions.push(sql`${profiles.email} LIKE ${like}` as unknown as ReturnType<typeof eq>);
-      } else {
-        conditions.push(
-          or(
-            sql`${orders.orderId} LIKE ${like}`,
-            sql`${orders.recipientName} LIKE ${like}`,
-            sql`${profiles.email} LIKE ${like}`
-          )! as unknown as ReturnType<typeof eq>
-        );
-      }
-    }
-
-    const sortColMap: Record<string, any> = {
-      "주문일": orders.createdAt,
-      "주문번호": orders.orderId,
-      "주문명": orders.orderName,
-      "총 상품 구매금액": orders.totalAmount,
-      "총 실결제금액": orders.totalAmount,
-      "결제상태": orders.status,
-      "배송상태": orders.shippingStatus,
-    };
-    const sortField = (opts.sortCol && sortColMap[opts.sortCol]) ? sortColMap[opts.sortCol] : orders.createdAt;
-    const sortOrder = opts.sortDir === "asc" ? asc(sortField) : desc(sortField);
-
-    const rows = await (conditions.length > 0
-      ? query.where(and(...conditions)).orderBy(sortOrder).limit(limit).offset(offset)
-      : query.orderBy(sortOrder).limit(limit).offset(offset));
-
-    const countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(orders).leftJoin(profiles, eq(orders.userId, profiles.id));
-    const [countRow] = await (conditions.length > 0 ? (countQuery as any).where(and(...conditions)) : countQuery);
-    const totalCount = Number(countRow?.count ?? rows.length);
-
-    return { items: rows, total: totalCount, viewType: "order" as const };
-  });
+  );
 }
 
 // ─── Dashboard Summary ─────────────────────────────────────────────────────────
 export async function getDashboardSummary() {
-  return readOrFallback("getDashboardSummary", {
-    pendingVerifications: 0,
-    totalUsers: 0,
-    todayOrders: 0,
-    totalPaidAmount: 0,
-    pendingOrders: 0,
-    readyToShip: 0,
-    shippingOrders: 0,
-    deliveredOrders: 0,
-    totalOrders: 0,
-    todayRevenue: 0,
-    cancelRequested: 0,
-    exchangeRequested: 0,
-    returnRequested: 0,
-    refundPending: 0,
-    cancelCompleted: 0,
-    exchangeCompleted: 0,
-    returnCompleted: 0,
-    refundCompleted: 0,
-    monthOrders: 0,
-    monthRevenue: 0,
-    todayRefundAmount: 0,
-    monthRefundAmount: 0,
-    totalRefundAmount: 0,
-    todayNetRevenue: 0,
-    monthNetRevenue: 0,
-  }, async (db) => {
-    const [pendingVerifs] = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(businessVerifications)
-      .where(eq(businessVerifications.status, "pending"));
+  return readOrFallback(
+    "getDashboardSummary",
+    {
+      pendingVerifications: 0,
+      totalUsers: 0,
+      todayOrders: 0,
+      totalPaidAmount: 0,
+      pendingOrders: 0,
+      readyToShip: 0,
+      shippingOrders: 0,
+      deliveredOrders: 0,
+      totalOrders: 0,
+      todayRevenue: 0,
+      cancelRequested: 0,
+      exchangeRequested: 0,
+      returnRequested: 0,
+      refundPending: 0,
+      cancelCompleted: 0,
+      exchangeCompleted: 0,
+      returnCompleted: 0,
+      refundCompleted: 0,
+      monthOrders: 0,
+      monthRevenue: 0,
+      todayRefundAmount: 0,
+      monthRefundAmount: 0,
+      totalRefundAmount: 0,
+      todayNetRevenue: 0,
+      monthNetRevenue: 0,
+    },
+    async db => {
+      const [pendingVerifs] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(businessVerifications)
+        .where(eq(businessVerifications.status, "pending"));
 
-    const [totalUsers] = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(profiles);
+      const [totalUsers] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(profiles);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const [todayOrders] = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(orders)
-      .where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`));
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const [todayOrders] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(
+          and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`)
+        );
 
-    const [totalPaid] = await db
-      .select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` })
-      .from(orders)
-      .where(eq(orders.status, "paid"));
+      const [totalPaid] = await db
+        .select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` })
+        .from(orders)
+        .where(eq(orders.status, "paid"));
 
-    const [pendingOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.status, "created"));
-    const [readyToShip] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "ready"));
-    const [shippingOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "shipping"));
-    const [deliveredOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "delivered"));
-    const [totalOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders);
-    const [todayRevenue] = await db.select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`));
+      const [pendingOrders] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(eq(orders.status, "created"));
+      const [readyToShip] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(eq(orders.shippingStatus, "ready"));
+      const [shippingOrders] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(eq(orders.shippingStatus, "shipping"));
+      const [deliveredOrders] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(eq(orders.shippingStatus, "delivered"));
+      const [totalOrders] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders);
+      const [todayRevenue] = await db
+        .select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` })
+        .from(orders)
+        .where(
+          and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${today}`)
+        );
 
-    const [cancelRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(eq(orderCancellations.status, "requested"));
-    const [exchangeRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(eq(orderExchanges.status, "requested"));
-    const [returnRequested] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(eq(orderReturns.status, "requested"));
-    const [refundPending] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(eq(orderRefunds.status, "pending"));
+      const [cancelRequested] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderCancellations)
+        .where(eq(orderCancellations.status, "requested"));
+      const [exchangeRequested] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderExchanges)
+        .where(eq(orderExchanges.status, "requested"));
+      const [returnRequested] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderReturns)
+        .where(eq(orderReturns.status, "requested"));
+      const [refundPending] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderRefunds)
+        .where(eq(orderRefunds.status, "pending"));
 
-    const [cancelCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(and(eq(orderCancellations.status, "completed"), sql`${orderCancellations.processedAt} >= ${today}`));
-    const [exchangeCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(and(eq(orderExchanges.status, "completed"), sql`${orderExchanges.processedAt} >= ${today}`));
-    const [returnCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(and(eq(orderReturns.status, "completed"), sql`${orderReturns.processedAt} >= ${today}`));
-    const [refundCompleted] = await db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${today}`));
+      const [cancelCompleted] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderCancellations)
+        .where(
+          and(
+            eq(orderCancellations.status, "completed"),
+            sql`${orderCancellations.processedAt} >= ${today}`
+          )
+        );
+      const [exchangeCompleted] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderExchanges)
+        .where(
+          and(
+            eq(orderExchanges.status, "completed"),
+            sql`${orderExchanges.processedAt} >= ${today}`
+          )
+        );
+      const [returnCompleted] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderReturns)
+        .where(
+          and(
+            eq(orderReturns.status, "completed"),
+            sql`${orderReturns.processedAt} >= ${today}`
+          )
+        );
+      const [refundCompleted] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderRefunds)
+        .where(
+          and(
+            eq(orderRefunds.status, "completed"),
+            sql`${orderRefunds.processedAt} >= ${today}`
+          )
+        );
 
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
-    const [monthOrders] = await db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`));
-    const [monthRevenue] = await db.select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` }).from(orders).where(and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`));
-    const [todayRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${today}`));
-    const [monthRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(and(eq(orderRefunds.status, "completed"), sql`${orderRefunds.processedAt} >= ${monthStart}`));
-    const [totalRefundAmount] = await db.select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` }).from(orderRefunds).where(eq(orderRefunds.status, "completed"));
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      const [monthOrders] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(
+          and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`)
+        );
+      const [monthRevenue] = await db
+        .select({ total: sql<number>`COALESCE(SUM(total_amount), 0)` })
+        .from(orders)
+        .where(
+          and(eq(orders.status, "paid"), sql`${orders.paidAt} >= ${monthStart}`)
+        );
+      const [todayRefundAmount] = await db
+        .select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` })
+        .from(orderRefunds)
+        .where(
+          and(
+            eq(orderRefunds.status, "completed"),
+            sql`${orderRefunds.processedAt} >= ${today}`
+          )
+        );
+      const [monthRefundAmount] = await db
+        .select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` })
+        .from(orderRefunds)
+        .where(
+          and(
+            eq(orderRefunds.status, "completed"),
+            sql`${orderRefunds.processedAt} >= ${monthStart}`
+          )
+        );
+      const [totalRefundAmount] = await db
+        .select({ total: sql<number>`COALESCE(SUM(refund_amount), 0)` })
+        .from(orderRefunds)
+        .where(eq(orderRefunds.status, "completed"));
 
-    return {
-      pendingVerifications: Number(pendingVerifs?.count ?? 0),
-      totalUsers: Number(totalUsers?.count ?? 0),
-      todayOrders: Number(todayOrders?.count ?? 0),
-      totalPaidAmount: Number(totalPaid?.total ?? 0),
-      pendingOrders: Number(pendingOrders?.count ?? 0),
-      readyToShip: Number(readyToShip?.count ?? 0),
-      shippingOrders: Number(shippingOrders?.count ?? 0),
-      deliveredOrders: Number(deliveredOrders?.count ?? 0),
-      totalOrders: Number(totalOrders?.count ?? 0),
-      todayRevenue: Number(todayRevenue?.total ?? 0),
-      cancelRequested: Number(cancelRequested?.count ?? 0),
-      exchangeRequested: Number(exchangeRequested?.count ?? 0),
-      returnRequested: Number(returnRequested?.count ?? 0),
-      refundPending: Number(refundPending?.count ?? 0),
-      cancelCompleted: Number(cancelCompleted?.count ?? 0),
-      exchangeCompleted: Number(exchangeCompleted?.count ?? 0),
-      returnCompleted: Number(returnCompleted?.count ?? 0),
-      refundCompleted: Number(refundCompleted?.count ?? 0),
-      monthOrders: Number(monthOrders?.count ?? 0),
-      monthRevenue: Number(monthRevenue?.total ?? 0),
-      todayRefundAmount: Number(todayRefundAmount?.total ?? 0),
-      monthRefundAmount: Number(monthRefundAmount?.total ?? 0),
-      totalRefundAmount: Number(totalRefundAmount?.total ?? 0),
-      todayNetRevenue: Number(todayRevenue?.total ?? 0) - Number(todayRefundAmount?.total ?? 0),
-      monthNetRevenue: Number(monthRevenue?.total ?? 0) - Number(monthRefundAmount?.total ?? 0),
-    };
-  });
+      return {
+        pendingVerifications: Number(pendingVerifs?.count ?? 0),
+        totalUsers: Number(totalUsers?.count ?? 0),
+        todayOrders: Number(todayOrders?.count ?? 0),
+        totalPaidAmount: Number(totalPaid?.total ?? 0),
+        pendingOrders: Number(pendingOrders?.count ?? 0),
+        readyToShip: Number(readyToShip?.count ?? 0),
+        shippingOrders: Number(shippingOrders?.count ?? 0),
+        deliveredOrders: Number(deliveredOrders?.count ?? 0),
+        totalOrders: Number(totalOrders?.count ?? 0),
+        todayRevenue: Number(todayRevenue?.total ?? 0),
+        cancelRequested: Number(cancelRequested?.count ?? 0),
+        exchangeRequested: Number(exchangeRequested?.count ?? 0),
+        returnRequested: Number(returnRequested?.count ?? 0),
+        refundPending: Number(refundPending?.count ?? 0),
+        cancelCompleted: Number(cancelCompleted?.count ?? 0),
+        exchangeCompleted: Number(exchangeCompleted?.count ?? 0),
+        returnCompleted: Number(returnCompleted?.count ?? 0),
+        refundCompleted: Number(refundCompleted?.count ?? 0),
+        monthOrders: Number(monthOrders?.count ?? 0),
+        monthRevenue: Number(monthRevenue?.total ?? 0),
+        todayRefundAmount: Number(todayRefundAmount?.total ?? 0),
+        monthRefundAmount: Number(monthRefundAmount?.total ?? 0),
+        totalRefundAmount: Number(totalRefundAmount?.total ?? 0),
+        todayNetRevenue:
+          Number(todayRevenue?.total ?? 0) -
+          Number(todayRefundAmount?.total ?? 0),
+        monthNetRevenue:
+          Number(monthRevenue?.total ?? 0) -
+          Number(monthRefundAmount?.total ?? 0),
+      };
+    }
+  );
 }
 
 // ─── Dashboard Chart Data ───────────────────────────────────────────────────────
 
 /** 최근 N일간 일별 주문 수 + 매출 집계 */
 export async function getDailyOrderStats(days = 30) {
-  return readOrFallback("getDailyOrderStats", [], async (db) => {
+  return readOrFallback("getDailyOrderStats", [], async db => {
     const rows = await db.execute(sql`
       SELECT
         DATE(paid_at) AS day,
@@ -1483,7 +2045,7 @@ export async function getDailyOrderStats(days = 30) {
 
 /** 최근 N일간 일별 신규 가입자 수 집계 (profiles 기준) */
 export async function getDailySignupStats(days = 30) {
-  return readOrFallback("getDailySignupStats", [], async (db) => {
+  return readOrFallback("getDailySignupStats", [], async db => {
     const rows = await db.execute(sql`
     SELECT
       DATE(created_at) AS day,
@@ -1503,20 +2065,24 @@ export async function getDailySignupStats(days = 30) {
 
 /** 인증 상태별 현황 */
 export async function getVerificationStatusStats() {
-  return readOrFallback("getVerificationStatusStats", { pending: 0, approved: 0, rejected: 0 }, async (db) => {
-    const rows = await db.execute(sql`
+  return readOrFallback(
+    "getVerificationStatusStats",
+    { pending: 0, approved: 0, rejected: 0 },
+    async db => {
+      const rows = await db.execute(sql`
       SELECT status, COUNT(*) AS cnt
       FROM business_verifications
       GROUP BY status
     `);
 
-    const result = { pending: 0, approved: 0, rejected: 0 };
-    for (const r of (rows.rows as any[])) {
-      const s = r.status as keyof typeof result;
-      if (s in result) result[s] = Number(r.cnt);
+      const result = { pending: 0, approved: 0, rejected: 0 };
+      for (const r of rows.rows as any[]) {
+        const s = r.status as keyof typeof result;
+        if (s in result) result[s] = Number(r.cnt);
+      }
+      return result;
     }
-    return result;
-  });
+  );
 }
 
 // ─── Gallery Posts ─────────────────────────────────────────────────────────────
@@ -1536,24 +2102,46 @@ import {
   pageViews,
 } from "../drizzle/schema-pg";
 
-export async function getGalleryPosts(opts: { page?: number; limit?: number; publishedOnly?: boolean } = {}) {
+export async function getGalleryPosts(
+  opts: { page?: number; limit?: number; publishedOnly?: boolean } = {}
+) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   const page = opts.page ?? 1;
   const limit = opts.limit ?? 20;
   const offset = (page - 1) * limit;
-  const conditions = opts.publishedOnly ? [eq(galleryPosts.isPublished, true)] : [];
-  const rows = conditions.length > 0
-    ? await db.select().from(galleryPosts).where(and(...conditions)).orderBy(desc(galleryPosts.createdAt)).limit(limit).offset(offset)
-    : await db.select().from(galleryPosts).orderBy(desc(galleryPosts.createdAt)).limit(limit).offset(offset);
-  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(galleryPosts);
+  const conditions = opts.publishedOnly
+    ? [eq(galleryPosts.isPublished, true)]
+    : [];
+  const rows =
+    conditions.length > 0
+      ? await db
+          .select()
+          .from(galleryPosts)
+          .where(and(...conditions))
+          .orderBy(desc(galleryPosts.createdAt))
+          .limit(limit)
+          .offset(offset)
+      : await db
+          .select()
+          .from(galleryPosts)
+          .orderBy(desc(galleryPosts.createdAt))
+          .limit(limit)
+          .offset(offset);
+  const [countRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(galleryPosts);
   return { items: rows, total: Number(countRow?.count ?? 0) };
 }
 
 export async function getGalleryPostById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(galleryPosts).where(eq(galleryPosts.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(galleryPosts)
+    .where(eq(galleryPosts.id, id))
+    .limit(1);
   return result[0];
 }
 
@@ -1561,13 +2149,23 @@ export async function createGalleryPost(data: InsertGalleryPost) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(galleryPosts).values(data);
-  const result = await db.select().from(galleryPosts).orderBy(desc(galleryPosts.createdAt)).limit(1);
+  const result = await db
+    .select()
+    .from(galleryPosts)
+    .orderBy(desc(galleryPosts.createdAt))
+    .limit(1);
   return result[0];
 }
 
-export async function updateGalleryPost(id: number, data: Partial<GalleryPost>) {
+export async function updateGalleryPost(
+  id: number,
+  data: Partial<GalleryPost>
+) {
   const db = await requireDb();
-  await db.update(galleryPosts).set({ ...data, updatedAt: new Date() }).where(eq(galleryPosts.id, id));
+  await db
+    .update(galleryPosts)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(galleryPosts.id, id));
 }
 
 export async function deleteGalleryPost(id: number) {
@@ -1577,24 +2175,46 @@ export async function deleteGalleryPost(id: number) {
 
 // ─── Magazine Posts ────────────────────────────────────────────────────────────
 
-export async function getMagazinePosts(opts: { page?: number; limit?: number; publishedOnly?: boolean } = {}) {
+export async function getMagazinePosts(
+  opts: { page?: number; limit?: number; publishedOnly?: boolean } = {}
+) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   const page = opts.page ?? 1;
   const limit = opts.limit ?? 20;
   const offset = (page - 1) * limit;
-  const conditions = opts.publishedOnly ? [eq(magazinePosts.isPublished, true)] : [];
-  const rows = conditions.length > 0
-    ? await db.select().from(magazinePosts).where(and(...conditions)).orderBy(desc(magazinePosts.createdAt)).limit(limit).offset(offset)
-    : await db.select().from(magazinePosts).orderBy(desc(magazinePosts.createdAt)).limit(limit).offset(offset);
-  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(magazinePosts);
+  const conditions = opts.publishedOnly
+    ? [eq(magazinePosts.isPublished, true)]
+    : [];
+  const rows =
+    conditions.length > 0
+      ? await db
+          .select()
+          .from(magazinePosts)
+          .where(and(...conditions))
+          .orderBy(desc(magazinePosts.createdAt))
+          .limit(limit)
+          .offset(offset)
+      : await db
+          .select()
+          .from(magazinePosts)
+          .orderBy(desc(magazinePosts.createdAt))
+          .limit(limit)
+          .offset(offset);
+  const [countRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(magazinePosts);
   return { items: rows, total: Number(countRow?.count ?? 0) };
 }
 
 export async function getMagazinePostById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(magazinePosts).where(eq(magazinePosts.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(magazinePosts)
+    .where(eq(magazinePosts.id, id))
+    .limit(1);
   return result[0];
 }
 
@@ -1602,13 +2222,23 @@ export async function createMagazinePost(data: InsertMagazinePost) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(magazinePosts).values(data);
-  const result = await db.select().from(magazinePosts).orderBy(desc(magazinePosts.createdAt)).limit(1);
+  const result = await db
+    .select()
+    .from(magazinePosts)
+    .orderBy(desc(magazinePosts.createdAt))
+    .limit(1);
   return result[0];
 }
 
-export async function updateMagazinePost(id: number, data: Partial<MagazinePost>) {
+export async function updateMagazinePost(
+  id: number,
+  data: Partial<MagazinePost>
+) {
   const db = await requireDb();
-  await db.update(magazinePosts).set({ ...data, updatedAt: new Date() }).where(eq(magazinePosts.id, id));
+  await db
+    .update(magazinePosts)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(magazinePosts.id, id));
 }
 
 export async function deleteMagazinePost(id: number) {
@@ -1618,11 +2248,18 @@ export async function deleteMagazinePost(id: number) {
 
 // ─── Post Images ───────────────────────────────────────────────────────────────
 
-export async function getPostImages(postType: "gallery" | "magazine", postId: number) {
+export async function getPostImages(
+  postType: "gallery" | "magazine",
+  postId: number
+) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(postImages)
-    .where(and(eq(postImages.postType, postType), eq(postImages.postId, postId)))
+  return db
+    .select()
+    .from(postImages)
+    .where(
+      and(eq(postImages.postType, postType), eq(postImages.postId, postId))
+    )
     .orderBy(postImages.sortOrder);
 }
 
@@ -1637,9 +2274,16 @@ export async function deletePostImage(id: number) {
   await db.delete(postImages).where(eq(postImages.id, id));
 }
 
-export async function deletePostImagesByPost(postType: "gallery" | "magazine", postId: number) {
+export async function deletePostImagesByPost(
+  postType: "gallery" | "magazine",
+  postId: number
+) {
   const db = await requireDb();
-  await db.delete(postImages).where(and(eq(postImages.postType, postType), eq(postImages.postId, postId)));
+  await db
+    .delete(postImages)
+    .where(
+      and(eq(postImages.postType, postType), eq(postImages.postId, postId))
+    );
 }
 
 // ─── Popups ────────────────────────────────────────────────────────────────────
@@ -1649,18 +2293,14 @@ export async function getPopups(opts: { activeOnly?: boolean } = {}) {
   if (!db) return [];
   if (opts.activeOnly) {
     const now = new Date();
-    return db.select().from(popups)
+    return db
+      .select()
+      .from(popups)
       .where(
         and(
           eq(popups.isActive, true),
-          or(
-            sql`${popups.startAt} IS NULL`,
-            sql`${popups.startAt} <= ${now}`
-          )!,
-          or(
-            sql`${popups.endAt} IS NULL`,
-            sql`${popups.endAt} >= ${now}`
-          )!
+          or(sql`${popups.startAt} IS NULL`, sql`${popups.startAt} <= ${now}`)!,
+          or(sql`${popups.endAt} IS NULL`, sql`${popups.endAt} >= ${now}`)!
         )
       )
       .orderBy(popups.sortOrder, desc(popups.createdAt));
@@ -1671,7 +2311,11 @@ export async function getPopups(opts: { activeOnly?: boolean } = {}) {
 export async function getPopupById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(popups).where(eq(popups.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(popups)
+    .where(eq(popups.id, id))
+    .limit(1);
   return result[0];
 }
 
@@ -1679,13 +2323,20 @@ export async function createPopup(data: InsertPopup) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(popups).values(data);
-  const result = await db.select().from(popups).orderBy(desc(popups.createdAt)).limit(1);
+  const result = await db
+    .select()
+    .from(popups)
+    .orderBy(desc(popups.createdAt))
+    .limit(1);
   return result[0];
 }
 
 export async function updatePopup(id: number, data: Partial<Popup>) {
   const db = await requireDb();
-  await db.update(popups).set({ ...data, updatedAt: new Date() }).where(eq(popups.id, id));
+  await db
+    .update(popups)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(popups.id, id));
 }
 
 export async function deletePopup(id: number) {
@@ -1695,7 +2346,10 @@ export async function deletePopup(id: number) {
 
 export async function incrementPopupClickCount(id: number) {
   const db = await requireDb();
-  await db.update(popups).set({ clickCount: sql`click_count + 1` as any }).where(eq(popups.id, id));
+  await db
+    .update(popups)
+    .set({ clickCount: sql`click_count + 1` as any })
+    .where(eq(popups.id, id));
 }
 
 // ─── Page Views ────────────────────────────────────────────────────────────────
@@ -1706,12 +2360,25 @@ export async function recordPageView(data: InsertPageView) {
 }
 
 export async function getPageViewStats(days = 30) {
-  return readOrFallback("getPageViewStats", { total: 0, byDay: [], byDevice: [], topPages: [], byHour: [], byDayOfWeek: [] }, async (db) => {
-    const [totalRow] = await db.select({ count: sql<number>`COUNT(*)` })
-      .from(pageViews)
-      .where(sql`${pageViews.createdAt} >= NOW() - INTERVAL '1 day' * ${days}`);
+  return readOrFallback(
+    "getPageViewStats",
+    {
+      total: 0,
+      byDay: [],
+      byDevice: [],
+      topPages: [],
+      byHour: [],
+      byDayOfWeek: [],
+    },
+    async db => {
+      const [totalRow] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(pageViews)
+        .where(
+          sql`${pageViews.createdAt} >= NOW() - INTERVAL '1 day' * ${days}`
+        );
 
-    const byDayRows = await db.execute(sql`
+      const byDayRows = await db.execute(sql`
       SELECT DATE(created_at) AS day, COUNT(*) AS cnt, device_type
       FROM page_views
       WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' * ${days}
@@ -1719,14 +2386,14 @@ export async function getPageViewStats(days = 30) {
       ORDER BY day ASC
     `);
 
-    const byDeviceRows = await db.execute(sql`
+      const byDeviceRows = await db.execute(sql`
       SELECT device_type, COUNT(*) AS cnt
       FROM page_views
       WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
       GROUP BY device_type
     `);
 
-    const topPagesRows = await db.execute(sql`
+      const topPagesRows = await db.execute(sql`
       SELECT path, COUNT(*) AS cnt
       FROM page_views
       WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
@@ -1735,7 +2402,7 @@ export async function getPageViewStats(days = 30) {
       LIMIT 10
     `);
 
-    const byHourRows = await db.execute(sql`
+      const byHourRows = await db.execute(sql`
       SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt
       FROM page_views
       WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
@@ -1743,7 +2410,7 @@ export async function getPageViewStats(days = 30) {
       ORDER BY hour ASC
     `);
 
-    const byDayOfWeekRows = await db.execute(sql`
+      const byDayOfWeekRows = await db.execute(sql`
       SELECT EXTRACT(DOW FROM created_at)::int + 1 AS dow, COUNT(*) AS cnt
       FROM page_views
       WHERE created_at >= NOW() - INTERVAL '1 day' * ${days}
@@ -1751,21 +2418,41 @@ export async function getPageViewStats(days = 30) {
       ORDER BY dow ASC
     `);
 
-    return {
-      total: Number(totalRow?.count ?? 0),
-      byDay: (byDayRows.rows as any[]).map((r: any) => ({ day: String(r.day), count: Number(r.cnt), device: r.device_type })),
-      byDevice: (byDeviceRows.rows as any[]).map((r: any) => ({ device: r.device_type, count: Number(r.cnt) })),
-      topPages: (topPagesRows.rows as any[]).map((r: any) => ({ path: r.path, count: Number(r.cnt) })),
-      byHour: (byHourRows.rows as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
-      byDayOfWeek: (byDayOfWeekRows.rows as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
-    };
-  });
+      return {
+        total: Number(totalRow?.count ?? 0),
+        byDay: (byDayRows.rows as any[]).map((r: any) => ({
+          day: String(r.day),
+          count: Number(r.cnt),
+          device: r.device_type,
+        })),
+        byDevice: (byDeviceRows.rows as any[]).map((r: any) => ({
+          device: r.device_type,
+          count: Number(r.cnt),
+        })),
+        topPages: (topPagesRows.rows as any[]).map((r: any) => ({
+          path: r.path,
+          count: Number(r.cnt),
+        })),
+        byHour: (byHourRows.rows as any[]).map((r: any) => ({
+          hour: Number(r.hour),
+          count: Number(r.cnt),
+        })),
+        byDayOfWeek: (byDayOfWeekRows.rows as any[]).map((r: any) => ({
+          dow: Number(r.dow),
+          count: Number(r.cnt),
+        })),
+      };
+    }
+  );
 }
 
 // ─── Sales Stats ───────────────────────────────────────────────────────────────
 
-export async function getSalesStats(period: "day" | "week" | "month" = "day", days = 30) {
-  return readOrFallback("getSalesStats", [], async (db) => {
+export async function getSalesStats(
+  period: "day" | "week" | "month" = "day",
+  days = 30
+) {
+  return readOrFallback("getSalesStats", [], async db => {
     let groupBy = "DATE(paid_at)";
     if (period === "week") groupBy = "TO_CHAR(paid_at, 'IYYY-IW')";
     if (period === "month") groupBy = "TO_CHAR(paid_at, 'YYYY-MM')";
@@ -1791,8 +2478,11 @@ export async function getSalesStats(period: "day" | "week" | "month" = "day", da
 }
 
 export async function getProductSalesStats() {
-  return readOrFallback("getProductSalesStats", { topSelling: [], cartAnalysis: [] }, async (db) => {
-    const topSellingRows = await db.execute(sql`
+  return readOrFallback(
+    "getProductSalesStats",
+    { topSelling: [], cartAnalysis: [] },
+    async db => {
+      const topSellingRows = await db.execute(sql`
       SELECT oi.product_id, oi.product_name, SUM(oi.quantity) AS total_qty, SUM(oi.subtotal) AS total_revenue
       FROM order_items oi
       JOIN orders o ON oi.order_id = o.id
@@ -1802,27 +2492,31 @@ export async function getProductSalesStats() {
       LIMIT 10
     `);
 
-    return {
-      topSelling: (topSellingRows.rows as any[]).map((r: any) => ({
-        productId: Number(r.product_id),
-        productName: String(r.product_name),
-        totalQty: Number(r.total_qty),
-        totalRevenue: Number(r.total_revenue),
-      })),
-      cartAnalysis: [],
-    };
-  });
+      return {
+        topSelling: (topSellingRows.rows as any[]).map((r: any) => ({
+          productId: Number(r.product_id),
+          productName: String(r.product_name),
+          totalQty: Number(r.total_qty),
+          totalRevenue: Number(r.total_revenue),
+        })),
+        cartAnalysis: [],
+      };
+    }
+  );
 }
 
 export async function getCustomerStats() {
-  return readOrFallback("getCustomerStats", { byMemberRole: [], byDayOfWeek: [], byHour: [] }, async (db) => {
-    const byMemberRoleRows = await db.execute(sql`
+  return readOrFallback(
+    "getCustomerStats",
+    { byMemberRole: [], byDayOfWeek: [], byHour: [] },
+    async db => {
+      const byMemberRoleRows = await db.execute(sql`
       SELECT member_role, COUNT(*) AS cnt
       FROM profiles
       GROUP BY member_role
     `);
 
-    const byDowRows = await db.execute(sql`
+      const byDowRows = await db.execute(sql`
       SELECT EXTRACT(DOW FROM created_at)::int + 1 AS dow, COUNT(*) AS cnt
       FROM orders
       WHERE status = 'paid'
@@ -1830,7 +2524,7 @@ export async function getCustomerStats() {
       ORDER BY dow ASC
     `);
 
-    const byHourRows = await db.execute(sql`
+      const byHourRows = await db.execute(sql`
       SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS cnt
       FROM orders
       WHERE status = 'paid'
@@ -1838,19 +2532,35 @@ export async function getCustomerStats() {
       ORDER BY hour ASC
     `);
 
-    return {
-      byMemberRole: (byMemberRoleRows.rows as any[]).map((r: any) => ({ role: r.member_role, count: Number(r.cnt) })),
-      byDayOfWeek: (byDowRows.rows as any[]).map((r: any) => ({ dow: Number(r.dow), count: Number(r.cnt) })),
-      byHour: (byHourRows.rows as any[]).map((r: any) => ({ hour: Number(r.hour), count: Number(r.cnt) })),
-    };
-  });
+      return {
+        byMemberRole: (byMemberRoleRows.rows as any[]).map((r: any) => ({
+          role: r.member_role,
+          count: Number(r.cnt),
+        })),
+        byDayOfWeek: (byDowRows.rows as any[]).map((r: any) => ({
+          dow: Number(r.dow),
+          count: Number(r.cnt),
+        })),
+        byHour: (byHourRows.rows as any[]).map((r: any) => ({
+          hour: Number(r.hour),
+          count: Number(r.cnt),
+        })),
+      };
+    }
+  );
 }
 
 // ─── Shipping Status & 3PL Helpers ───────────────────────────────────────────
 export async function updateOrderShipping(
   orderId: string,
   data: {
-    shippingStatus?: "pending_payment" | "ready" | "hold" | "shipping" | "delivered" | "none";
+    shippingStatus?:
+      | "pending_payment"
+      | "ready"
+      | "hold"
+      | "shipping"
+      | "delivered"
+      | "none";
     courierCode?: string | null;
     courierName?: string | null;
     trackingNumber?: string | null;
@@ -1869,70 +2579,105 @@ export async function updateOrderShipping(
   }
 ) {
   const db = await requireDb();
-  await db.update(orders).set({ ...(data as any), updatedAt: new Date() }).where(eq(orders.orderId, orderId));
+  await db
+    .update(orders)
+    .set({ ...(data as any), updatedAt: new Date() })
+    .where(eq(orders.orderId, orderId));
 }
 
 export async function getOrdersByShippingStatus(
-  shippingStatus: "pending_payment" | "ready" | "hold" | "shipping" | "delivered",
-  opts: { page?: number; limit?: number; search?: string; dateFrom?: Date; dateTo?: Date } = {}
+  shippingStatus:
+    | "pending_payment"
+    | "ready"
+    | "hold"
+    | "shipping"
+    | "delivered",
+  opts: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    dateFrom?: Date;
+    dateTo?: Date;
+  } = {}
 ) {
-  return readOrFallback("getOrdersByShippingStatus", { rows: [], total: 0 }, async (db) => {
-    const { page = 1, limit = 20 } = opts;
-    const offset = (page - 1) * limit;
-    const rows = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.shippingStatus, shippingStatus))
-      .orderBy(desc(orders.createdAt))
-      .limit(limit)
-      .offset(offset);
-    return { rows, total: rows.length };
-  });
+  return readOrFallback(
+    "getOrdersByShippingStatus",
+    { rows: [], total: 0 },
+    async db => {
+      const { page = 1, limit = 20 } = opts;
+      const offset = (page - 1) * limit;
+      const rows = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.shippingStatus, shippingStatus))
+        .orderBy(desc(orders.createdAt))
+        .limit(limit)
+        .offset(offset);
+      return { rows, total: rows.length };
+    }
+  );
 }
 
 // ─── Order Cancellations ─────────────────────────────────────────────────────
 
-export async function getCancellations(opts: {
-  status?: string;
-  cancelType?: string;
-  search?: string;
-  page?: number;
-  limit?: number;
-  dateFrom?: Date;
-  dateTo?: Date;
-} = {}) {
-  return readOrFallback("getCancellations", { rows: [], total: 0 }, async (db) => {
-    const { page = 1, limit = 20 } = opts;
-    const offset = (page - 1) * limit;
-    const rows = await db
-      .select()
-      .from(orderCancellations)
-      .leftJoin(orders, eq(orderCancellations.orderId, orders.id))
-      .orderBy(desc(orderCancellations.createdAt))
-      .limit(limit)
-      .offset(offset);
-    return { rows, total: rows.length };
-  });
+export async function getCancellations(
+  opts: {
+    status?: string;
+    cancelType?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+    dateFrom?: Date;
+    dateTo?: Date;
+  } = {}
+) {
+  return readOrFallback(
+    "getCancellations",
+    { rows: [], total: 0 },
+    async db => {
+      const { page = 1, limit = 20 } = opts;
+      const offset = (page - 1) * limit;
+      const rows = await db
+        .select()
+        .from(orderCancellations)
+        .leftJoin(orders, eq(orderCancellations.orderId, orders.id))
+        .orderBy(desc(orderCancellations.createdAt))
+        .limit(limit)
+        .offset(offset);
+      return { rows, total: rows.length };
+    }
+  );
 }
 
 export async function createCancellation(data: InsertOrderCancellation) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(orderCancellations).values(data);
-  const result = await db.select().from(orderCancellations)
+  const result = await db
+    .select()
+    .from(orderCancellations)
     .where(eq(orderCancellations.orderId, data.orderId))
-    .orderBy(desc(orderCancellations.createdAt)).limit(1);
+    .orderBy(desc(orderCancellations.createdAt))
+    .limit(1);
   return result[0];
 }
 
-export async function updateCancellation(id: number, data: Partial<InsertOrderCancellation>) {
+export async function updateCancellation(
+  id: number,
+  data: Partial<InsertOrderCancellation>
+) {
   const db = await requireDb();
-  await db.update(orderCancellations).set({ ...(data as any), updatedAt: new Date() }).where(eq(orderCancellations.id, id));
+  await db
+    .update(orderCancellations)
+    .set({ ...(data as any), updatedAt: new Date() })
+    .where(eq(orderCancellations.id, id));
 }
 
 // ─── Order Exchanges ──────────────────────────────────────────────────────────
-export async function getExchanges(opts: { status?: string; page?: number; limit?: number } = {}) {
-  return readOrFallback("getExchanges", { rows: [], total: 0 }, async (db) => {
+export async function getExchanges(
+  opts: { status?: string; page?: number; limit?: number } = {}
+) {
+  return readOrFallback("getExchanges", { rows: [], total: 0 }, async db => {
     const { page = 1, limit = 20 } = opts;
     const offset = (page - 1) * limit;
     const rows = await db
@@ -1950,20 +2695,31 @@ export async function createExchange(data: InsertOrderExchange) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(orderExchanges).values(data);
-  const result = await db.select().from(orderExchanges)
+  const result = await db
+    .select()
+    .from(orderExchanges)
     .where(eq(orderExchanges.orderId, data.orderId))
-    .orderBy(desc(orderExchanges.createdAt)).limit(1);
+    .orderBy(desc(orderExchanges.createdAt))
+    .limit(1);
   return result[0];
 }
 
-export async function updateExchange(id: number, data: Partial<InsertOrderExchange>) {
+export async function updateExchange(
+  id: number,
+  data: Partial<InsertOrderExchange>
+) {
   const db = await requireDb();
-  await db.update(orderExchanges).set({ ...(data as any), updatedAt: new Date() }).where(eq(orderExchanges.id, id));
+  await db
+    .update(orderExchanges)
+    .set({ ...(data as any), updatedAt: new Date() })
+    .where(eq(orderExchanges.id, id));
 }
 
 // ─── Order Returns ────────────────────────────────────────────────────────────
-export async function getReturns(opts: { status?: string; page?: number; limit?: number } = {}) {
-  return readOrFallback("getReturns", { rows: [], total: 0 }, async (db) => {
+export async function getReturns(
+  opts: { status?: string; page?: number; limit?: number } = {}
+) {
+  return readOrFallback("getReturns", { rows: [], total: 0 }, async db => {
     const { page = 1, limit = 20 } = opts;
     const offset = (page - 1) * limit;
     const rows = await db
@@ -1981,20 +2737,31 @@ export async function createReturn(data: InsertOrderReturn) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(orderReturns).values(data);
-  const result = await db.select().from(orderReturns)
+  const result = await db
+    .select()
+    .from(orderReturns)
     .where(eq(orderReturns.orderId, data.orderId))
-    .orderBy(desc(orderReturns.createdAt)).limit(1);
+    .orderBy(desc(orderReturns.createdAt))
+    .limit(1);
   return result[0];
 }
 
-export async function updateReturn(id: number, data: Partial<InsertOrderReturn>) {
+export async function updateReturn(
+  id: number,
+  data: Partial<InsertOrderReturn>
+) {
   const db = await requireDb();
-  await db.update(orderReturns).set({ ...(data as any), updatedAt: new Date() }).where(eq(orderReturns.id, id));
+  await db
+    .update(orderReturns)
+    .set({ ...(data as any), updatedAt: new Date() })
+    .where(eq(orderReturns.id, id));
 }
 
 // ─── Order Refunds ────────────────────────────────────────────────────────────
-export async function getRefunds(opts: { status?: string; page?: number; limit?: number } = {}) {
-  return readOrFallback("getRefunds", { rows: [], total: 0 }, async (db) => {
+export async function getRefunds(
+  opts: { status?: string; page?: number; limit?: number } = {}
+) {
+  return readOrFallback("getRefunds", { rows: [], total: 0 }, async db => {
     const { page = 1, limit = 20 } = opts;
     const offset = (page - 1) * limit;
     const rows = await db
@@ -2012,40 +2779,58 @@ export async function createRefund(data: InsertOrderRefund) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(orderRefunds).values(data);
-  const result = await db.select().from(orderRefunds)
+  const result = await db
+    .select()
+    .from(orderRefunds)
     .where(eq(orderRefunds.orderId, data.orderId))
-    .orderBy(desc(orderRefunds.createdAt)).limit(1);
+    .orderBy(desc(orderRefunds.createdAt))
+    .limit(1);
   return result[0];
 }
 
-export async function updateRefund(id: number, data: Partial<InsertOrderRefund>) {
+export async function updateRefund(
+  id: number,
+  data: Partial<InsertOrderRefund>
+) {
   const db = await requireDb();
-  await db.update(orderRefunds).set({ ...(data as any), updatedAt: new Date() }).where(eq(orderRefunds.id, id));
+  await db
+    .update(orderRefunds)
+    .set({ ...(data as any), updatedAt: new Date() })
+    .where(eq(orderRefunds.id, id));
 }
 
 // ─── Card Cancellations ───────────────────────────────────────────────────────
-export async function getCardCancellations(opts: { page?: number; limit?: number } = {}) {
-  return readOrFallback("getCardCancellations", { rows: [], total: 0 }, async (db) => {
-    const { page = 1, limit = 20 } = opts;
-    const offset = (page - 1) * limit;
-    const rows = await db
-      .select()
-      .from(cardCancellations)
-      .leftJoin(orders, eq(cardCancellations.orderId, orders.id))
-      .orderBy(desc(cardCancellations.cancelledAt))
-      .limit(limit)
-      .offset(offset);
-    return { rows, total: rows.length };
-  });
+export async function getCardCancellations(
+  opts: { page?: number; limit?: number } = {}
+) {
+  return readOrFallback(
+    "getCardCancellations",
+    { rows: [], total: 0 },
+    async db => {
+      const { page = 1, limit = 20 } = opts;
+      const offset = (page - 1) * limit;
+      const rows = await db
+        .select()
+        .from(cardCancellations)
+        .leftJoin(orders, eq(cardCancellations.orderId, orders.id))
+        .orderBy(desc(cardCancellations.cancelledAt))
+        .limit(limit)
+        .offset(offset);
+      return { rows, total: rows.length };
+    }
+  );
 }
 
 export async function createCardCancellation(data: InsertCardCancellation) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(cardCancellations).values(data);
-  const result = await db.select().from(cardCancellations)
+  const result = await db
+    .select()
+    .from(cardCancellations)
     .where(eq(cardCancellations.orderId, data.orderId))
-    .orderBy(desc(cardCancellations.cancelledAt)).limit(1);
+    .orderBy(desc(cardCancellations.cancelledAt))
+    .limit(1);
   return result[0];
 }
 
@@ -2069,11 +2854,13 @@ async function cancelOrderWithHistoryWithDb(params: {
     updateData.paymentKey = params.paymentKey;
   }
 
-  return db.transaction(async (tx) => {
+  return db.transaction(async tx => {
     const [cancelledOrder] = await tx
       .update(orders)
       .set(updateData)
-      .where(and(eq(orders.orderId, params.orderId), eq(orders.status, params.from)))
+      .where(
+        and(eq(orders.orderId, params.orderId), eq(orders.status, params.from))
+      )
       .returning();
 
     if (!cancelledOrder) {
@@ -2081,7 +2868,10 @@ async function cancelOrderWithHistoryWithDb(params: {
     }
 
     if (params.restoreInventory) {
-      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, cancelledOrder.id));
+      const items = await tx
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, cancelledOrder.id));
       for (const item of items) {
         await tx
           .update(products)
@@ -2136,8 +2926,13 @@ async function cancelOrderWithHistoryWithDb(params: {
         requestedBy: params.requestedBy,
         reason: params.reason,
         status: "completed",
-        cancelType: params.from === "paid" || params.paymentKey ? "post_payment" : "pre_payment",
-        cancelAmount: String(cancelledOrder.finalAmount ?? cancelledOrder.totalAmount ?? 0),
+        cancelType:
+          params.from === "paid" || params.paymentKey
+            ? "post_payment"
+            : "pre_payment",
+        cancelAmount: String(
+          cancelledOrder.finalAmount ?? cancelledOrder.totalAmount ?? 0
+        ),
         adminNote: params.adminNote ?? null,
         processedAt: now,
       })
@@ -2149,7 +2944,9 @@ async function cancelOrderWithHistoryWithDb(params: {
           .values({
             orderId: cancelledOrder.id,
             paymentKey: params.paymentKey,
-            cancelAmount: String(cancelledOrder.finalAmount ?? cancelledOrder.totalAmount ?? 0),
+            cancelAmount: String(
+              cancelledOrder.finalAmount ?? cancelledOrder.totalAmount ?? 0
+            ),
             cancelType: "full",
             processedBy: params.processedBy ?? params.requestedBy,
             adminNote: params.adminNote ?? params.reason,
@@ -2190,7 +2987,11 @@ async function cancelOrderWithHistoryWithRpc(params: {
     throw toRpcError(error);
   }
 
-  if (!data || typeof data !== "object" || typeof (data as { updated?: unknown }).updated !== "boolean") {
+  if (
+    !data ||
+    typeof data !== "object" ||
+    typeof (data as { updated?: unknown }).updated !== "boolean"
+  ) {
     throw new Error("Invalid cancel_checkout_order RPC response");
   }
 
@@ -2213,7 +3014,10 @@ export async function cancelOrderWithHistory(params: {
     if (!shouldFallbackFromOrderRpc(error)) {
       throw error;
     }
-    console.warn("[Order] cancel_checkout_order RPC unavailable, falling back to legacy DB logic:", error);
+    console.warn(
+      "[Order] cancel_checkout_order RPC unavailable, falling back to legacy DB logic:",
+      error
+    );
     return cancelOrderWithHistoryWithDb(params);
   }
 }
@@ -2224,14 +3028,24 @@ export async function createThirdPartyLog(data: InsertThirdPartyLog) {
   await db.insert(thirdPartyLogs).values(data);
 }
 
-export async function getThirdPartyLogs(orderId?: number, opts: { page?: number; limit?: number } = {}) {
-  return readOrFallback("getThirdPartyLogs", [], async (db) => {
+export async function getThirdPartyLogs(
+  orderId?: number,
+  opts: { page?: number; limit?: number } = {}
+) {
+  return readOrFallback("getThirdPartyLogs", [], async db => {
     const { limit = 50 } = opts;
-    const q = db.select().from(thirdPartyLogs).orderBy(desc(thirdPartyLogs.createdAt)).limit(limit);
+    const q = db
+      .select()
+      .from(thirdPartyLogs)
+      .orderBy(desc(thirdPartyLogs.createdAt))
+      .limit(limit);
     if (orderId) {
-      return db.select().from(thirdPartyLogs)
+      return db
+        .select()
+        .from(thirdPartyLogs)
         .where(eq(thirdPartyLogs.orderId, orderId))
-        .orderBy(desc(thirdPartyLogs.createdAt)).limit(limit);
+        .orderBy(desc(thirdPartyLogs.createdAt))
+        .limit(limit);
     }
     return q;
   });
@@ -2239,37 +3053,87 @@ export async function getThirdPartyLogs(orderId?: number, opts: { page?: number;
 
 // ─── Order Dashboard Summary (확장) ──────────────────────────────────────────
 export async function getOrderDashboardSummary() {
-  return readOrFallback("getOrderDashboardSummary", null, async (db) => {
+  return readOrFallback("getOrderDashboardSummary", null, async db => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
-    const [todayStats, monthStats, pendingPayment, ready, hold, shipping, delivered,
-      cancelRequested, exchangeRequested, returnRequested, refundPending] = await Promise.all([
-      db.select({
-        count: sql<number>`COUNT(*)`,
-        revenue: sql<number>`COALESCE(SUM(CAST("totalAmount" AS numeric)), 0)`,
-      }).from(orders).where(and(eq(orders.status, "paid"), gte(orders.paidAt, todayStart))),
-      db.select({
-        count: sql<number>`COUNT(*)`,
-        revenue: sql<number>`COALESCE(SUM(CAST("totalAmount" AS numeric)), 0)`,
-      }).from(orders).where(and(eq(orders.status, "paid"), gte(orders.paidAt, monthStart))),
-      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "pending_payment")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "ready")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "hold")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "shipping")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(orders).where(eq(orders.shippingStatus, "delivered")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(orderCancellations).where(eq(orderCancellations.status, "requested")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(orderExchanges).where(eq(orderExchanges.status, "requested")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(orderReturns).where(eq(orderReturns.status, "requested")),
-      db.select({ count: sql<number>`COUNT(*)` }).from(orderRefunds).where(eq(orderRefunds.status, "pending")),
+    const [
+      todayStats,
+      monthStats,
+      pendingPayment,
+      ready,
+      hold,
+      shipping,
+      delivered,
+      cancelRequested,
+      exchangeRequested,
+      returnRequested,
+      refundPending,
+    ] = await Promise.all([
+      db
+        .select({
+          count: sql<number>`COUNT(*)`,
+          revenue: sql<number>`COALESCE(SUM(CAST("totalAmount" AS numeric)), 0)`,
+        })
+        .from(orders)
+        .where(and(eq(orders.status, "paid"), gte(orders.paidAt, todayStart))),
+      db
+        .select({
+          count: sql<number>`COUNT(*)`,
+          revenue: sql<number>`COALESCE(SUM(CAST("totalAmount" AS numeric)), 0)`,
+        })
+        .from(orders)
+        .where(and(eq(orders.status, "paid"), gte(orders.paidAt, monthStart))),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(eq(orders.shippingStatus, "pending_payment")),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(eq(orders.shippingStatus, "ready")),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(eq(orders.shippingStatus, "hold")),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(eq(orders.shippingStatus, "shipping")),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orders)
+        .where(eq(orders.shippingStatus, "delivered")),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderCancellations)
+        .where(eq(orderCancellations.status, "requested")),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderExchanges)
+        .where(eq(orderExchanges.status, "requested")),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderReturns)
+        .where(eq(orderReturns.status, "requested")),
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(orderRefunds)
+        .where(eq(orderRefunds.status, "pending")),
     ]);
 
     return {
-      today: { orders: Number(todayStats[0].count), sales: Number(todayStats[0].revenue) },
-      month: { orders: Number(monthStats[0].count), sales: Number(monthStats[0].revenue) },
+      today: {
+        orders: Number(todayStats[0].count),
+        sales: Number(todayStats[0].revenue),
+      },
+      month: {
+        orders: Number(monthStats[0].count),
+        sales: Number(monthStats[0].revenue),
+      },
       shipping: {
         pendingPayment: Number(pendingPayment[0].count),
         ready: Number(ready[0].count),
@@ -2293,28 +3157,51 @@ export async function getOrderDetailFull(orderId: string) {
   if (!db) return null;
 
   // 주문 기본 정보
-  const orderResult = await db.select().from(orders).where(eq(orders.orderId, orderId)).limit(1);
+  const orderResult = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.orderId, orderId))
+    .limit(1);
   if (!orderResult.length) return null;
   const order = orderResult[0];
 
   // 주문자 정보
-  const userResult = await db.select().from(profiles).where(eq(profiles.id, order.userId)).limit(1);
+  const userResult = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, order.userId))
+    .limit(1);
   const user = userResult.length ? userResult[0] : null;
 
   // 주문 상품 목록
-  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+  const items = await db
+    .select()
+    .from(orderItems)
+    .where(eq(orderItems.orderId, order.id));
 
   // 취소 내역
-  const cancellations = await db.select().from(orderCancellations).where(eq(orderCancellations.orderId, order.id));
+  const cancellations = await db
+    .select()
+    .from(orderCancellations)
+    .where(eq(orderCancellations.orderId, order.id));
 
   // 교환 내역
-  const exchanges = await db.select().from(orderExchanges).where(eq(orderExchanges.orderId, order.id));
+  const exchanges = await db
+    .select()
+    .from(orderExchanges)
+    .where(eq(orderExchanges.orderId, order.id));
 
   // 반품 내역
-  const returns = await db.select().from(orderReturns).where(eq(orderReturns.orderId, order.id));
+  const returns = await db
+    .select()
+    .from(orderReturns)
+    .where(eq(orderReturns.orderId, order.id));
 
   // 환불 내역
-  const refunds = await db.select().from(orderRefunds).where(eq(orderRefunds.orderId, order.id));
+  const refunds = await db
+    .select()
+    .from(orderRefunds)
+    .where(eq(orderRefunds.orderId, order.id));
 
   return {
     order,
@@ -2330,19 +3217,28 @@ export async function getOrderDetailFull(orderId: string) {
 // ─── Update Order Admin Memo ──────────────────────────────────────────────────
 export async function updateOrderAdminMemo(orderId: string, adminMemo: string) {
   const db = await requireDb();
-  await db.update(orders).set({ adminMemo, updatedAt: new Date() }).where(eq(orders.orderId, orderId));
+  await db
+    .update(orders)
+    .set({ adminMemo, updatedAt: new Date() })
+    .where(eq(orders.orderId, orderId));
 }
 
 // ─── Update Order Shipping Info ───────────────────────────────────────────────
-export async function updateOrderShippingInfo(orderId: string, data: {
-  recipientName?: string;
-  recipientPhone?: string;
-  shippingAddress?: string;
-  shippingZipCode?: string;
-  shippingMemo?: string;
-}) {
+export async function updateOrderShippingInfo(
+  orderId: string,
+  data: {
+    recipientName?: string;
+    recipientPhone?: string;
+    shippingAddress?: string;
+    shippingZipCode?: string;
+    shippingMemo?: string;
+  }
+) {
   const db = await requireDb();
-  await db.update(orders).set({ ...data, updatedAt: new Date() }).where(eq(orders.orderId, orderId));
+  await db
+    .update(orders)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(orders.orderId, orderId));
 }
 
 // ─── Reviews (후기 관리) ──────────────────────────────────────────────────────
@@ -2360,7 +3256,8 @@ export async function getReviews(opts?: {
   const offset = (page - 1) * limit;
 
   const conditions = [];
-  if (opts?.category) conditions.push(eq(reviews.category, opts.category as any));
+  if (opts?.category)
+    conditions.push(eq(reviews.category, opts.category as any));
   if (opts?.productId) conditions.push(eq(reviews.productId, opts.productId));
   if (opts?.publishedOnly) conditions.push(eq(reviews.isPublished, true));
 
@@ -2409,39 +3306,77 @@ export async function deleteReview(id: number) {
   await db.delete(reviews).where(eq(reviews.id, id));
 }
 
-
 // ─── Certified Instructors (인증강사 갤러리) ──────────────────────────────────
 
-export async function getCertifiedInstructors(opts: { publishedOnly?: boolean; page?: number; limit?: number } = {}) {
+export async function getCertifiedInstructors(
+  opts: { publishedOnly?: boolean; page?: number; limit?: number } = {}
+) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   const limit = opts.limit ?? 100;
   const offset = ((opts.page ?? 1) - 1) * limit;
-  const conditions = opts.publishedOnly ? [eq(certifiedInstructors.isPublished, true)] : [];
+  const conditions = opts.publishedOnly
+    ? [eq(certifiedInstructors.isPublished, true)]
+    : [];
   const items = conditions.length
-    ? await db.select().from(certifiedInstructors).where(and(...conditions)).orderBy(certifiedInstructors.sortOrder, desc(certifiedInstructors.createdAt)).limit(limit).offset(offset)
-    : await db.select().from(certifiedInstructors).orderBy(certifiedInstructors.sortOrder, desc(certifiedInstructors.createdAt)).limit(limit).offset(offset);
-  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(certifiedInstructors);
+    ? await db
+        .select()
+        .from(certifiedInstructors)
+        .where(and(...conditions))
+        .orderBy(
+          certifiedInstructors.sortOrder,
+          desc(certifiedInstructors.createdAt)
+        )
+        .limit(limit)
+        .offset(offset)
+    : await db
+        .select()
+        .from(certifiedInstructors)
+        .orderBy(
+          certifiedInstructors.sortOrder,
+          desc(certifiedInstructors.createdAt)
+        )
+        .limit(limit)
+        .offset(offset);
+  const [countRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(certifiedInstructors);
   return { items, total: Number(countRow?.count ?? 0) };
 }
 
 export async function getCertifiedInstructorById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(certifiedInstructors).where(eq(certifiedInstructors.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(certifiedInstructors)
+    .where(eq(certifiedInstructors.id, id))
+    .limit(1);
   return result[0];
 }
 
-export async function createCertifiedInstructor(data: InsertCertifiedInstructor) {
+export async function createCertifiedInstructor(
+  data: InsertCertifiedInstructor
+) {
   const db = await requireDb();
   await db.insert(certifiedInstructors).values(data);
-  const [row] = await db.select().from(certifiedInstructors).orderBy(desc(certifiedInstructors.createdAt)).limit(1);
+  const [row] = await db
+    .select()
+    .from(certifiedInstructors)
+    .orderBy(desc(certifiedInstructors.createdAt))
+    .limit(1);
   return row;
 }
 
-export async function updateCertifiedInstructor(id: number, data: Partial<InsertCertifiedInstructor>) {
+export async function updateCertifiedInstructor(
+  id: number,
+  data: Partial<InsertCertifiedInstructor>
+) {
   const db = await requireDb();
-  await db.update(certifiedInstructors).set({ ...data, updatedAt: new Date() }).where(eq(certifiedInstructors.id, id));
+  await db
+    .update(certifiedInstructors)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(certifiedInstructors.id, id));
 }
 
 export async function deleteCertifiedInstructor(id: number) {
@@ -2451,17 +3386,33 @@ export async function deleteCertifiedInstructor(id: number) {
 
 // ─── Coupons (쿠폰 관리) ─────────────────────────────────────────────────────
 
-export async function getCoupons(opts: { page?: number; limit?: number; status?: string } = {}) {
+export async function getCoupons(
+  opts: { page?: number; limit?: number; status?: string } = {}
+) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   const limit = opts.limit ?? 20;
   const offset = ((opts.page ?? 1) - 1) * limit;
   const conditions = opts.status ? [eq(coupons.status, opts.status)] : [];
   const items = conditions.length
-    ? await db.select().from(coupons).where(and(...conditions)).orderBy(desc(coupons.createdAt)).limit(limit).offset(offset)
-    : await db.select().from(coupons).orderBy(desc(coupons.createdAt)).limit(limit).offset(offset);
+    ? await db
+        .select()
+        .from(coupons)
+        .where(and(...conditions))
+        .orderBy(desc(coupons.createdAt))
+        .limit(limit)
+        .offset(offset)
+    : await db
+        .select()
+        .from(coupons)
+        .orderBy(desc(coupons.createdAt))
+        .limit(limit)
+        .offset(offset);
   const [countRow] = conditions.length
-    ? await db.select({ count: sql<number>`COUNT(*)` }).from(coupons).where(and(...conditions))
+    ? await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(coupons)
+        .where(and(...conditions))
     : await db.select({ count: sql<number>`COUNT(*)` }).from(coupons);
   return { items, total: Number(countRow?.count ?? 0) };
 }
@@ -2469,20 +3420,31 @@ export async function getCoupons(opts: { page?: number; limit?: number; status?:
 export async function getCouponById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(coupons).where(eq(coupons.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(coupons)
+    .where(eq(coupons.id, id))
+    .limit(1);
   return result[0];
 }
 
 export async function createCoupon(data: InsertCoupon) {
   const db = await requireDb();
   await db.insert(coupons).values(data);
-  const [row] = await db.select().from(coupons).orderBy(desc(coupons.createdAt)).limit(1);
+  const [row] = await db
+    .select()
+    .from(coupons)
+    .orderBy(desc(coupons.createdAt))
+    .limit(1);
   return row;
 }
 
 export async function updateCoupon(id: number, data: Partial<InsertCoupon>) {
   const db = await requireDb();
-  await db.update(coupons).set({ ...data, updatedAt: new Date() }).where(eq(coupons.id, id));
+  await db
+    .update(coupons)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(coupons.id, id));
 }
 
 export async function deleteCoupon(id: number) {
@@ -2492,7 +3454,14 @@ export async function deleteCoupon(id: number) {
 
 // ─── Coupon Issues (쿠폰 발급 내역) ─────────────────────────────────────────
 
-export async function getCouponIssues(opts: { couponId?: number; userId?: string; page?: number; limit?: number } = {}) {
+export async function getCouponIssues(
+  opts: {
+    couponId?: number;
+    userId?: string;
+    page?: number;
+    limit?: number;
+  } = {}
+) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   const limit = opts.limit ?? 20;
@@ -2501,10 +3470,24 @@ export async function getCouponIssues(opts: { couponId?: number; userId?: string
   if (opts.couponId) conditions.push(eq(couponIssues.couponId, opts.couponId));
   if (opts.userId) conditions.push(eq(couponIssues.userId, opts.userId));
   const items = conditions.length
-    ? await db.select().from(couponIssues).where(and(...conditions)).orderBy(desc(couponIssues.createdAt)).limit(limit).offset(offset)
-    : await db.select().from(couponIssues).orderBy(desc(couponIssues.createdAt)).limit(limit).offset(offset);
+    ? await db
+        .select()
+        .from(couponIssues)
+        .where(and(...conditions))
+        .orderBy(desc(couponIssues.createdAt))
+        .limit(limit)
+        .offset(offset)
+    : await db
+        .select()
+        .from(couponIssues)
+        .orderBy(desc(couponIssues.createdAt))
+        .limit(limit)
+        .offset(offset);
   const [countRow] = conditions.length
-    ? await db.select({ count: sql<number>`COUNT(*)` }).from(couponIssues).where(and(...conditions))
+    ? await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(couponIssues)
+        .where(and(...conditions))
     : await db.select({ count: sql<number>`COUNT(*)` }).from(couponIssues);
   return { items, total: Number(countRow?.count ?? 0) };
 }
@@ -2530,17 +3513,19 @@ export async function getDetailedCouponIssuesForUser(userId: string) {
     ORDER BY ci.issued_at DESC
   `);
 
-  return (result.rows as Array<{
-    issueId: string;
-    issueStatus: string;
-    createdAt: Date;
-    usedAt: Date | null;
-    couponId: string;
-    couponName: string;
-    benefitType: string;
-    benefitValue: number | string | null;
-    couponStatus: string;
-  }>).map((row) => ({
+  return (
+    result.rows as Array<{
+      issueId: string;
+      issueStatus: string;
+      createdAt: Date;
+      usedAt: Date | null;
+      couponId: string;
+      couponName: string;
+      benefitType: string;
+      benefitValue: number | string | null;
+      couponStatus: string;
+    }>
+  ).map(row => ({
     issue: {
       id: row.issueId,
       isUsed: row.issueStatus !== "issued" || row.usedAt !== null,
@@ -2559,55 +3544,96 @@ export async function getDetailedCouponIssuesForUser(userId: string) {
 export async function issueCouponToUser(couponId: number, userId: string) {
   const db = await requireDb();
   // 16자리 쿠폰 번호 생성
-  const couponNumber = Date.now().toString().slice(-10) + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+  const couponNumber =
+    Date.now().toString().slice(-10) +
+    Math.floor(Math.random() * 1000000)
+      .toString()
+      .padStart(6, "0");
   await db.insert(couponIssues).values({ couponId, userId, couponNumber });
   // totalIssued 증가
-  await db.update(coupons).set({ totalIssued: sql`totalIssued + 1` }).where(eq(coupons.id, couponId));
-  const [row] = await db.select().from(couponIssues).orderBy(desc(couponIssues.createdAt)).limit(1);
+  await db
+    .update(coupons)
+    .set({ totalIssued: sql`totalIssued + 1` })
+    .where(eq(coupons.id, couponId));
+  const [row] = await db
+    .select()
+    .from(couponIssues)
+    .orderBy(desc(couponIssues.createdAt))
+    .limit(1);
   return row;
 }
 
 export async function deleteCouponIssue(id: number) {
   const db = await requireDb();
-  await db.update(couponIssues).set({ isDeleted: true }).where(eq(couponIssues.id, id));
+  await db
+    .update(couponIssues)
+    .set({ isDeleted: true })
+    .where(eq(couponIssues.id, id));
 }
 
 // ─── Discount Codes (할인코드) ───────────────────────────────────────────────
 
-export async function getDiscountCodes(opts: { page?: number; limit?: number } = {}) {
+export async function getDiscountCodes(
+  opts: { page?: number; limit?: number } = {}
+) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   const limit = opts.limit ?? 20;
   const offset = ((opts.page ?? 1) - 1) * limit;
-  const items = await db.select().from(discountCodes).orderBy(desc(discountCodes.createdAt)).limit(limit).offset(offset);
-  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(discountCodes);
+  const items = await db
+    .select()
+    .from(discountCodes)
+    .orderBy(desc(discountCodes.createdAt))
+    .limit(limit)
+    .offset(offset);
+  const [countRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(discountCodes);
   return { items, total: Number(countRow?.count ?? 0) };
 }
 
 export async function getDiscountCodeById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(discountCodes).where(eq(discountCodes.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(discountCodes)
+    .where(eq(discountCodes.id, id))
+    .limit(1);
   return result[0];
 }
 
 export async function getDiscountCodeByCode(code: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(discountCodes).where(eq(discountCodes.code, code)).limit(1);
+  const result = await db
+    .select()
+    .from(discountCodes)
+    .where(eq(discountCodes.code, code))
+    .limit(1);
   return result[0];
 }
 
 export async function createDiscountCode(data: InsertDiscountCode) {
   const db = await requireDb();
   await db.insert(discountCodes).values(data);
-  const [row] = await db.select().from(discountCodes).orderBy(desc(discountCodes.createdAt)).limit(1);
+  const [row] = await db
+    .select()
+    .from(discountCodes)
+    .orderBy(desc(discountCodes.createdAt))
+    .limit(1);
   return row;
 }
 
-export async function updateDiscountCode(id: number, data: Partial<InsertDiscountCode>) {
+export async function updateDiscountCode(
+  id: number,
+  data: Partial<InsertDiscountCode>
+) {
   const db = await requireDb();
-  await db.update(discountCodes).set({ ...data, updatedAt: new Date() }).where(eq(discountCodes.id, id));
+  await db
+    .update(discountCodes)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(discountCodes.id, id));
 }
 
 export async function deleteDiscountCode(id: number) {
@@ -2617,33 +3643,56 @@ export async function deleteDiscountCode(id: number) {
 
 // ─── Remind Alerts (리마인드 Me) ─────────────────────────────────────────────
 
-export async function getRemindAlerts(opts: { page?: number; limit?: number } = {}) {
+export async function getRemindAlerts(
+  opts: { page?: number; limit?: number } = {}
+) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   const limit = opts.limit ?? 20;
   const offset = ((opts.page ?? 1) - 1) * limit;
-  const items = await db.select().from(remindAlerts).orderBy(desc(remindAlerts.createdAt)).limit(limit).offset(offset);
-  const [countRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(remindAlerts);
+  const items = await db
+    .select()
+    .from(remindAlerts)
+    .orderBy(desc(remindAlerts.createdAt))
+    .limit(limit)
+    .offset(offset);
+  const [countRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(remindAlerts);
   return { items, total: Number(countRow?.count ?? 0) };
 }
 
 export async function getRemindAlertById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(remindAlerts).where(eq(remindAlerts.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(remindAlerts)
+    .where(eq(remindAlerts.id, id))
+    .limit(1);
   return result[0];
 }
 
 export async function createRemindAlert(data: InsertRemindAlert) {
   const db = await requireDb();
   await db.insert(remindAlerts).values(data);
-  const [row] = await db.select().from(remindAlerts).orderBy(desc(remindAlerts.createdAt)).limit(1);
+  const [row] = await db
+    .select()
+    .from(remindAlerts)
+    .orderBy(desc(remindAlerts.createdAt))
+    .limit(1);
   return row;
 }
 
-export async function updateRemindAlert(id: number, data: Partial<InsertRemindAlert>) {
+export async function updateRemindAlert(
+  id: number,
+  data: Partial<InsertRemindAlert>
+) {
   const db = await requireDb();
-  await db.update(remindAlerts).set({ ...data, updatedAt: new Date() }).where(eq(remindAlerts.id, id));
+  await db
+    .update(remindAlerts)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(remindAlerts.id, id));
 }
 
 export async function deleteRemindAlert(id: number) {
@@ -2654,11 +3703,27 @@ export async function deleteRemindAlert(id: number) {
 // 프로모션 대시보드 통계
 export async function getPromotionStats() {
   const db = await getDb();
-  if (!db) return { activeCoupons: 0, totalCouponIssued: 0, activeDiscountCodes: 0, activeRemindAlerts: 0 };
-  const [activeCouponsRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(coupons).where(eq(coupons.status, 'active'));
-  const [totalIssuedRow] = await db.select({ total: sql<number>`SUM(totalIssued)` }).from(coupons);
-  const [activeDiscountCodesRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(discountCodes);
-  const [activeRemindAlertsRow] = await db.select({ count: sql<number>`COUNT(*)` }).from(remindAlerts).where(eq(remindAlerts.isActive, true));
+  if (!db)
+    return {
+      activeCoupons: 0,
+      totalCouponIssued: 0,
+      activeDiscountCodes: 0,
+      activeRemindAlerts: 0,
+    };
+  const [activeCouponsRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(coupons)
+    .where(eq(coupons.status, "active"));
+  const [totalIssuedRow] = await db
+    .select({ total: sql<number>`SUM(totalIssued)` })
+    .from(coupons);
+  const [activeDiscountCodesRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(discountCodes);
+  const [activeRemindAlertsRow] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(remindAlerts)
+    .where(eq(remindAlerts.isActive, true));
   return {
     activeCoupons: Number(activeCouponsRow?.count ?? 0),
     totalCouponIssued: Number(totalIssuedRow?.total ?? 0),
@@ -2674,7 +3739,7 @@ export async function getPromotionStats() {
  */
 export async function generateNextProductCode(): Promise<string> {
   const db = await getDb();
-  if (!db) return 'R00000AA';
+  if (!db) return "R00000AA";
   // R00000XX 형식의 코드만 조회
   const result = await db
     .select({ productCode: products.productCode })
@@ -2684,7 +3749,7 @@ export async function generateNextProductCode(): Promise<string> {
     .limit(1);
 
   const lastCode = result[0]?.productCode;
-  if (!lastCode) return 'R00000AA';
+  if (!lastCode) return "R00000AA";
 
   const suffix = lastCode.slice(-2); // e.g. "AB"
   const c1 = suffix.charCodeAt(0); // 첫 번째 알파벳
@@ -2692,11 +3757,12 @@ export async function generateNextProductCode(): Promise<string> {
 
   let next1 = c1;
   let next2 = c2 + 1;
-  if (next2 > 90) { // 'Z'
+  if (next2 > 90) {
+    // 'Z'
     next2 = 65; // 'A'
     next1 += 1;
   }
-  if (next1 > 90) return 'R00000AA'; // 오버플로우 시 리셋
+  if (next1 > 90) return "R00000AA"; // 오버플로우 시 리셋
 
   return `R00000${String.fromCharCode(next1)}${String.fromCharCode(next2)}`;
 }
@@ -2705,10 +3771,14 @@ export async function generateNextProductCode(): Promise<string> {
 export async function getDesignFiles(folder?: string) {
   const db = await getDb();
   if (!db) return [];
-  const { designFiles } = await import('../drizzle/schema-pg');
-  const { eq } = await import('drizzle-orm');
+  const { designFiles } = await import("../drizzle/schema-pg");
+  const { eq } = await import("drizzle-orm");
   if (folder) {
-    return db.select().from(designFiles).where(eq(designFiles.folder, folder)).orderBy(designFiles.createdAt);
+    return db
+      .select()
+      .from(designFiles)
+      .where(eq(designFiles.folder, folder))
+      .orderBy(designFiles.createdAt);
   }
   return db.select().from(designFiles).orderBy(designFiles.createdAt);
 }
@@ -2725,8 +3795,8 @@ export async function createDesignFile(data: {
   uploadedBy?: string | null;
 }) {
   const db = await getDb();
-  if (!db) throw new Error('DB not available');
-  const { designFiles } = await import('../drizzle/schema-pg');
+  if (!db) throw new Error("DB not available");
+  const { designFiles } = await import("../drizzle/schema-pg");
   await db.insert(designFiles).values({
     fileName: data.fileName,
     fileKey: data.fileKey,
@@ -2735,20 +3805,28 @@ export async function createDesignFile(data: {
     mediumUrl: data.mediumUrl ?? null,
     mimeType: data.mimeType ?? null,
     fileSize: data.fileSize ?? null,
-    folder: data.folder ?? 'ROOT',
+    folder: data.folder ?? "ROOT",
     uploadedBy: data.uploadedBy ?? null,
   });
-  const { eq } = await import('drizzle-orm');
-  const result = await db.select().from(designFiles).where(eq(designFiles.fileKey, data.fileKey)).limit(1);
+  const { eq } = await import("drizzle-orm");
+  const result = await db
+    .select()
+    .from(designFiles)
+    .where(eq(designFiles.fileKey, data.fileKey))
+    .limit(1);
   return result[0];
 }
 
 export async function deleteDesignFile(id: number) {
   const db = await getDb();
-  if (!db) throw new Error('DB not available');
-  const { designFiles } = await import('../drizzle/schema-pg');
-  const { eq } = await import('drizzle-orm');
-  const result = await db.select().from(designFiles).where(eq(designFiles.id, id)).limit(1);
+  if (!db) throw new Error("DB not available");
+  const { designFiles } = await import("../drizzle/schema-pg");
+  const { eq } = await import("drizzle-orm");
+  const result = await db
+    .select()
+    .from(designFiles)
+    .where(eq(designFiles.id, id))
+    .limit(1);
   await db.delete(designFiles).where(eq(designFiles.id, id));
   return result[0];
 }
@@ -2756,22 +3834,25 @@ export async function deleteDesignFile(id: number) {
 export async function getDesignFolders() {
   const db = await getDb();
   if (!db) return [];
-  const { designFolders } = await import('../drizzle/schema-pg');
+  const { designFolders } = await import("../drizzle/schema-pg");
   return db.select().from(designFolders).orderBy(designFolders.name);
 }
 
-export async function createDesignFolder(name: string, parentId?: number | null) {
+export async function createDesignFolder(
+  name: string,
+  parentId?: number | null
+) {
   const db = await getDb();
-  if (!db) throw new Error('DB not available');
-  const { designFolders } = await import('../drizzle/schema-pg');
+  if (!db) throw new Error("DB not available");
+  const { designFolders } = await import("../drizzle/schema-pg");
   await db.insert(designFolders).values({ name, parentId: parentId ?? null });
 }
 
 export async function deleteDesignFolder(id: number) {
   const db = await getDb();
-  if (!db) throw new Error('DB not available');
-  const { designFolders } = await import('../drizzle/schema-pg');
-  const { eq } = await import('drizzle-orm');
+  if (!db) throw new Error("DB not available");
+  const { designFolders } = await import("../drizzle/schema-pg");
+  const { eq } = await import("drizzle-orm");
   await db.delete(designFolders).where(eq(designFolders.id, id));
 }
 
@@ -2779,16 +3860,20 @@ export async function deleteDesignFolder(id: number) {
 export async function getExcelTemplates() {
   const db = await getDb();
   if (!db) return [];
-  const { excelTemplates } = await import('../drizzle/schema-pg');
+  const { excelTemplates } = await import("../drizzle/schema-pg");
   return db.select().from(excelTemplates).orderBy(excelTemplates.createdAt);
 }
 
 export async function getExcelTemplate(id: number) {
   const db = await getDb();
   if (!db) return null;
-  const { excelTemplates } = await import('../drizzle/schema-pg');
-  const { eq } = await import('drizzle-orm');
-  const rows = await db.select().from(excelTemplates).where(eq(excelTemplates.id, id)).limit(1);
+  const { excelTemplates } = await import("../drizzle/schema-pg");
+  const { eq } = await import("drizzle-orm");
+  const rows = await db
+    .select()
+    .from(excelTemplates)
+    .where(eq(excelTemplates.id, id))
+    .limit(1);
   return rows[0] ?? null;
 }
 
@@ -2801,8 +3886,8 @@ export async function createExcelTemplate(data: {
   authorId?: string;
 }) {
   const db = await getDb();
-  if (!db) throw new Error('DB not available');
-  const { excelTemplates } = await import('../drizzle/schema-pg');
+  if (!db) throw new Error("DB not available");
+  const { excelTemplates } = await import("../drizzle/schema-pg");
   await db.insert(excelTemplates).values({
     name: data.name,
     description: data.description ?? null,
@@ -2813,17 +3898,20 @@ export async function createExcelTemplate(data: {
   });
 }
 
-export async function updateExcelTemplate(id: number, data: {
-  name?: string;
-  description?: string;
-  isDefault?: boolean;
-  columns?: string;
-  sortConfig?: string;
-}) {
+export async function updateExcelTemplate(
+  id: number,
+  data: {
+    name?: string;
+    description?: string;
+    isDefault?: boolean;
+    columns?: string;
+    sortConfig?: string;
+  }
+) {
   const db = await getDb();
-  if (!db) throw new Error('DB not available');
-  const { excelTemplates } = await import('../drizzle/schema-pg');
-  const { eq } = await import('drizzle-orm');
+  if (!db) throw new Error("DB not available");
+  const { excelTemplates } = await import("../drizzle/schema-pg");
+  const { eq } = await import("drizzle-orm");
   const update: Record<string, unknown> = {};
   if (data.name !== undefined) update.name = data.name;
   if (data.description !== undefined) update.description = data.description;
@@ -2835,8 +3923,8 @@ export async function updateExcelTemplate(id: number, data: {
 
 export async function deleteExcelTemplate(id: number) {
   const db = await getDb();
-  if (!db) throw new Error('DB not available');
-  const { excelTemplates } = await import('../drizzle/schema-pg');
-  const { eq } = await import('drizzle-orm');
+  if (!db) throw new Error("DB not available");
+  const { excelTemplates } = await import("../drizzle/schema-pg");
+  const { eq } = await import("drizzle-orm");
   await db.delete(excelTemplates).where(eq(excelTemplates.id, id));
 }

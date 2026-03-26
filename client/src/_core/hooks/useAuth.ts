@@ -61,13 +61,35 @@ export function useAuth(options?: UseAuthOptions) {
   ]);
 
   useEffect(() => {
+    if (meQuery.isLoading || logoutMutation.isPending) return;
+    if (!state.user?.requiresProfileCompletion) return;
+    if (typeof window === "undefined") return;
+
+    const { pathname, search } = window.location;
+    if (
+      pathname === "/signup" ||
+      pathname === "/signup/confirm" ||
+      pathname === "/auth/callback"
+    ) {
+      return;
+    }
+
+    const currentPath = `${pathname}${search}`;
+    window.location.href = `/signup?mode=complete&returnTo=${encodeURIComponent(currentPath)}`;
+  }, [
+    logoutMutation.isPending,
+    meQuery.isLoading,
+    state.user?.requiresProfileCompletion,
+  ]);
+
+  useEffect(() => {
     if (!redirectOnUnauthenticated) return;
     if (meQuery.isLoading || logoutMutation.isPending) return;
     if (state.user) return;
     if (typeof window === "undefined") return;
     if (window.location.pathname === redirectPath) return;
 
-    window.location.href = redirectPath
+    window.location.href = redirectPath;
   }, [
     redirectOnUnauthenticated,
     redirectPath,

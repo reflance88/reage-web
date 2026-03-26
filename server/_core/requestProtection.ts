@@ -4,7 +4,7 @@ import { consumeRequestRateLimit } from "../db";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "";
 const SENSITIVE_TRPC_PROCEDURES = new Set([
-  "auth.findEmail",
+  "auth.findLoginId",
   "auth.requestPasswordReset",
   "auth.resetPassword",
   "auth.logout",
@@ -50,7 +50,8 @@ function getClientIp(req: Request) {
 function getRequestOrigin(req: Request) {
   const forwardedProto = getFirstHeaderValue(req.headers["x-forwarded-proto"]);
   const forwardedHost = getFirstHeaderValue(req.headers["x-forwarded-host"]);
-  const protocol = forwardedProto?.split(",")[0]?.trim() || req.protocol || "http";
+  const protocol =
+    forwardedProto?.split(",")[0]?.trim() || req.protocol || "http";
   const host = forwardedHost?.split(",")[0]?.trim() || req.get("host");
   return host ? `${protocol}://${host}` : null;
 }
@@ -82,10 +83,15 @@ function getOriginCandidate(req: Request) {
 
 function getTrpcProcedures(req: Request) {
   const fromPath = req.path.replace(/^\/+/, "");
-  const path = fromPath && fromPath !== "/" ? fromPath : (() => {
-    const [, tail = ""] = (req.originalUrl || req.url).split("/api/trpc/");
-    return tail.split("?")[0] ?? "";
-  })();
+  const path =
+    fromPath && fromPath !== "/"
+      ? fromPath
+      : (() => {
+          const [, tail = ""] = (req.originalUrl || req.url).split(
+            "/api/trpc/"
+          );
+          return tail.split("?")[0] ?? "";
+        })();
 
   if (!path) return [];
 
@@ -130,7 +136,10 @@ function createRateLimiter(options: RateLimitOptions): RequestHandler {
     } catch (error) {
       if (!loggedRateLimitFallbacks.has(options.keyPrefix)) {
         loggedRateLimitFallbacks.add(options.keyPrefix);
-        console.warn(`[RateLimit] Falling back to in-memory bucket for ${options.keyPrefix}:`, error);
+        console.warn(
+          `[RateLimit] Falling back to in-memory bucket for ${options.keyPrefix}:`,
+          error
+        );
       }
     }
 
@@ -167,7 +176,10 @@ export const csrfProtection: RequestHandler = (req, res, next) => {
   }
 
   const secFetchSite = getFirstHeaderValue(req.headers["sec-fetch-site"]);
-  if (secFetchSite && !["same-origin", "same-site", "none"].includes(secFetchSite)) {
+  if (
+    secFetchSite &&
+    !["same-origin", "same-site", "none"].includes(secFetchSite)
+  ) {
     res.status(403).json({ error: "Cross-site request blocked" });
     return;
   }
@@ -194,11 +206,13 @@ export const sensitiveTrpcRateLimit = createRateLimiter({
   windowMs: 5 * 60 * 1000,
   max: 30,
   message: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
-  match: (req) => {
+  match: req => {
     if (SAFE_METHODS.has(req.method)) return false;
-    return getTrpcProcedures(req).some(procedure => SENSITIVE_TRPC_PROCEDURES.has(procedure));
+    return getTrpcProcedures(req).some(procedure =>
+      SENSITIVE_TRPC_PROCEDURES.has(procedure)
+    );
   },
-  bucket: (req) => {
+  bucket: req => {
     const procedures = getTrpcProcedures(req)
       .filter(procedure => SENSITIVE_TRPC_PROCEDURES.has(procedure))
       .sort();

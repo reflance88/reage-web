@@ -1,7 +1,11 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { Profile } from "../../drizzle/schema-pg";
 import { sdk } from "./sdk";
-import { COOKIE_NAME, SB_ACCESS_COOKIE, SB_REFRESH_COOKIE } from "../../shared/const";
+import {
+  COOKIE_NAME,
+  SB_ACCESS_COOKIE,
+  SB_REFRESH_COOKIE,
+} from "../../shared/const";
 import { getProfileById, getProfileByOpenId, upsertProfile } from "../db";
 import { parseCookies } from "./cookies";
 import { supabaseAdmin } from "./supabase";
@@ -33,19 +37,51 @@ async function trySupabaseAuth(
     if (profile) return profile;
 
     // profiles에 없으면 자동 생성 (최초 소셜 로그인 등)
-    const email = data.user.email ?? null;
-    const name = data.user.user_metadata?.full_name ?? data.user.user_metadata?.name ?? null;
+    const metadata = data.user.user_metadata ?? {};
+    const email =
+      typeof metadata.profile_email === "string"
+        ? metadata.profile_email
+        : data.user.email ??
+          (typeof metadata.email === "string" ? metadata.email : null);
+    const name =
+      typeof metadata.full_name === "string"
+        ? metadata.full_name
+        : typeof metadata.name === "string"
+          ? metadata.name
+          : null;
     const loginMethod = data.user.app_metadata?.provider ?? null;
+    const username =
+      typeof metadata.username === "string"
+        ? metadata.username.trim().toLowerCase()
+        : null;
+    const phone = typeof metadata.phone === "string" ? metadata.phone : null;
+    const landlinePhone =
+      typeof metadata.landlinePhone === "string"
+        ? metadata.landlinePhone
+        : null;
+    const marketingSmsConsent =
+      typeof metadata.marketingSmsConsent === "boolean"
+        ? metadata.marketingSmsConsent
+        : undefined;
+    const marketingEmailConsent =
+      typeof metadata.marketingEmailConsent === "boolean"
+        ? metadata.marketingEmailConsent
+        : undefined;
 
     await upsertProfile({
       id: data.user.id,
       email,
       name,
+      username,
+      phone,
+      landlinePhone,
+      marketingSmsConsent,
+      marketingEmailConsent,
       loginMethod,
       lastSignedIn: new Date(),
     });
 
-    return await getProfileById(data.user.id) ?? null;
+    return (await getProfileById(data.user.id)) ?? null;
   } catch {
     return null;
   }
@@ -70,8 +106,12 @@ async function tryManusOAuthFallback(
     const profile = await getProfileByOpenId(session.openId);
     if (profile) {
       // lastSignedIn 갱신
-      await upsertProfile({ id: profile.id, openId: session.openId, lastSignedIn: new Date() });
-      return await getProfileById(profile.id) ?? null;
+      await upsertProfile({
+        id: profile.id,
+        openId: session.openId,
+        lastSignedIn: new Date(),
+      });
+      return (await getProfileById(profile.id)) ?? null;
     }
 
     // profiles에 없으면 OAuth 서버에서 정보 가져와 생성
@@ -80,11 +120,12 @@ async function tryManusOAuthFallback(
       if (!userInfo.openId) return null;
 
       // Supabase Admin으로 auth.users에 등록
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: userInfo.email ?? undefined,
-        user_metadata: { full_name: userInfo.name, openId: userInfo.openId },
-        email_confirm: true,
-      });
+      const { data: authData, error: authError } =
+        await supabaseAdmin.auth.admin.createUser({
+          email: userInfo.email ?? undefined,
+          user_metadata: { full_name: userInfo.name, openId: userInfo.openId },
+          email_confirm: true,
+        });
 
       if (authError || !authData.user) {
         console.error("[Auth] Failed to create auth.users entry:", authError);
@@ -100,7 +141,7 @@ async function tryManusOAuthFallback(
         lastSignedIn: new Date(),
       });
 
-      return await getProfileById(authData.user.id) ?? null;
+      return (await getProfileById(authData.user.id)) ?? null;
     } catch (error) {
       console.error("[Auth] Failed to sync user from Manus OAuth:", error);
       return null;

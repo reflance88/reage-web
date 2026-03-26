@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
-import { COOKIE_NAME, SB_ACCESS_COOKIE, SB_REFRESH_COOKIE } from "../shared/const";
+import {
+  COOKIE_NAME,
+  SB_ACCESS_COOKIE,
+  SB_REFRESH_COOKIE,
+} from "../shared/const";
 import type { TrpcContext } from "./_core/context";
 
 type CookieCall = {
@@ -10,16 +14,27 @@ type CookieCall = {
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] } {
+function createAuthContext(): {
+  ctx: TrpcContext;
+  clearedCookies: CookieCall[];
+} {
   const clearedCookies: CookieCall[] = [];
 
   const user: AuthenticatedUser = {
-    id: 1,
+    id: "00000000-0000-0000-0000-000000000001",
     openId: "sample-user",
+    username: null,
     email: "sample@example.com",
     name: "Sample User",
     loginMethod: "manus",
+    phone: null,
+    landlinePhone: null,
+    marketingSmsConsent: false,
+    marketingEmailConsent: false,
     role: "user",
+    memberRole: "consumer",
+    membershipDiscountRate: 0,
+    proVerificationStatus: "none",
     createdAt: new Date(),
     updatedAt: new Date(),
     lastSignedIn: new Date(),
@@ -50,7 +65,11 @@ describe("auth.logout", () => {
 
     expect(result).toEqual({ success: true });
     expect(clearedCookies).toHaveLength(3);
-    expect(clearedCookies.map((call) => call.name)).toEqual([SB_ACCESS_COOKIE, SB_REFRESH_COOKIE, COOKIE_NAME]);
+    expect(clearedCookies.map(call => call.name)).toEqual([
+      SB_ACCESS_COOKIE,
+      SB_REFRESH_COOKIE,
+      COOKIE_NAME,
+    ]);
     expect(clearedCookies[0]?.options).toMatchObject({
       maxAge: 0,
       secure: true,

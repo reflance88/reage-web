@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import type { DaumPostcodeResult } from "@/lib/daum-postcode";
 import { getLoginUrl } from "@/const";
 import { loadCart, type CartItem } from "@/lib/cart";
 import { trpc } from "@/lib/trpc";
@@ -12,18 +13,7 @@ declare global {
     TossPayments: (clientKey: string) => {
       requestPayment: (method: string, options: Record<string, unknown>) => Promise<void>;
     };
-    daum: {
-      Postcode: new (options: {
-        oncomplete: (data: DaumPostcodeResult) => void;
-      }) => { open: () => void };
-    };
   }
-}
-
-interface DaumPostcodeResult {
-  zonecode: string;
-  roadAddress: string;
-  jibunAddress: string;
 }
 
 type ShippingForm = {
