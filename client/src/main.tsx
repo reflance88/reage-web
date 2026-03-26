@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
+import { attemptChunkLoadRecovery } from "./lib/chunk-load-recovery";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,21 @@ const trpcClient = trpc.createClient({
     }),
   ],
 });
+
+if (typeof window !== "undefined") {
+  window.addEventListener("vite:preloadError", (event: VitePreloadErrorEvent) => {
+    attemptChunkLoadRecovery(event.payload);
+    event.preventDefault();
+  });
+
+  window.addEventListener("error", event => {
+    attemptChunkLoadRecovery(event.error ?? event.message);
+  });
+
+  window.addEventListener("unhandledrejection", event => {
+    attemptChunkLoadRecovery(event.reason);
+  });
+}
 
 initializeAnalytics();
 

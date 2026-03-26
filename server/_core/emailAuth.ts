@@ -21,6 +21,8 @@ import {
 import { SB_ACCESS_COOKIE, SB_REFRESH_COOKIE } from "../../shared/const";
 import {
   clearAuthCookies,
+  findAuthUserByEmail,
+  findAuthUserByUsername,
   getAuthenticatedProfileFromRequest,
   requireAdminRequest,
   sanitizeReturnPath,
@@ -50,33 +52,6 @@ type ProfileSyncOverrides = {
   marketingSmsConsent?: boolean;
   marketingEmailConsent?: boolean;
 };
-
-function resolveAppOrigin(
-  req: Request,
-  requestedOrigin?: string
-): string | null {
-  const candidates = [
-    requestedOrigin,
-    req.headers.origin,
-    req.get("host") ? `${req.protocol}://${req.get("host")}` : null,
-  ];
-  const expectedHost = req.get("host");
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-
-    try {
-      const url = new URL(candidate);
-      if (!["http:", "https:"].includes(url.protocol)) continue;
-      if (expectedHost && url.host !== expectedHost) continue;
-      return url.origin;
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
-}
 
 function setSessionCookies(req: Request, res: Response, session: Session) {
   const cookieBase = getSessionCookieOptions(req);
@@ -136,6 +111,116 @@ function isValidSignupPassword(password: string) {
 function isValidEmailAddress(value?: string | null) {
   if (!value) return false;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function isEmailNotConfirmedError(error: unknown) {
+  const authError = error as
+    | { message?: string; code?: string; name?: string }
+    | null
+    | undefined;
+  const message =
+    typeof authError?.message === "string"
+      ? authError.message.toLowerCase()
+      : "";
+  const code =
+    typeof authError?.code === "string" ? authError.code.toLowerCase() : "";
+
+  return (
+    code === "email_not_confirmed" ||
+    message.includes("email not confirmed") ||
+    message.includes("email_not_confirmed")
+  );
+}
+
+function isEmailAlreadyRegisteredError(error: unknown) {
+  const authError = error as { message?: string; code?: string } | null | undefined;
+  const message =
+    typeof authError?.message === "string"
+      ? authError.message.toLowerCase()
+      : "";
+  const code =
+    typeof authError?.code === "string" ? authError.code.toLowerCase() : "";
+
+  return (
+    code === "user_already_exists" ||
+    message.includes("already registered") ||
+    message.includes("already been registered") ||
+    message.includes("already exists")
+  );
+}
+
+function isEmailConfirmationPending(user: User | null | undefined) {
+  const authUser = user as
+    | { email_confirmed_at?: string | null; confirmed_at?: string | null }
+    | null
+    | undefined;
+
+  return (
+    Boolean(user?.email) &&
+    !(authUser?.email_confirmed_at || authUser?.confirmed_at)
+  );
+}
+
+function buildExistingSignupEmailMessage(user: User | null | undefined) {
+  return user?.email
+    ? "이미 사용 중인 이메일입니다. 로그인 또는 비밀번호 찾기를 이용해주세요."
+    : "이미 사용 중인 이메일입니다.";
+}
+
+async function resolveSigninErrorMessage(loginEmail: string, error: unknown) {
+  if (isEmailNotConfirmedError(error)) {
+    return "로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.";
+  }
+
+  try {
+    const authUser = await findAuthUserByEmail(loginEmail);
+    if (isEmailConfirmationPending(authUser)) {
+      return "로그인을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.";
+    }
+  } catch (lookupError) {
+    console.warn("[EmailAuth] signin error lookup skipped:", lookupError);
+  }
+
+  return "아이디 또는 비밀번호가 올바르지 않습니다.";
+}
+
+async function resolveSignupEmailConflictMessage(email: string) {
+  try {
+    const authUser = await findAuthUserByEmail(email);
+    if (authUser) {
+      return buildExistingSignupEmailMessage(authUser);
+    }
+  } catch (lookupError) {
+    console.warn("[EmailAuth] signup email lookup skipped:", lookupError);
+  }
+
+  return "이미 사용 중인 이메일입니다. 로그인 또는 비밀번호 찾기를 이용해주세요.";
+}
+
+async function confirmEmailUserIfNeeded(email: string) {
+  const authUser = await findAuthUserByEmail(email);
+  if (!authUser || !isEmailConfirmationPending(authUser)) {
+    return false;
+  }
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, {
+    email_confirm: true,
+  });
+  if (error) {
+    throw error;
+  }
+
+  return true;
+}
+
+async function findExistingUsernameOwnerId(username: string) {
+  const existingProfile = await db.getProfileByUsername(username);
+  if (existingProfile?.id) {
+    return existingProfile.id;
+  }
+
+  const existingAuthUser = await findAuthUserByUsername(username);
+  return existingAuthUser?.id ?? null;
 }
 
 async function getAuthUserFromRequest(req: Request) {
@@ -260,6 +345,56 @@ export function registerEmailAuthRoutes(app: Express): void {
     });
   });
 
+  app.get(
+    "/api/auth/email/check-username",
+    async (req: Request, res: Response) => {
+      const rawUsername =
+        typeof req.query.username === "string" ? req.query.username : "";
+      const normalizedUsername = normalizeUsername(rawUsername);
+
+      res.setHeader("Cache-Control", "no-store");
+
+      if (!normalizedUsername) {
+        res.json({
+          username: "",
+          valid: false,
+          available: false,
+          message: "아이디를 입력해주세요.",
+        });
+        return;
+      }
+
+      if (!USERNAME_REGEX.test(normalizedUsername)) {
+        res.json({
+          username: normalizedUsername,
+          valid: false,
+          available: false,
+          message: "아이디는 영문 소문자와 숫자 조합 4~16자로 입력해주세요.",
+        });
+        return;
+      }
+
+      try {
+        const existingUsernameOwnerId =
+          await findExistingUsernameOwnerId(normalizedUsername);
+
+        res.json({
+          username: normalizedUsername,
+          valid: true,
+          available: !existingUsernameOwnerId,
+          message: existingUsernameOwnerId
+            ? "이미 사용 중인 아이디입니다."
+            : "사용 가능한 아이디입니다.",
+        });
+      } catch (error) {
+        console.error("[EmailAuth] username availability error:", error);
+        res
+          .status(500)
+          .json({ error: "아이디 중복 여부를 확인하지 못했습니다." });
+      }
+    }
+  );
+
   // ── 회원가입 ────────────────────────────────────────────────────────────────
   app.post("/api/auth/email/signup", async (req: Request, res: Response) => {
     const {
@@ -275,7 +410,6 @@ export function registerEmailAuthRoutes(app: Express): void {
       termsAgreed,
       marketingSmsConsent,
       marketingEmailConsent,
-      origin,
       returnTo,
     } = req.body as {
       username?: string;
@@ -290,7 +424,6 @@ export function registerEmailAuthRoutes(app: Express): void {
       termsAgreed?: boolean;
       marketingSmsConsent?: boolean;
       marketingEmailConsent?: boolean;
-      origin?: string;
       returnTo?: string;
     };
     const normalizedUsername = normalizeUsername(username);
@@ -309,19 +442,15 @@ export function registerEmailAuthRoutes(app: Express): void {
       !trimmedName ||
       !normalizedMobilePhone
     ) {
-      res
-        .status(400)
-        .json({
-          error: "아이디, 이름, 휴대전화, 이메일, 비밀번호는 필수입니다.",
-        });
+      res.status(400).json({
+        error: "아이디, 이름, 휴대전화, 이메일, 비밀번호는 필수입니다.",
+      });
       return;
     }
     if (!USERNAME_REGEX.test(normalizedUsername)) {
-      res
-        .status(400)
-        .json({
-          error: "아이디는 영문 소문자와 숫자 조합 4~16자로 입력해주세요.",
-        });
+      res.status(400).json({
+        error: "아이디는 영문 소문자와 숫자 조합 4~16자로 입력해주세요.",
+      });
       return;
     }
     if (!isValidEmailAddress(trimmedEmail)) {
@@ -329,12 +458,10 @@ export function registerEmailAuthRoutes(app: Express): void {
       return;
     }
     if (!isValidSignupPassword(password)) {
-      res
-        .status(400)
-        .json({
-          error:
-            "비밀번호는 10~16자이며 영문, 숫자, 특수문자 중 2가지 이상을 포함해야 합니다.",
-        });
+      res.status(400).json({
+        error:
+          "비밀번호는 10~16자이며 영문, 숫자, 특수문자 중 2가지 이상을 포함해야 합니다.",
+      });
       return;
     }
     if (!termsAgreed) {
@@ -360,20 +487,26 @@ export function registerEmailAuthRoutes(app: Express): void {
     }
 
     try {
-      const existingUsername =
-        await db.getProfileByUsername(normalizedUsername);
-      if (existingUsername) {
+      const existingUsernameOwnerId =
+        await findExistingUsernameOwnerId(normalizedUsername);
+      if (existingUsernameOwnerId) {
         res.status(409).json({ error: "이미 사용 중인 아이디입니다." });
         return;
       }
 
-      // 일반 사용자 가입: supabase.auth.signUp (이메일 확인 메일 발송)
-      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      const appOrigin = resolveAppOrigin(req, origin);
+      const existingAuthUserByEmail = await findAuthUserByEmail(trimmedEmail);
+      if (existingAuthUserByEmail) {
+        res.status(409).json({
+          error: buildExistingSignupEmailMessage(existingAuthUserByEmail),
+        });
+        return;
+      }
+
+      // 일반 사용자 가입: 서버에서 즉시 인증 완료 계정을 생성하고 곧바로 로그인
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
       const safeReturnTo = sanitizeReturnPath(returnTo);
-      const emailRedirectTo = appOrigin
-        ? `${appOrigin}/auth/callback?flow=signup&next=${encodeURIComponent(safeReturnTo)}`
-        : undefined;
       const signupMetadata = {
         full_name: trimmedName,
         username: normalizedUsername,
@@ -383,21 +516,27 @@ export function registerEmailAuthRoutes(app: Express): void {
         marketingSmsConsent: Boolean(marketingSmsConsent),
         marketingEmailConsent: Boolean(marketingEmailConsent),
       };
-      const { data, error } = await supabase.auth.signUp({
+      const { data: createdUserData, error } =
+        await supabaseAdmin.auth.admin.createUser({
         email: trimmedEmail,
         password,
-        options: {
-          data: signupMetadata,
-          emailRedirectTo,
-        },
+        user_metadata: signupMetadata,
+        email_confirm: true,
       });
 
       if (error) {
+        if (isEmailAlreadyRegisteredError(error)) {
+          res.status(409).json({
+            error: await resolveSignupEmailConflictMessage(trimmedEmail),
+          });
+          return;
+        }
+
         res.status(400).json({ error: error.message });
         return;
       }
 
-      const user = data.user;
+      const user = createdUserData.user;
       if (!user) {
         res
           .status(500)
@@ -436,15 +575,26 @@ export function registerEmailAuthRoutes(app: Express): void {
         }
       }
 
-      // 이메일 확인 전이면 세션이 없을 수 있음 (confirmationRequired)
-      const session = data.session;
-      if (session) {
-        setSessionCookies(req, res, session);
+      const { data: signInData, error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email: trimmedEmail,
+          password,
+        });
+
+      if (signInError || !signInData.session || !signInData.user) {
+        console.error("[EmailAuth] signup auto-login error:", signInError);
+        res.status(500).json({
+          error:
+            "회원가입은 완료되었지만 로그인 처리에 실패했습니다. 로그인 화면에서 다시 시도해주세요.",
+        });
+        return;
       }
+
+      setSessionCookies(req, res, signInData.session);
 
       res.json({
         success: true,
-        confirmationRequired: !session,
+        confirmationRequired: false,
         userId: user.id,
         username: normalizedUsername,
         name: trimmedName,
@@ -457,164 +607,169 @@ export function registerEmailAuthRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/auth/profile/complete", async (req: Request, res: Response) => {
-    const profile = await getAuthenticatedProfileFromRequest(req);
-    const authUser = await getAuthUserFromRequest(req);
+  app.post(
+    "/api/auth/profile/complete",
+    async (req: Request, res: Response) => {
+      const profile = await getAuthenticatedProfileFromRequest(req);
+      const authUser = await getAuthUserFromRequest(req);
 
-    if (!profile || !authUser) {
-      res.status(401).json({ error: "로그인이 필요합니다." });
-      return;
-    }
-
-    const {
-      username,
-      email,
-      name,
-      mobilePhone,
-      landlinePhone,
-      postalCode,
-      address,
-      addressDetail,
-      termsAgreed,
-      marketingSmsConsent,
-      marketingEmailConsent,
-      returnTo,
-    } = req.body as {
-      username?: string;
-      email?: string;
-      name?: string;
-      mobilePhone?: string;
-      landlinePhone?: string;
-      postalCode?: string;
-      address?: string;
-      addressDetail?: string;
-      termsAgreed?: boolean;
-      marketingSmsConsent?: boolean;
-      marketingEmailConsent?: boolean;
-      returnTo?: string;
-    };
-
-    const normalizedUsername = normalizeUsername(username);
-    const normalizedMobilePhone = normalizePhoneNumber(mobilePhone);
-    const normalizedLandlinePhone = normalizePhoneNumber(landlinePhone);
-    const trimmedName = name?.trim() ?? "";
-    const trimmedEmail = email?.trim().toLowerCase() ?? "";
-    const trimmedPostalCode = postalCode?.trim() ?? "";
-    const trimmedAddress = address?.trim() ?? "";
-    const trimmedAddressDetail = addressDetail?.trim() ?? "";
-    const safeReturnTo = sanitizeReturnPath(returnTo);
-
-    if (
-      !normalizedUsername ||
-      !trimmedEmail ||
-      !trimmedName ||
-      !normalizedMobilePhone
-    ) {
-      res
-        .status(400)
-        .json({ error: "아이디, 이름, 휴대전화, 이메일은 필수입니다." });
-      return;
-    }
-    if (!USERNAME_REGEX.test(normalizedUsername)) {
-      res
-        .status(400)
-        .json({
-          error: "아이디는 영문 소문자와 숫자 조합 4~16자로 입력해주세요.",
-        });
-      return;
-    }
-    if (!isValidEmailAddress(trimmedEmail)) {
-      res.status(400).json({ error: "이메일 형식을 확인해주세요." });
-      return;
-    }
-    if (!termsAgreed) {
-      res.status(400).json({ error: "필수 약관 동의가 필요합니다." });
-      return;
-    }
-    if (!isValidMobilePhone(normalizedMobilePhone)) {
-      res.status(400).json({ error: "휴대전화 번호를 정확히 입력해주세요." });
-      return;
-    }
-    if (!isValidLandlinePhone(normalizedLandlinePhone)) {
-      res.status(400).json({ error: "일반전화 번호 형식을 확인해주세요." });
-      return;
-    }
-    if (
-      (trimmedPostalCode && !trimmedAddress) ||
-      (!trimmedPostalCode && trimmedAddress)
-    ) {
-      res
-        .status(400)
-        .json({ error: "주소는 우편번호와 기본주소를 함께 입력해주세요." });
-      return;
-    }
-
-    try {
-      const existingUsername =
-        await db.getProfileByUsername(normalizedUsername);
-      if (existingUsername && existingUsername.id !== profile.id) {
-        res.status(409).json({ error: "이미 사용 중인 아이디입니다." });
+      if (!profile || !authUser) {
+        res.status(401).json({ error: "로그인이 필요합니다." });
         return;
       }
 
-      await supabaseAdmin.auth.admin.updateUserById(profile.id, {
-        user_metadata: {
-          ...(authUser.user_metadata ?? {}),
-          full_name: trimmedName,
-          name: trimmedName,
-          username: normalizedUsername,
-          phone: normalizedMobilePhone,
-          landlinePhone: normalizedLandlinePhone,
-          profile_email: trimmedEmail,
-          marketingSmsConsent: Boolean(marketingSmsConsent),
-          marketingEmailConsent: Boolean(marketingEmailConsent),
-        },
-      });
+      const {
+        username,
+        email,
+        name,
+        mobilePhone,
+        landlinePhone,
+        postalCode,
+        address,
+        addressDetail,
+        termsAgreed,
+        marketingSmsConsent,
+        marketingEmailConsent,
+        returnTo,
+      } = req.body as {
+        username?: string;
+        email?: string;
+        name?: string;
+        mobilePhone?: string;
+        landlinePhone?: string;
+        postalCode?: string;
+        address?: string;
+        addressDetail?: string;
+        termsAgreed?: boolean;
+        marketingSmsConsent?: boolean;
+        marketingEmailConsent?: boolean;
+        returnTo?: string;
+      };
 
-      await db.updateProfileData(profile.id, {
-        username: normalizedUsername,
-        name: trimmedName,
-        email: trimmedEmail,
-        phone: normalizedMobilePhone,
-        landlinePhone: normalizedLandlinePhone,
-        marketingSmsConsent: Boolean(marketingSmsConsent),
-        marketingEmailConsent: Boolean(marketingEmailConsent),
-      });
+      const normalizedUsername = normalizeUsername(username);
+      const normalizedMobilePhone = normalizePhoneNumber(mobilePhone);
+      const normalizedLandlinePhone = normalizePhoneNumber(landlinePhone);
+      const trimmedName = name?.trim() ?? "";
+      const trimmedEmail = email?.trim().toLowerCase() ?? "";
+      const trimmedPostalCode = postalCode?.trim() ?? "";
+      const trimmedAddress = address?.trim() ?? "";
+      const trimmedAddressDetail = addressDetail?.trim() ?? "";
+      const safeReturnTo = sanitizeReturnPath(returnTo);
 
-      if (trimmedPostalCode && trimmedAddress) {
-        const savedAddresses = await db.getUserSavedAddresses(profile.id);
-        const targetAddress =
-          savedAddresses.find(item => item.isDefault) ?? savedAddresses[0];
-        const addressPayload = {
-          userId: profile.id,
-          label: "기본 배송지",
-          recipientName: trimmedName,
-          recipientPhone: normalizedMobilePhone,
-          shippingZipCode: trimmedPostalCode,
-          shippingAddress: trimmedAddress,
-          shippingAddressDetail: trimmedAddressDetail || null,
-          isDefault: true,
-        };
-
-        if (targetAddress) {
-          await db.updateSavedAddress(targetAddress.id, profile.id, addressPayload);
-        } else {
-          await db.createSavedAddress(addressPayload);
-        }
+      if (
+        !normalizedUsername ||
+        !trimmedEmail ||
+        !trimmedName ||
+        !normalizedMobilePhone
+      ) {
+        res
+          .status(400)
+          .json({ error: "아이디, 이름, 휴대전화, 이메일은 필수입니다." });
+        return;
+      }
+      if (!USERNAME_REGEX.test(normalizedUsername)) {
+        res.status(400).json({
+          error: "아이디는 영문 소문자와 숫자 조합 4~16자로 입력해주세요.",
+        });
+        return;
+      }
+      if (!isValidEmailAddress(trimmedEmail)) {
+        res.status(400).json({ error: "이메일 형식을 확인해주세요." });
+        return;
+      }
+      if (!termsAgreed) {
+        res.status(400).json({ error: "필수 약관 동의가 필요합니다." });
+        return;
+      }
+      if (!isValidMobilePhone(normalizedMobilePhone)) {
+        res.status(400).json({ error: "휴대전화 번호를 정확히 입력해주세요." });
+        return;
+      }
+      if (!isValidLandlinePhone(normalizedLandlinePhone)) {
+        res.status(400).json({ error: "일반전화 번호 형식을 확인해주세요." });
+        return;
+      }
+      if (
+        (trimmedPostalCode && !trimmedAddress) ||
+        (!trimmedPostalCode && trimmedAddress)
+      ) {
+        res
+          .status(400)
+          .json({ error: "주소는 우편번호와 기본주소를 함께 입력해주세요." });
+        return;
       }
 
-      res.json({
-        success: true,
-        username: normalizedUsername,
-        name: trimmedName,
-        email: trimmedEmail,
-        returnTo: safeReturnTo,
-      });
-    } catch (err) {
-      console.error("[EmailAuth] profile completion error:", err);
-      res.status(500).json({ error: "추가 정보를 저장하지 못했습니다." });
+      try {
+        const existingUsernameOwnerId =
+          await findExistingUsernameOwnerId(normalizedUsername);
+        if (existingUsernameOwnerId && existingUsernameOwnerId !== profile.id) {
+          res.status(409).json({ error: "이미 사용 중인 아이디입니다." });
+          return;
+        }
+
+        await supabaseAdmin.auth.admin.updateUserById(profile.id, {
+          user_metadata: {
+            ...(authUser.user_metadata ?? {}),
+            full_name: trimmedName,
+            name: trimmedName,
+            username: normalizedUsername,
+            phone: normalizedMobilePhone,
+            landlinePhone: normalizedLandlinePhone,
+            profile_email: trimmedEmail,
+            marketingSmsConsent: Boolean(marketingSmsConsent),
+            marketingEmailConsent: Boolean(marketingEmailConsent),
+          },
+        });
+
+        await db.updateProfileData(profile.id, {
+          username: normalizedUsername,
+          name: trimmedName,
+          email: trimmedEmail,
+          phone: normalizedMobilePhone,
+          landlinePhone: normalizedLandlinePhone,
+          marketingSmsConsent: Boolean(marketingSmsConsent),
+          marketingEmailConsent: Boolean(marketingEmailConsent),
+        });
+
+        if (trimmedPostalCode && trimmedAddress) {
+          const savedAddresses = await db.getUserSavedAddresses(profile.id);
+          const targetAddress =
+            savedAddresses.find(item => item.isDefault) ?? savedAddresses[0];
+          const addressPayload = {
+            userId: profile.id,
+            label: "기본 배송지",
+            recipientName: trimmedName,
+            recipientPhone: normalizedMobilePhone,
+            shippingZipCode: trimmedPostalCode,
+            shippingAddress: trimmedAddress,
+            shippingAddressDetail: trimmedAddressDetail || null,
+            isDefault: true,
+          };
+
+          if (targetAddress) {
+            await db.updateSavedAddress(
+              targetAddress.id,
+              profile.id,
+              addressPayload
+            );
+          } else {
+            await db.createSavedAddress(addressPayload);
+          }
+        }
+
+        res.json({
+          success: true,
+          username: normalizedUsername,
+          name: trimmedName,
+          email: trimmedEmail,
+          returnTo: safeReturnTo,
+        });
+      } catch (err) {
+        console.error("[EmailAuth] profile completion error:", err);
+        res.status(500).json({ error: "추가 정보를 저장하지 못했습니다." });
+      }
     }
-  });
+  );
 
   // ── 로그인 ──────────────────────────────────────────────────────────────────
   app.post("/api/auth/email/signin", async (req: Request, res: Response) => {
@@ -635,16 +790,26 @@ export function registerEmailAuthRoutes(app: Express): void {
     try {
       let loginEmail = normalizedIdentifier;
       if (!normalizedIdentifier.includes("@")) {
-        const profile = await db.getProfileByUsername(
-          normalizeUsername(normalizedIdentifier)
-        );
-        if (!profile?.email) {
-          res
-            .status(401)
-            .json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." });
-          return;
+        const normalizedUsername = normalizeUsername(normalizedIdentifier);
+        const profile = await db.getProfileByUsername(normalizedUsername);
+
+        if (profile?.email) {
+          loginEmail = profile.email.trim().toLowerCase();
+        } else {
+          const authUser = await findAuthUserByUsername(normalizedUsername);
+          if (!authUser?.email) {
+            res
+              .status(401)
+              .json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." });
+            return;
+          }
+
+          loginEmail = authUser.email.trim().toLowerCase();
+          await syncProfileFromAuthUser(authUser, {
+            loginMethod: "email",
+            username: normalizedUsername,
+          });
         }
-        loginEmail = profile.email.trim().toLowerCase();
       } else {
         loginEmail = normalizedIdentifier.toLowerCase();
       }
@@ -657,15 +822,35 @@ export function registerEmailAuthRoutes(app: Express): void {
       }
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      const { data, error } = await supabase.auth.signInWithPassword({
+      let { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password,
       });
 
+      if (error && isEmailNotConfirmedError(error)) {
+        try {
+          const confirmed = await confirmEmailUserIfNeeded(loginEmail);
+          if (confirmed) {
+            const retry = await supabase.auth.signInWithPassword({
+              email: loginEmail,
+              password,
+            });
+            data = retry.data;
+            error = retry.error;
+          }
+        } catch (confirmError) {
+          console.error("[EmailAuth] legacy email confirmation error:", confirmError);
+        }
+      }
+
       if (error) {
-        res
-          .status(401)
-          .json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." });
+        const errorMessage = await resolveSigninErrorMessage(loginEmail, error);
+        res.status(401).json({ error: errorMessage });
+        return;
+      }
+
+      if (!data.session || !data.user) {
+        res.status(500).json({ error: "로그인 세션을 생성하지 못했습니다." });
         return;
       }
 

@@ -59,8 +59,7 @@ export default function SignupConfirmPage() {
   const { returnTo, email: fallbackEmail } = getParams();
   const resolvedReturnTo = summary?.returnTo || returnTo;
   const resolvedEmail = summary?.email || fallbackEmail;
-  const confirmationRequired =
-    summary?.confirmationRequired ?? Boolean(resolvedEmail);
+  const confirmationRequired = Boolean(summary?.confirmationRequired);
   const loginHref = `/login?returnTo=${encodeURIComponent(resolvedReturnTo)}`;
   const primaryHref = confirmationRequired
     ? "/index-main.html"

@@ -37,6 +37,28 @@ type SignupForm = {
   email: string;
 };
 
+type UsernameCheckStatus =
+  | "idle"
+  | "checking"
+  | "available"
+  | "taken"
+  | "invalid"
+  | "error";
+
+type UsernameCheckState = {
+  status: UsernameCheckStatus;
+  message: string;
+  username: string;
+};
+
+type UsernameAvailabilityResponse = {
+  username: string;
+  valid: boolean;
+  available: boolean;
+  message: string;
+  error?: string;
+};
+
 const LANDLINE_OPTIONS = [
   "02",
   "031",
@@ -58,6 +80,10 @@ const LANDLINE_OPTIONS = [
   "070",
 ];
 const MOBILE_OPTIONS = ["010", "011", "016", "017", "018", "019"];
+const USERNAME_RULE_MESSAGE =
+  "아이디는 영문 소문자와 숫자 조합 4~16자로 입력해주세요.";
+const USERNAME_HANGUL_MESSAGE =
+  "아이디는 한글 말고 영문 소문자와 숫자로 입력해주세요.";
 
 const emptyForm: SignupForm = {
   memberType: "consumer",
@@ -134,6 +160,28 @@ function isValidUsername(value: string) {
   return /^[a-z0-9]{4,16}$/.test(value);
 }
 
+function hasHangul(value: string) {
+  return /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(value);
+}
+
+function getUsernameValidationMessage(value: string) {
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (!normalizedValue) {
+    return USERNAME_RULE_MESSAGE;
+  }
+
+  if (hasHangul(normalizedValue)) {
+    return USERNAME_HANGUL_MESSAGE;
+  }
+
+  if (!isValidUsername(normalizedValue)) {
+    return USERNAME_RULE_MESSAGE;
+  }
+
+  return null;
+}
+
 function isValidPassword(value: string) {
   if (value.length < 10 || value.length > 16) return false;
   let categories = 0;
@@ -160,6 +208,27 @@ function isValidLandline(area: string, middle: string, last: string) {
     middle.length <= 4 &&
     last.length === 4
   );
+}
+
+async function requestUsernameAvailability(
+  username: string,
+  signal?: AbortSignal
+) {
+  const response = await fetch(
+    `/api/auth/email/check-username?${new URLSearchParams({ username }).toString()}`,
+    {
+      credentials: "include",
+      signal,
+    }
+  );
+  const payload =
+    await readJsonResponse<UsernameAvailabilityResponse>(response);
+
+  if (!response.ok) {
+    throw new Error(payload.error || "아이디 중복 여부를 확인하지 못했습니다.");
+  }
+
+  return payload;
 }
 
 function StepTracker({ current }: { current: 1 | 2 | 3 }) {
@@ -305,11 +374,17 @@ export default function SignupPage() {
     email: false,
   });
   const [form, setForm] = useState<SignupForm>(emptyForm);
+  const [usernameCheck, setUsernameCheck] = useState<UsernameCheckState>({
+    status: "idle",
+    message: "",
+    username: "",
+  });
   const meQuery = trpc.auth.me.useQuery(undefined, {
     enabled: isCompletionMode,
     retry: false,
     refetchOnWindowFocus: false,
   });
+  const currentUsername = meQuery.data?.username?.trim().toLowerCase() ?? "";
 
   useEffect(() => {
     if (!isCompletionMode || meQuery.isLoading) return;
@@ -358,13 +433,7 @@ export default function SignupPage() {
           ? current.landlineLast
           : landlineParts.last,
     }));
-  }, [
-    isCompletionMode,
-    meQuery.data,
-    meQuery.isLoading,
-    navigate,
-    returnTo,
-  ]);
+  }, [isCompletionMode, meQuery.data, meQuery.isLoading, navigate, returnTo]);
 
   useEffect(() => {
     if (typeof window.daum !== "undefined" && window.daum.Postcode) {
@@ -388,6 +457,80 @@ export default function SignupPage() {
   ) => {
     setForm(current => ({ ...current, [key]: value }));
   };
+
+  useEffect(() => {
+    const normalizedUsername = form.username.trim().toLowerCase();
+    const isUnchangedCompletionUsername =
+      isCompletionMode &&
+      Boolean(currentUsername) &&
+      normalizedUsername === currentUsername;
+
+    if (!normalizedUsername) {
+      setUsernameCheck({ status: "idle", message: "", username: "" });
+      return;
+    }
+
+    const usernameValidationMessage =
+      getUsernameValidationMessage(normalizedUsername);
+    if (usernameValidationMessage) {
+      setUsernameCheck({
+        status: "invalid",
+        message: usernameValidationMessage,
+        username: normalizedUsername,
+      });
+      return;
+    }
+
+    if (isUnchangedCompletionUsername) {
+      setUsernameCheck({
+        status: "available",
+        message: "현재 사용 중인 아이디입니다.",
+        username: normalizedUsername,
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    const timerId = window.setTimeout(() => {
+      setUsernameCheck({
+        status: "checking",
+        message: "아이디 중복 여부를 확인하는 중입니다.",
+        username: normalizedUsername,
+      });
+
+      void (async () => {
+        try {
+          const result = await requestUsernameAvailability(
+            normalizedUsername,
+            controller.signal
+          );
+          if (controller.signal.aborted) return;
+
+          setUsernameCheck({
+            status: result.available ? "available" : "taken",
+            message: result.message,
+            username: result.username,
+          });
+        } catch (error) {
+          if (controller.signal.aborted) return;
+
+          setUsernameCheck({
+            status: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : "아이디 중복 여부를 확인하지 못했습니다.",
+            username: normalizedUsername,
+          });
+        }
+      })();
+    }, 300);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timerId);
+    };
+  }, [currentUsername, form.username, isCompletionMode]);
 
   const toggleAllAgreements = (checked: boolean) => {
     setAgreements({
@@ -440,8 +583,11 @@ export default function SignupPage() {
   };
 
   const validateForm = () => {
-    if (!isValidUsername(form.username)) {
-      return "아이디는 영문 소문자와 숫자 조합 4~16자로 입력해주세요.";
+    const usernameValidationMessage = getUsernameValidationMessage(
+      form.username
+    );
+    if (usernameValidationMessage) {
+      return usernameValidationMessage;
     }
     if (!isCompletionMode && !isValidPassword(form.password)) {
       return "비밀번호는 10~16자이며 영문, 숫자, 특수문자 중 2가지 이상을 포함해야 합니다.";
@@ -484,6 +630,53 @@ export default function SignupPage() {
       return;
     }
 
+    const normalizedUsername = form.username.trim().toLowerCase();
+    const isUnchangedCompletionUsername =
+      isCompletionMode &&
+      Boolean(currentUsername) &&
+      normalizedUsername === currentUsername;
+
+    if (!isUnchangedCompletionUsername) {
+      try {
+        const usernameAvailability =
+          usernameCheck.username === normalizedUsername &&
+          (usernameCheck.status === "available" ||
+            usernameCheck.status === "taken")
+            ? {
+                username: normalizedUsername,
+                valid: true,
+                available: usernameCheck.status === "available",
+                message: usernameCheck.message,
+              }
+            : await requestUsernameAvailability(normalizedUsername);
+
+        setUsernameCheck({
+          status: usernameAvailability.available ? "available" : "taken",
+          message: usernameAvailability.message,
+          username: usernameAvailability.username,
+        });
+
+        if (!usernameAvailability.available) {
+          toast.error(
+            usernameAvailability.message || "이미 사용 중인 아이디입니다."
+          );
+          return;
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "아이디 중복 여부를 확인하지 못했습니다.";
+        setUsernameCheck({
+          status: "error",
+          message,
+          username: normalizedUsername,
+        });
+        toast.error(message);
+        return;
+      }
+    }
+
     const mobilePhone = composePhone(
       form.mobileArea,
       form.mobileMiddle,
@@ -508,7 +701,7 @@ export default function SignupPage() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          username: form.username.trim().toLowerCase(),
+          username: normalizedUsername,
           password: isCompletionMode ? undefined : form.password,
           name: form.name.trim(),
           postalCode: form.postalCode.trim(),
@@ -559,8 +752,8 @@ export default function SignupPage() {
         isCompletionMode
           ? "추가 정보 입력이 완료되었습니다."
           : payload.confirmationRequired
-          ? "회원가입이 완료되었습니다. 이메일 인증을 진행해주세요."
-          : "회원가입이 완료되었습니다."
+            ? "회원가입이 완료되었습니다. 이메일 인증을 진행해주세요."
+            : "회원가입이 완료되었습니다."
       );
       navigate(
         `/signup/confirm?returnTo=${encodeURIComponent(payload.returnTo || returnTo)}`
@@ -579,6 +772,25 @@ export default function SignupPage() {
     agreements.marketing &&
     agreements.sms &&
     agreements.email;
+  const usernameStatusColor =
+    usernameCheck.status === "available"
+      ? "#1D6F42"
+      : usernameCheck.status === "taken" ||
+          usernameCheck.status === "invalid" ||
+          usernameCheck.status === "error"
+        ? "#C84C3A"
+        : "#7E736B";
+  const usernameBorderColor =
+    usernameCheck.status === "available"
+      ? "#1D6F42"
+      : usernameCheck.status === "taken" ||
+          usernameCheck.status === "invalid" ||
+          usernameCheck.status === "error"
+        ? "#C84C3A"
+        : "#DDD7D0";
+  const usernameStatusMessage = form.username
+    ? usernameCheck.message || "아이디 중복 여부를 확인하는 중입니다."
+    : "아이디를 입력하면 중복 여부를 자동으로 확인합니다.";
 
   if (isCompletionMode && meQuery.isLoading) {
     return (
@@ -1057,21 +1269,43 @@ export default function SignupPage() {
               style={{ borderTop: "1px solid #D9D1C9", marginBottom: "30px" }}
             >
               <FieldRow label="아이디" required hint="영문 소문자/숫자, 4~16자">
-                <input
-                  type="text"
-                  value={form.username}
-                  onChange={event =>
-                    setFormField(
-                      "username",
-                      event.target.value
-                        .toLowerCase()
-                        .replace(/[^a-z0-9]/g, "")
-                        .slice(0, 16)
-                    )
-                  }
-                  placeholder="reageuser"
-                  style={baseInputStyle}
-                />
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={form.username}
+                    onChange={event =>
+                      setFormField(
+                        "username",
+                        event.target.value.toLowerCase().slice(0, 16)
+                      )
+                    }
+                    placeholder="reageuser"
+                    style={{
+                      ...baseInputStyle,
+                      border: `1px solid ${usernameBorderColor}`,
+                    }}
+                  />
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: usernameStatusColor,
+                      lineHeight: 1.5,
+                      fontWeight:
+                        usernameCheck.status === "available" ||
+                        usernameCheck.status === "taken"
+                          ? 600
+                          : 500,
+                    }}
+                  >
+                    {usernameStatusMessage}
+                  </div>
+                </div>
               </FieldRow>
 
               {isCompletionMode ? null : (
@@ -1302,22 +1536,30 @@ export default function SignupPage() {
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || usernameCheck.status === "checking"}
                 style={{
                   height: "56px",
                   border: "none",
-                  background: loading ? "#A8A19A" : "#454240",
+                  background:
+                    loading || usernameCheck.status === "checking"
+                      ? "#A8A19A"
+                      : "#454240",
                   color: "#FFFFFF",
                   fontSize: "18px",
                   fontWeight: 700,
-                  cursor: loading ? "not-allowed" : "pointer",
+                  cursor:
+                    loading || usernameCheck.status === "checking"
+                      ? "not-allowed"
+                      : "pointer",
                 }}
               >
                 {loading
                   ? "저장 중..."
-                  : isCompletionMode
-                    ? "추가 정보 저장"
-                    : "회원가입 완료"}
+                  : usernameCheck.status === "checking"
+                    ? "아이디 확인 중..."
+                    : isCompletionMode
+                      ? "추가 정보 저장"
+                      : "회원가입 완료"}
               </button>
             </div>
           </form>
