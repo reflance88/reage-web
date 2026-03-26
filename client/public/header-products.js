@@ -41,7 +41,10 @@
     const deviceLink = `<a href="reage-device.html"${isDevicePage ? ' class="active"' : ''}>레아쥬기기</a>`;
 
     const productLinks = products
-      .filter(function (p) { return p.visible !== false && p.isActive !== false; })
+      .filter(function (p) {
+        if (p.visible === false || p.isActive === false) return false;
+        return p.slug !== 'reage-device';
+      })
       .map(function (p) {
         // 동적 상세페이지 경로: /product/:slug (React Router)
         const href = '/product/' + p.slug;
