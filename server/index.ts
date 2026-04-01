@@ -5,6 +5,12 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const APP_SHELL_FILE = "app.html";
+const HOME_PAGE_FILE = "index-main.html";
+
+function getRequestPath(url: string) {
+  return new URL(url, "http://localhost").pathname;
+}
 
 async function startServer() {
   const app = express();
@@ -18,9 +24,13 @@ async function startServer() {
 
   app.use(express.static(staticPath));
 
-  // Handle client-side routing - serve index.html for all routes
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(staticPath, "index.html"));
+  app.get("*", (req, res) => {
+    if (getRequestPath(req.originalUrl) === "/") {
+      res.sendFile(path.join(staticPath, HOME_PAGE_FILE));
+      return;
+    }
+
+    res.sendFile(path.join(staticPath, APP_SHELL_FILE));
   });
 
   const port = process.env.PORT || 3000;

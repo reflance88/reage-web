@@ -86,7 +86,7 @@
     },
     {
       "source": "/:path((?!api/|.*\\..*).+)",
-      "destination": "/index.html"
+      "destination": "/app.html"
     }
   ]
 }

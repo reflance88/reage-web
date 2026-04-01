@@ -6,6 +6,13 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
+const APP_SHELL_FILE = "app.html";
+const HOME_PAGE_FILE = "index-main.html";
+
+function getRequestPath(url: string) {
+  return new URL(url, "http://localhost").pathname;
+}
+
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
@@ -23,16 +30,24 @@ export async function setupVite(app: Express, server: Server) {
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
+    const requestPath = getRequestPath(url);
 
     try {
+      if (requestPath === "/") {
+        res.sendFile(
+          path.resolve(import.meta.dirname, "../..", "client", "public", HOME_PAGE_FILE)
+        );
+        return;
+      }
+
       const clientTemplate = path.resolve(
         import.meta.dirname,
         "../..",
         "client",
-        "index.html"
+        APP_SHELL_FILE
       );
 
-      // always reload the index.html file from disk incase it changes
+      // Always reload the app shell from disk in case it changes.
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
       template = template.replace(
         `src="/src/main.tsx"`,
@@ -60,8 +75,14 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  app.use("*", (req, res) => {
+    const requestPath = getRequestPath(req.originalUrl);
+
+    if (requestPath === "/") {
+      res.sendFile(path.resolve(distPath, HOME_PAGE_FILE));
+      return;
+    }
+
+    res.sendFile(path.resolve(distPath, APP_SHELL_FILE));
   });
 }

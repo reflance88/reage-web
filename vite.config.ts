@@ -151,6 +151,7 @@ function vitePluginManusDebugCollector(): Plugin {
 }
 
 export default defineConfig(({ command }) => {
+  const clientRoot = path.resolve(import.meta.dirname, "client");
   const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusDebugCollector()];
 
   if (command === "serve") {
@@ -167,11 +168,14 @@ export default defineConfig(({ command }) => {
       },
     },
     envDir: path.resolve(import.meta.dirname),
-    root: path.resolve(import.meta.dirname, "client"),
+    root: clientRoot,
     publicDir: path.resolve(import.meta.dirname, "client", "public"),
     build: {
       outDir: path.resolve(import.meta.dirname, "dist/public"),
       emptyOutDir: true,
+      rollupOptions: {
+        input: path.resolve(clientRoot, "app.html"),
+      },
     },
     server: {
       host: true,
