@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -20,55 +20,9 @@ const ProductPage = lazy(() => import("./pages/ProductPage"));
 const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
 
 function Home() {
-  const [hasError, setHasError] = useState(false);
-
   useEffect(() => {
-    let isActive = true;
-
-    const renderStaticHome = async () => {
-      try {
-        const response = await fetch("/index-main.html", {
-          credentials: "same-origin",
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to load home page: ${response.status}`);
-        }
-
-        const html = await response.text();
-        if (!isActive) return;
-
-        document.open();
-        document.write(html);
-        document.close();
-      } catch (error) {
-        console.error("[Home] Failed to render static home page", error);
-        if (isActive) setHasError(true);
-      }
-    };
-
-    renderStaticHome();
-
-    return () => {
-      isActive = false;
-    };
+    window.location.replace("/index-main.html");
   }, []);
-
-  if (hasError) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-white px-6 text-center">
-        <p className="text-base text-[#1A1412]">
-          홈 화면을 불러오는 중 문제가 발생했습니다.
-        </p>
-        <a
-          className="inline-flex items-center rounded-md bg-[#6B0F1A] px-4 py-2 text-sm font-medium text-white"
-          href="/"
-        >
-          홈으로 다시 이동
-        </a>
-      </div>
-    );
-  }
 
   return <PageLoader />;
 }

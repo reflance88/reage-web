@@ -90,7 +90,7 @@
       "destination": "/index-main.html"
     },
     {
-      "source": "/:path((?!api/|.*\\..*).*)",
+      "source": "/:path((?!api/|.*\\..*).+)",
       "destination": "/index.html"
     }
   ]
