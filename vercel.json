@@ -19,11 +19,6 @@
       "permanent": true
     },
     {
-      "source": "/index-main.html",
-      "destination": "/",
-      "permanent": true
-    },
-    {
       "source": "/brand-intro.html",
       "destination": "/reage-story.html",
       "permanent": true
