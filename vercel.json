@@ -2,7 +2,93 @@
   "framework": "vite",
   "buildCommand": "pnpm build",
   "outputDirectory": "dist/public",
+  "redirects": [
+    {
+      "source": "/index",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/index/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/index-main.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/brand-intro.html",
+      "destination": "/reage-story.html",
+      "permanent": true
+    },
+    {
+      "source": "/reage-therapy.html",
+      "destination": "/therapy.html",
+      "permanent": true
+    },
+    {
+      "source": "/shop",
+      "destination": "/reage-device.html",
+      "permanent": true
+    },
+    {
+      "source": "/shop/",
+      "destination": "/reage-device.html",
+      "permanent": true
+    },
+    {
+      "source": "/shop.html",
+      "destination": "/reage-device.html",
+      "permanent": true
+    },
+    {
+      "source": "/product/reage-device",
+      "destination": "/reage-device.html",
+      "permanent": true
+    },
+    {
+      "source": "/product-s1.html",
+      "destination": "/product/s1-cream",
+      "permanent": true
+    },
+    {
+      "source": "/product-m2.html",
+      "destination": "/product/m2-cream",
+      "permanent": true
+    },
+    {
+      "source": "/product-f3.html",
+      "destination": "/product/f3-cream",
+      "permanent": true
+    },
+    {
+      "source": "/product-new1.html",
+      "destination": "/product/new-product-1",
+      "permanent": true
+    },
+    {
+      "source": "/product-new2.html",
+      "destination": "/product/new-product-2",
+      "permanent": true
+    },
+    {
+      "source": "/product-new3.html",
+      "destination": "/product/new-product-3",
+      "permanent": true
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/",
+      "destination": "/index-main.html"
+    },
     {
       "source": "/:path((?!api/|.*\\..*).*)",
       "destination": "/index.html"

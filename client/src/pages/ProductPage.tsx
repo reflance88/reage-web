@@ -67,6 +67,11 @@ export default function ProductPage() {
   useSeo(
     product?.seoTitle || product?.name || "제품소개",
     product?.seoDescription || product?.summaryDescription || product?.shortDescription,
+    {
+      canonicalPath: slug ? `/product/${slug}` : null,
+      image: product?.imageUrl || product?.thumbnailUrl || null,
+      ogType: "product",
+    },
   );
 
   useEffect(() => {
@@ -112,9 +117,9 @@ export default function ProductPage() {
     <div className="min-h-screen bg-[#f8f4ed] text-[#1f1714]">
       <header className="sticky top-0 z-20 border-b border-black/5 bg-[#f8f4ed]/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <a href="/index-main.html" className="text-lg font-semibold tracking-[0.35em] text-[#1f1714]">REAGE</a>
+          <a href="/" className="text-lg font-semibold tracking-[0.35em] text-[#1f1714]">REAGE</a>
           <nav className="hidden items-center gap-6 text-sm text-[#6f645d] md:flex">
-            <a href="/brand-intro.html" className="transition hover:text-[#1f1714]">브랜드</a>
+            <a href="/reage-story.html" className="transition hover:text-[#1f1714]">브랜드</a>
             <a href="/therapy.html" className="transition hover:text-[#1f1714]">레아쥬테라피</a>
             <a href="/reage-device.html" className="font-medium text-[#8b1a1a]">제품소개</a>
             <a href="/review.html" className="transition hover:text-[#1f1714]">후기</a>
@@ -137,7 +142,7 @@ export default function ProductPage() {
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-4 text-sm text-[#87796f]">
-        <a href="/index-main.html" className="transition hover:text-[#1f1714]">홈</a>
+        <a href="/" className="transition hover:text-[#1f1714]">홈</a>
         <span className="mx-2">/</span>
         <a href="/reage-device.html" className="transition hover:text-[#1f1714]">제품소개</a>
         <span className="mx-2">/</span>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">REAGE Open Graph Image</title>
+  <desc id="desc">레아쥬 공식 사이트 공유 이미지</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1A1412" />
+      <stop offset="55%" stop-color="#6B0F1A" />
+      <stop offset="100%" stop-color="#A57A43" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.7" cy="0.3" r="0.8">
+      <stop offset="0%" stop-color="#E6C289" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#E6C289" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <rect width="1200" height="630" fill="url(#glow)" />
+  <g fill="none" stroke="#E7C58E" stroke-opacity="0.35">
+    <path d="M90 108h1020" />
+    <path d="M90 522h1020" />
+    <path d="M110 88v454" />
+    <path d="M1090 88v454" />
+  </g>
+  <text x="120" y="180" fill="#E7C58E" font-family="'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif" font-size="28" letter-spacing="10">REAGE OFFICIAL SITE</text>
+  <text x="120" y="320" fill="#F7F5F2" font-family="'Noto Serif KR', 'Apple SD Gothic Neo', serif" font-size="108" font-weight="700" letter-spacing="8">REAGE</text>
+  <text x="122" y="390" fill="#F7F5F2" font-family="'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif" font-size="46" font-weight="600">레아쥬</text>
+  <text x="120" y="472" fill="#F2E6D2" font-family="'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif" font-size="34">올핸드 주파 미세전류 테라피</text>
+</svg>

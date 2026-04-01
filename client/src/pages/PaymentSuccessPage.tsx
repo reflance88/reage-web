@@ -67,7 +67,7 @@ export default function PaymentSuccessPage() {
       <p className="text-gray-500 text-sm">주문이 정상적으로 접수되었습니다.</p>
       <div className="flex gap-3 mt-4">
         <a href="/mypage" className="px-6 py-2.5 bg-[#C9A96E] text-white rounded-full text-sm font-medium hover:bg-[#b8965e] transition-colors">주문내역 확인</a>
-        <a href="/index-main.html" className="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors">홈으로</a>
+        <a href="/" className="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors">홈으로</a>
       </div>
     </div>
   );

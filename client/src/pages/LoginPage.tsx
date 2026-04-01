@@ -79,7 +79,7 @@ export default function LoginPage() {
     >
       {/* 로고 */}
       <a
-        href="/index-main.html"
+        href="/"
         style={{ marginBottom: "32px", textDecoration: "none" }}
       >
         <div

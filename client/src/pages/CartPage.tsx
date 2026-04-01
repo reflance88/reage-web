@@ -117,8 +117,8 @@ export default function CartPage() {
     <div className="min-h-screen bg-[#f8f4ed] text-[#1f1714]">
       <header className="sticky top-0 z-10 border-b border-black/5 bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4">
-          <a href="/index-main.html" className="text-lg font-semibold tracking-[0.35em] text-[#1f1714]">REAGE</a>
-          <a href="/index-main.html" className="rounded-full border border-black/10 px-4 py-2 text-sm text-[#5d5049] transition hover:border-[#c9a96e] hover:text-[#1f1714]">
+          <a href="/" className="text-lg font-semibold tracking-[0.35em] text-[#1f1714]">REAGE</a>
+          <a href="/" className="rounded-full border border-black/10 px-4 py-2 text-sm text-[#5d5049] transition hover:border-[#c9a96e] hover:text-[#1f1714]">
             홈으로
           </a>
         </div>

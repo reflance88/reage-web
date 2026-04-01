@@ -275,13 +275,13 @@ export default function MyPage() {
     <div className="min-h-screen bg-[#f8f4ed] text-[#1f1714]">
       <header className="sticky top-0 z-10 border-b border-black/5 bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4">
-          <a href="/index-main.html" className="text-lg font-semibold tracking-[0.35em] text-[#1f1714]">REAGE</a>
+          <a href="/" className="text-lg font-semibold tracking-[0.35em] text-[#1f1714]">REAGE</a>
           <div className="flex items-center gap-3">
             <a href="/reage-device.html" className="text-sm text-[#6f645d] transition hover:text-[#1f1714]">제품소개</a>
             <button
               onClick={async () => {
                 await logout();
-                window.location.href = "/index-main.html";
+                window.location.href = "/";
               }}
               className="text-sm font-medium text-[#8b1a1a] transition hover:text-[#731515]"
             >

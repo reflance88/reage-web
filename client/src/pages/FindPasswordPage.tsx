@@ -163,7 +163,7 @@ export default function FindPasswordPage() {
       alignItems: "center", justifyContent: "center", padding: "32px 20px",
       fontFamily: "'Noto Sans KR', sans-serif"
     }}>
-      <a href="/index-main.html" style={{ marginBottom: "28px", textDecoration: "none" }}>
+      <a href="/" style={{ marginBottom: "28px", textDecoration: "none" }}>
         <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: ".12em", color: "#1A1412" }}>
           RE<span style={{ color: "#6B0F1A" }}>A</span>GE
         </div>

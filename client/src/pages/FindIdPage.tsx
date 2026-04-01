@@ -46,7 +46,7 @@ export default function FindIdPage() {
       }}
     >
       <a
-        href="/index-main.html"
+        href="/"
         style={{ marginBottom: "28px", textDecoration: "none" }}
       >
         <div

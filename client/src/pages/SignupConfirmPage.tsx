@@ -62,7 +62,7 @@ export default function SignupConfirmPage() {
   const confirmationRequired = Boolean(summary?.confirmationRequired);
   const loginHref = `/login?returnTo=${encodeURIComponent(resolvedReturnTo)}`;
   const primaryHref = confirmationRequired
-    ? "/index-main.html"
+    ? "/"
     : resolvedReturnTo;
 
   const handlePrimaryClick = () => {

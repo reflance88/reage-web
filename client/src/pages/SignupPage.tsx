@@ -826,7 +826,7 @@ export default function SignupPage() {
       }}
     >
       <a
-        href="/index-main.html"
+        href="/"
         style={{ marginBottom: "28px", textDecoration: "none" }}
       >
         <div
@@ -1167,7 +1167,7 @@ export default function SignupPage() {
               }}
             >
               <a
-                href="/index-main.html"
+                href="/"
                 style={{
                   height: "56px",
                   display: "inline-flex",

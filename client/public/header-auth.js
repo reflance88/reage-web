@@ -4,10 +4,10 @@
  */
 (function () {
   var LEGACY_ROUTE_MAP = {
-    'index.html': '/index-main.html',
-    '/index.html': '/index-main.html',
-    'index.html#empathy': '/brand-intro.html',
-    '/index.html#empathy': '/brand-intro.html',
+    'index.html': '/',
+    '/index.html': '/',
+    'index.html#empathy': '/reage-story.html',
+    '/index.html#empathy': '/reage-story.html',
     'index.html#brand-story': '/brand-story.html',
     '/index.html#brand-story': '/brand-story.html',
     'index.html#why-hands': '/therapy.html',
@@ -62,13 +62,13 @@
       if (logo.tagName === 'A') {
         var currentHref = logo.getAttribute('href');
         if (!currentHref || currentHref === 'index.html' || currentHref === '/index.html') {
-          logo.setAttribute('href', '/index-main.html');
+          logo.setAttribute('href', '/');
         }
         return;
       }
 
       var goHome = function () {
-        window.location.href = '/index-main.html';
+        window.location.href = '/';
       };
 
       logo.setAttribute('role', 'link');

@@ -44,7 +44,7 @@ export default function PaymentFailPage() {
         >
           다시 결제하기
         </button>
-        <a href="/index-main.html" className="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors">
+        <a href="/" className="px-6 py-2.5 border border-gray-200 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors">
           홈으로
         </a>
       </div>
