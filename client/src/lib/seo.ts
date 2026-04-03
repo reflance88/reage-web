@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 const DEFAULT_TITLE = "레아쥬 | 올핸드 주파 미세전류 테라피 REAGE";
 const DEFAULT_DESCRIPTION = "레아쥬 공식 사이트. 올핸드 주파 미세전류 테라피, 레아쥬 기기, 아카데미, 도입 상담 정보를 제공합니다.";
-const DEFAULT_OG_IMAGE = "https://www.reage.co.kr/og-default.svg";
+const DEFAULT_OG_IMAGE = "https://www.reage.co.kr/mainimage.png";
 
 type SeoOptions = {
   canonicalPath?: string | null;
