@@ -1,8 +1,11 @@
 /**
- * REAGE i18n — KOR/ENG Toggle
+ * REAGE i18n — KOR/ENG Toggle v2
  * 
- * Usage: Each page sets window.__pageTranslations = { "한국어텍스트": "English text", ... }
- * then includes this script. The toggle button is auto-injected into the header.
+ * Handles:
+ * - Plain text nodes
+ * - Elements with <br> split text (matches on element.textContent)
+ * - Placeholder attributes
+ * - Alt attributes on images
  */
 (function () {
   'use strict';
@@ -60,7 +63,9 @@
     "닫기": "Close",
     "전체보기": "View All",
     "상담 신청": "Request Consultation",
-    "도입 상담 신청": "Request Consultation"
+    "도입 상담 신청": "Request Consultation",
+    "도입 상담": "Adoption Consultation",
+    "홈": "Home"
   };
 
   /* ── Merge page-specific translations ── */
@@ -69,81 +74,179 @@
   Object.keys(common).forEach(function (k) { dict[k] = common[k]; });
   Object.keys(pageT).forEach(function (k) { dict[k] = pageT[k]; });
 
+  /* ── Auto-generate line-level entries from multi-line keys ── */
+  var extraLines = {};
+  Object.keys(dict).forEach(function (k) {
+    if (k.indexOf('\n') !== -1) {
+      var koLines = k.split('\n');
+      var enLines = dict[k].split('\n');
+      for (var i = 0; i < koLines.length; i++) {
+        var kl = koLines[i].trim();
+        var el = (enLines[i] || '').trim();
+        if (kl && el && !dict[kl]) {
+          extraLines[kl] = el;
+        }
+      }
+    }
+  });
+  Object.keys(extraLines).forEach(function (k) { dict[k] = extraLines[k]; });
+
   /* ── State ── */
   var STORAGE_KEY = 'reage_lang';
   var currentLang = localStorage.getItem(STORAGE_KEY) || 'ko';
-  var originalTexts = new Map(); // node -> original text
 
-  /* ── DOM Walker ── */
-  function getTextElements(root) {
-    var els = [];
-    var walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
-    var node;
-    while (node = walk.nextNode()) {
-      var trimmed = node.textContent.trim();
-      if (trimmed && trimmed.length > 0) {
-        els.push(node);
-      }
-    }
-    return els;
+  /* ── Storage for originals ── */
+  var originalTextNodes = new Map();   // textNode -> originalText
+  var originalElements = new Map();    // element -> originalInnerHTML
+  var originalPlaceholders = new Map();
+  var processed = false;
+
+  /* ── Normalize whitespace for matching ── */
+  function norm(s) {
+    return s.replace(/\s+/g, ' ').trim();
   }
 
+  /* ── Find a translation, trying various normalizations ── */
+  function findTranslation(text) {
+    var trimmed = text.trim();
+    if (dict[trimmed]) return dict[trimmed];
+    
+    var normalized = norm(text);
+    if (dict[normalized]) return dict[normalized];
+    
+    // Try without quotes
+    var noQuotes = trimmed.replace(/[""]/g, '"');
+    if (dict[noQuotes]) return dict[noQuotes];
+    
+    return null;
+  }
+
+  /* ── Process elements that contain <br> (translate as a whole unit) ── */
+  function processBrElements(root) {
+    // Find elements that have <br> children and Korean text
+    var allEls = root.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, a, li, td, th, label, button, div');
+    
+    allEls.forEach(function (el) {
+      // Skip if has complex children (other than br, em, strong, span)
+      var dominated = true;
+      for (var i = 0; i < el.childNodes.length; i++) {
+        var child = el.childNodes[i];
+        if (child.nodeType === 1) { // Element
+          var tag = child.tagName.toLowerCase();
+          if (['br', 'em', 'strong', 'b', 'i', 'span', 'small'].indexOf(tag) === -1) {
+            dominated = false;
+            break;
+          }
+        }
+      }
+      if (!dominated) return;
+      
+      // Check if contains <br>
+      if (!el.querySelector('br')) return;
+      
+      // Get the full text content 
+      var fullText = el.textContent;
+      var translation = findTranslation(fullText);
+      
+      if (translation) {
+        if (!originalElements.has(el)) {
+          originalElements.set(el, el.innerHTML);
+        }
+      }
+    });
+  }
+
+  /* ── Apply language ── */
   function applyLanguage(lang) {
     currentLang = lang;
     localStorage.setItem(STORAGE_KEY, lang);
     document.documentElement.setAttribute('lang', lang === 'ko' ? 'ko' : 'en');
 
-    var textNodes = getTextElements(document.body);
-    textNodes.forEach(function (node) {
-      // Save original on first encounter
-      if (!originalTexts.has(node)) {
-        originalTexts.set(node, node.textContent);
-      }
-
-      if (lang === 'en') {
-        var original = originalTexts.get(node);
-        var trimmed = original.trim();
-        if (dict[trimmed]) {
-          // Preserve leading/trailing whitespace
-          node.textContent = original.replace(trimmed, dict[trimmed]);
-        }
-      } else {
-        // Restore Korean
-        if (originalTexts.has(node)) {
-          node.textContent = originalTexts.get(node);
+    if (!processed) {
+      // First pass: scan and store originals
+      processBrElements(document.body);
+      
+      // Walk all text nodes
+      var walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+      var node;
+      while (node = walk.nextNode()) {
+        var trimmed = node.textContent.trim();
+        if (trimmed && trimmed.length > 0) {
+          if (!originalTextNodes.has(node)) {
+            originalTextNodes.set(node, node.textContent);
+          }
         }
       }
-    });
+      
+      // Store placeholders
+      var inputs = document.querySelectorAll('[placeholder]');
+      inputs.forEach(function (el) {
+        if (!originalPlaceholders.has(el)) {
+          originalPlaceholders.set(el, el.getAttribute('placeholder'));
+        }
+      });
+      
+      processed = true;
+    }
 
-    // Also translate placeholder attributes
-    var inputs = document.querySelectorAll('[placeholder]');
-    inputs.forEach(function (el) {
-      if (!el._origPlaceholder) {
-        el._origPlaceholder = el.getAttribute('placeholder');
-      }
-      if (lang === 'en') {
-        var ph = el._origPlaceholder.trim();
-        if (dict[ph]) el.setAttribute('placeholder', dict[ph]);
-      } else {
-        el.setAttribute('placeholder', el._origPlaceholder);
-      }
-    });
+    if (lang === 'en') {
+      // Translate elements with <br> first
+      originalElements.forEach(function (origHTML, el) {
+        var fullText = norm(el.textContent);
+        var translation = findTranslation(el.textContent) || findTranslation(fullText);
+        if (translation) {
+          // Replace innerHTML: put translation lines separated by <br>
+          var lines = translation.split('\n');
+          el.innerHTML = lines.join('<br/>');
+        }
+      });
 
-    // Update toggle button
+      // Translate text nodes
+      originalTextNodes.forEach(function (origText, node) {
+        // Skip nodes inside already-translated elements
+        var parent = node.parentElement;
+        if (parent && originalElements.has(parent)) return;
+        
+        var trimmed = origText.trim();
+        var translation = findTranslation(trimmed);
+        if (translation) {
+          node.textContent = origText.replace(trimmed, translation);
+        }
+      });
+      
+      // Translate placeholders
+      originalPlaceholders.forEach(function (origPh, el) {
+        var translation = findTranslation(origPh);
+        if (translation) el.setAttribute('placeholder', translation);
+      });
+    } else {
+      // Restore Korean
+      originalElements.forEach(function (origHTML, el) {
+        el.innerHTML = origHTML;
+      });
+      
+      originalTextNodes.forEach(function (origText, node) {
+        node.textContent = origText;
+      });
+      
+      originalPlaceholders.forEach(function (origPh, el) {
+        el.setAttribute('placeholder', origPh);
+      });
+    }
+
     updateToggleBtn();
   }
 
   /* ── Toggle Button ── */
   function updateToggleBtn() {
-    var btn = document.getElementById('lang-toggle-btn');
-    if (btn) {
+    var btns = document.querySelectorAll('#lang-toggle-btn, #lang-toggle-btn-mobile');
+    btns.forEach(function (btn) {
       btn.textContent = currentLang === 'ko' ? 'ENG' : 'KOR';
       btn.title = currentLang === 'ko' ? 'Switch to English' : '한국어로 전환';
-    }
+    });
   }
 
   function injectToggleButton() {
-    // Find header-cta area or create button near header
     var headerCta = document.querySelector('.header-cta');
     var btn = document.createElement('button');
     btn.id = 'lang-toggle-btn';
@@ -179,26 +282,11 @@
     if (headerCta) {
       headerCta.insertBefore(btn, headerCta.firstChild);
     } else {
-      // Fallback: fixed button at top-right
       btn.style.position = 'fixed';
       btn.style.top = '16px';
       btn.style.right = '16px';
       btn.style.zIndex = '10000';
       document.body.appendChild(btn);
-    }
-
-    // Also add to mobile menu if it exists
-    var mobileMenu = document.querySelector('.mobile-menu, .mobile-nav, #mobile-menu');
-    if (mobileMenu) {
-      var mBtn = btn.cloneNode(true);
-      mBtn.id = 'lang-toggle-btn-mobile';
-      mBtn.style.margin = '12px auto';
-      mBtn.style.display = 'block';
-      mBtn.addEventListener('click', function () {
-        applyLanguage(currentLang === 'ko' ? 'en' : 'ko');
-        mBtn.textContent = currentLang === 'ko' ? 'ENG' : 'KOR';
-      });
-      mobileMenu.appendChild(mBtn);
     }
   }
 
@@ -206,8 +294,7 @@
   function init() {
     injectToggleButton();
     if (currentLang === 'en') {
-      // Small delay to let DOM settle
-      setTimeout(function () { applyLanguage('en'); }, 50);
+      setTimeout(function () { applyLanguage('en'); }, 100);
     }
   }
 
