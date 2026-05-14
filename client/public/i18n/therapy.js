@@ -118,5 +118,15 @@ window.__pageTranslations = {
   "레아쥬 도입 상담을 통해 에스테틱의 미래를 함께 설계하세요.": "Design the future of your aesthetics clinic through a REAGE consultation.",
   "아카데미 교육 문의": "Academy Education Inquiry",
   "본 페이지의 내용은 의료행위·치료 목적이 아닌 테라피·관리 정보입니다.": "The content of this page is therapy and care information, not for medical treatment purposes.",
-  "효과는 개인차가 있으며, 측정 데이터는 일본 연구기관의 결과입니다.": "Results vary by individual, and measurement data are from Japanese research institutions."
+  "효과는 개인차가 있으며, 측정 데이터는 일본 연구기관의 결과입니다.": "Results vary by individual, and measurement data are from Japanese research institutions.",
+  "장바구니 담기": "Add to Cart",
+  "구매하기": "Buy Now",
+  "일반 판매가": "Regular Price",
+  "품절": "Sold Out",
+  "인증 필요": "Certification Required",
+  "인증 후 구매": "Purchase After Certification",
+  "홈": "Home",
+  "로그인": "Login",
+  "장바구니": "Cart",
+  "회원가입": "Sign Up"
 };

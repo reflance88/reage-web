@@ -63,5 +63,16 @@ window.__pageTranslations = {
   "직접 경험해 보세요.": "for yourself.",
   "20년의 깊이가 담긴 올핸드 주파 미세전류 테라피. 30분이면 충분합니다.": "All-Hand Frequency Microcurrent Therapy with 20 years of depth. 30 minutes is all it takes.",
   "도입 상담 신청": "Request Consultation",
-  "레아쥬 기기 보기 →": "View REAGE Device →"
+  "레아쥬 기기 보기 →": "View REAGE Device →",
+  "장바구니 담기": "Add to Cart",
+  "구매하기": "Buy Now",
+  "일반 판매가": "Regular Price",
+  "품절": "Sold Out",
+  "인증 필요": "Certification Required",
+  "인증 후 구매": "Purchase After Certification",
+  "홈": "Home",
+  "레아쥬": "REAGE",
+  "로그인": "Login",
+  "장바구니": "Cart",
+  "회원가입": "Sign Up"
 };

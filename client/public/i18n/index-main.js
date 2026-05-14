@@ -186,5 +186,16 @@ window.__pageTranslations = {
   "원장님이 은퇴하실 때까지,": "Until the day you retire —",
   "같은 출력, 같은 신뢰.": "same output, same reliability.",
   "\"레아쥬는 그 기준을 처음 만들었고, 지금도 지키고 있습니다.\"": "\"REAGE established that standard first and continues to uphold it today.\"",
-  "레아쥬는 그 기준을 처음 만들었고, 지금도 지키고 있습니다.": "REAGE established that standard first and continues to uphold it today."
+  "레아쥬는 그 기준을 처음 만들었고, 지금도 지키고 있습니다.": "REAGE established that standard first and continues to uphold it today.",
+  "장바구니 담기": "Add to Cart",
+  "구매하기": "Buy Now",
+  "일반 판매가": "Regular Price",
+  "품절": "Sold Out",
+  "인증 필요": "Certification Required",
+  "인증 후 구매": "Purchase After Certification",
+  "홈": "Home",
+  "레아쥬": "REAGE",
+  "로그인": "Login",
+  "장바구니": "Cart",
+  "회원가입": "Sign Up"
 };

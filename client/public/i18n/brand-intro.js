@@ -98,5 +98,14 @@ window.__pageTranslations = {
   "계좌정보": "Bank Account Info",
   "예금주": "Account Holder",
   "주식회사리플런스": "Reflance Inc.",
-  "본 홈페이지의 모든 내용은 테라피·관리 정보를 목적으로 하며, 의료행위·질병 치료·의학적 효능을 주장하지 않습니다. 개인에 따라 체감 효과는 다를 수 있습니다.": "All content on this website is for therapy and care information purposes and does not claim medical practice, disease treatment, or medical efficacy. Perceived effects may vary by individual."
+  "본 홈페이지의 모든 내용은 테라피·관리 정보를 목적으로 하며, 의료행위·질병 치료·의학적 효능을 주장하지 않습니다. 개인에 따라 체감 효과는 다를 수 있습니다.": "All content on this website is for therapy and care information purposes and does not claim medical practice, disease treatment, or medical efficacy. Perceived effects may vary by individual.",
+  "장바구니 담기": "Add to Cart",
+  "구매하기": "Buy Now",
+  "일반 판매가": "Regular Price",
+  "품절": "Sold Out",
+  "인증 필요": "Certification Required",
+  "인증 후 구매": "Purchase After Certification",
+  "로그인": "Login",
+  "장바구니": "Cart",
+  "회원가입": "Sign Up"
 };

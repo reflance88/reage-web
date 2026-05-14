@@ -80,5 +80,16 @@ window.__pageTranslations = {
   "교육 후 지속적인 지원이 있나요?": "Is there ongoing support after training?",
   "도입 이후에도 정기 연습회, 신규 테크닉 업데이트 교육, 운영 상담, 홍보 자료 지원 등 지속적인 사후 관리를 제공합니다. 레아쥬는 기기 판매가 아닌 시스템 파트너십을 지향합니다.": "Even after adoption, we provide continuous after-care including regular practice sessions, new technique update training, operational consulting, and promotional material support. REAGE pursues system partnership, not device sales.",
   "교육 문의는 언제든지 환영합니다.": "Training inquiries are always welcome.",
-  "매주 목요일 정기 교육 외에도, 개인 일정에 맞춘 상담이 가능합니다.": "In addition to regular Thursday training, consultations tailored to your schedule are available."
+  "매주 목요일 정기 교육 외에도, 개인 일정에 맞춘 상담이 가능합니다.": "In addition to regular Thursday training, consultations tailored to your schedule are available.",
+  "장바구니 담기": "Add to Cart",
+  "구매하기": "Buy Now",
+  "일반 판매가": "Regular Price",
+  "품절": "Sold Out",
+  "인증 필요": "Certification Required",
+  "인증 후 구매": "Purchase After Certification",
+  "홈": "Home",
+  "레아쥬": "REAGE",
+  "로그인": "Login",
+  "장바구니": "Cart",
+  "회원가입": "Sign Up"
 };

@@ -39,5 +39,16 @@ window.__pageTranslations = {
   "체험 예약하기": "Book a Trial",
   "도입 상담 신청": "Apply for Introduction Consultation",
   "← 이전": "← Previous",
-  "다음 →": "Next →"
+  "다음 →": "Next →",
+  "장바구니 담기": "Add to Cart",
+  "구매하기": "Buy Now",
+  "일반 판매가": "Regular Price",
+  "품절": "Sold Out",
+  "인증 필요": "Certification Required",
+  "인증 후 구매": "Purchase After Certification",
+  "홈": "Home",
+  "레아쥬": "REAGE",
+  "로그인": "Login",
+  "장바구니": "Cart",
+  "회원가입": "Sign Up"
 };

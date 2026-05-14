@@ -22,5 +22,16 @@ window.__pageTranslations = {
   "수백 명의 에스테틱이 선택한 이유가 있습니다.": "There's a reason hundreds of aesthetics have chosen it.",
   "도입 상담을 통해 에스테틱의 미래를 함께 설계하세요.": "Design the future of your aesthetics together through an introduction consultation.",
   "도입 상담 신청": "Apply for Introduction Consultation",
-  "아카데미 교육 보기": "View Academy Training"
+  "아카데미 교육 보기": "View Academy Training",
+  "장바구니 담기": "Add to Cart",
+  "구매하기": "Buy Now",
+  "일반 판매가": "Regular Price",
+  "품절": "Sold Out",
+  "인증 필요": "Certification Required",
+  "인증 후 구매": "Purchase After Certification",
+  "홈": "Home",
+  "레아쥬": "REAGE",
+  "로그인": "Login",
+  "장바구니": "Cart",
+  "회원가입": "Sign Up"
 };

@@ -72,5 +72,16 @@ window.__pageTranslations = {
   "REAGE 공식 카탈로그": "REAGE Official Catalog",
   "제출 중...": "Submitting...",
   "제출 중 오류가 발생했습니다.": "An error occurred during submission.",
-  "잠시 후 다시 시도해주세요.": "Please try again later."
+  "잠시 후 다시 시도해주세요.": "Please try again later.",
+  "장바구니 담기": "Add to Cart",
+  "구매하기": "Buy Now",
+  "일반 판매가": "Regular Price",
+  "품절": "Sold Out",
+  "인증 필요": "Certification Required",
+  "인증 후 구매": "Purchase After Certification",
+  "홈": "Home",
+  "레아쥬": "REAGE",
+  "로그인": "Login",
+  "장바구니": "Cart",
+  "회원가입": "Sign Up"
 };

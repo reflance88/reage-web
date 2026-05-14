@@ -21,5 +21,16 @@ window.__pageTranslations = {
   "구독하기": "Subscribe",
   "언제든지 구독 해지 가능합니다. 스팸 메일을 보내지 않습니다.": "You can unsubscribe at any time. We do not send spam.",
   "구독 신청이 완료되었습니다. 감사합니다!": "Subscription completed. Thank you!",
-  "올바른 이메일 주소를 입력해주세요.": "Please enter a valid email address."
+  "올바른 이메일 주소를 입력해주세요.": "Please enter a valid email address.",
+  "장바구니 담기": "Add to Cart",
+  "구매하기": "Buy Now",
+  "일반 판매가": "Regular Price",
+  "품절": "Sold Out",
+  "인증 필요": "Certification Required",
+  "인증 후 구매": "Purchase After Certification",
+  "홈": "Home",
+  "레아쥬": "REAGE",
+  "로그인": "Login",
+  "장바구니": "Cart",
+  "회원가입": "Sign Up"
 };
