@@ -286,12 +286,9 @@
     });
   }
 
-  function injectToggleButton() {
-    if (document.getElementById('lang-toggle-btn')) return;
-
-    var headerCta = document.querySelector('.header-cta');
+  function createToggleBtn(id) {
     var btn = document.createElement('button');
-    btn.id = 'lang-toggle-btn';
+    btn.id = id;
     btn.textContent = currentLang === 'ko' ? 'ENG' : 'KOR';
     btn.title = currentLang === 'ko' ? 'Switch to English' : '한국어로 전환';
     btn.style.cssText = [
@@ -320,15 +317,42 @@
     btn.addEventListener('click', function () {
       applyLanguage(currentLang === 'ko' ? 'en' : 'ko');
     });
+    return btn;
+  }
 
+  function injectToggleButton() {
+    if (document.getElementById('lang-toggle-btn')) return;
+
+    // 1. Desktop: inside .header-cta
+    var headerCta = document.querySelector('.header-cta');
     if (headerCta) {
-      headerCta.insertBefore(btn, headerCta.firstChild);
-    } else {
-      btn.style.position = 'fixed';
-      btn.style.top = '16px';
-      btn.style.right = '16px';
-      btn.style.zIndex = '10000';
-      document.body.appendChild(btn);
+      headerCta.insertBefore(createToggleBtn('lang-toggle-btn'), headerCta.firstChild);
+    }
+
+    // 2. Mobile: next to hamburger menu (always visible on mobile)
+    var header = document.querySelector('#header .inner, header .inner');
+    var hamburger = document.querySelector('.hamburger');
+    if (header && hamburger) {
+      var mBtn = createToggleBtn('lang-toggle-btn-mobile');
+      mBtn.style.cssText += ';display:none;margin-right:8px;';
+      header.insertBefore(mBtn, hamburger);
+      // Show/hide based on screen width
+      var mq = window.matchMedia('(max-width: 900px)');
+      function handleMQ(e) {
+        mBtn.style.display = e.matches ? 'inline-block' : 'none';
+      }
+      mq.addEventListener('change', handleMQ);
+      handleMQ(mq);
+    }
+
+    // 3. Fallback: fixed position if no header found
+    if (!headerCta && !hamburger) {
+      var fallback = createToggleBtn('lang-toggle-btn');
+      fallback.style.position = 'fixed';
+      fallback.style.top = '16px';
+      fallback.style.right = '16px';
+      fallback.style.zIndex = '10000';
+      document.body.appendChild(fallback);
     }
   }
 
